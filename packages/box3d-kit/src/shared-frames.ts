@@ -9,6 +9,7 @@
 const HEADER_INTS = 8; // seq, count, colorRevision, capacity, reserved…
 const SEQ = 0, COUNT = 1, COLOR_REV = 2, CAPACITY = 3;
 
+/** True when SharedArrayBuffer can be used here (in a browser, when the page is cross-origin isolated). */
 export function sharedMemoryAvailable(): boolean {
   const g = globalThis as {SharedArrayBuffer?: unknown; crossOriginIsolated?: boolean};
   return typeof g.SharedArrayBuffer === 'function' && g.crossOriginIsolated !== false;
@@ -21,6 +22,7 @@ function layout(buffer: SharedArrayBuffer, capacity: number) {
   return {header, matrices, colors};
 }
 
+/** The writing side of a SharedArrayBuffer that carries a world's instance transforms and colours from a worker to the page without copying through messages. */
 export class SharedFrameWriter {
   readonly buffer: SharedArrayBuffer;
   readonly capacity: number;
@@ -51,6 +53,7 @@ export class SharedFrameWriter {
   }
 }
 
+/** The reading side of a shared frame buffer: update() takes the newest complete frame and reports whether anything changed. */
 export class SharedFrameReader {
   private readonly view: ReturnType<typeof layout>;
   readonly capacity: number;

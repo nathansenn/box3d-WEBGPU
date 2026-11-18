@@ -32,6 +32,6 @@ export class PressDriveView {
     this.toggle.disabled=disabled;this.badge.disabled=disabled;
     this.badge.title=`Requested ${requested.toFixed(1)}% of model drive capacity`;
     this.root.dataset.pressRequested=String(requested);
-    this.root.querySelector('label[for=press-pressure]')!.textContent=disabled?'Recorded pressure':this.selected==='steady'?'Applied pressure':'Pressure limit';
+    this.root.querySelector('label[for=press-pressure]')!.textContent=disabled?'Recorded force limit':this.selected==='steady'?'Ram force limit':'Programmed force limit';
   }
 }

@@ -19,6 +19,33 @@ does bundle a reproducible WebAssembly binary built from Box3D `v0.1.0`
 remains subject to its own upstream copyright and license; a copy is shipped
 beside the binary in `public/box3d/BOX3D_LICENSE.txt`.
 
+## Emscripten runtime and C library inside the WebAssembly
+
+- `public/box3d/box3d.js` (and `box3d-mt.js`) is the JavaScript runtime that Emscripten 4.0.23 generates; the
+  `.wasm` files link Emscripten's system libraries, including the musl C library.
+- Emscripten: copyright the Emscripten authors; available under the MIT license and the University of Illinois/NCSA
+  Open Source License (its `LICENSE` file states both).
+- musl: copyright 2005-2020 Rich Felker and others; MIT license (its `COPYRIGHT` file).
+
+The kit package ships the same `box3d.js` and `box3d.wasm` in its `wasm/` directory, with `BOX3D_LICENSE.txt` beside
+them.
+
+## three.js
+
+- npm package: `three` 0.185.1; copyright 2010-2025 three.js authors; MIT license.
+- Bundled into the Engineering Studio's build. The kit's `box3d-webgpu-kit/three` adapter imports nothing from it:
+  it works on any object shaped like an `InstancedMesh`, and lists `three` as an optional peer dependency.
+
+## Fonts
+
+- Inter (`@fontsource/inter` 5.3.0), IBM Plex Mono (`@fontsource/ibm-plex-mono` 5.3.0) and Barlow Condensed
+  (`@fontsource/barlow-condensed` 5.3.0), each under the SIL Open Font License 1.1 as declared by its package.
+- The font files are bundled into the applications' builds; the license texts come with the npm packages.
+
+## Phosphor Icons
+
+- npm package: `@phosphor-icons/web` 2.1.2; MIT license. Bundled into the applications' builds.
+
 ## Dawn / node-webgpu validation dependency
 
 - npm package: `webgpu` 0.4.x

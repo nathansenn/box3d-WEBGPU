@@ -1,6 +1,8 @@
 node_modules/
 dist/
 build/
+# The documentation site: built by scripts/build-docs.mjs (npm run build runs it), not committed.
+public/docs/
 .test-build/
 .bench-build/
 benchmarks/results/logs/

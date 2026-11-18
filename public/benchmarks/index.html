@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- No inline script or style, and nothing from another origin: the page reads ./benchmarks.json and nothing else. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#0e1112" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f6f5f1" media="(prefers-color-scheme: light)">
+  <meta name="description" content="Box3D WebGPU against Rapier, Jolt, PhysX, Havok, ammo.js and cannon-es on identical scenes: step times, memory, bundle size and solver quality, with the settings and version of every engine.">
+  <title>Box3D engine comparison: measured against other web physics engines</title>
+  <link rel="icon" type="image/png" href="../studio/references/material-labs/liquid.png">
+  <link rel="stylesheet" href="./benchmarks.css">
+  <script type="module" src="./benchmarks.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to the results</a>
+  <header class="top">
+    <p class="crumbs"><a href="../">Engineering Studio</a> <span aria-hidden="true">/</span> <a href="../lab.html">Physics Lab</a> <span aria-hidden="true">/</span> <a href="../validation/">Validation</a> <span aria-hidden="true">/</span> <span aria-current="page">Engine comparison</span></p>
+    <h1>Measured against other web physics engines</h1>
+    <p class="lede">The same scenes, with the same shapes, masses, friction and time step, run in this engine and in the current npm releases of Rapier, Jolt, PhysX, Havok, ammo.js and cannon-es. Every number carries the engine version, its settings and the date. The harness is in the repository; anyone can rerun it.</p>
+    <p id="status" class="status" role="status" aria-live="polite">Loading the measured results…</p>
+  </header>
+  <main id="main" tabindex="-1">
+    <section id="standing" aria-labelledby="standing-title" hidden>
+      <h2 id="standing-title">Where this engine stands</h2>
+      <p id="standing-lede" class="meta"></p>
+      <div class="columns">
+        <div><h3>Slower than another engine by more than 10 %</h3><ul id="losses" class="plain"></ul></div>
+        <div><h3>Quality measures where another engine does better by more than a tenth</h3><ul id="quality-losses" class="plain"></ul></div>
+      </div>
+    </section>
+
+    <section id="charts" aria-labelledby="charts-title" hidden>
+      <h2 id="charts-title">Step time per scene</h2>
+      <p class="meta">CPU milliseconds per 1/60 s step on one thread: the bar is the mean over the run and the repeats, the tick is the 95th percentile. Shorter is faster. A bar that would be longer than six times the fastest is cut and marked; its number is exact.</p>
+      <div class="controls">
+        <fieldset class="switch"><legend>Solver settings</legend>
+          <label><input type="radio" name="config" value="default" checked> Each engine's default</label>
+          <label><input type="radio" name="config" value="8"> Equal budget (8 passes)</label>
+        </fieldset>
+      </div>
+      <ul class="legend" aria-label="Legend">
+        <li><svg class="key" viewBox="0 0 28 12" aria-hidden="true"><rect class="bar own" x="0" y="2" width="28" height="8"></rect></svg> This engine</li>
+        <li><svg class="key" viewBox="0 0 28 12" aria-hidden="true"><rect class="bar other" x="0" y="2" width="28" height="8"></rect></svg> Other engine</li>
+        <li><svg class="key" viewBox="0 0 28 12" aria-hidden="true"><rect class="bar unfinished" x="0" y="2" width="28" height="8"></rect></svg> Stopped at the time budget</li>
+        <li><svg class="key" viewBox="0 0 28 12" aria-hidden="true"><rect class="bar other" x="0" y="2" width="18" height="8"></rect><rect class="tick" x="24" y="0" width="2" height="12"></rect></svg> 95th percentile</li>
+        <li><svg class="key" viewBox="0 0 28 12" aria-hidden="true"><rect class="bar other" x="0" y="2" width="22" height="8"></rect><path class="cut" d="M22 1 l4 5 l-4 5"></path></svg> Cut: longer than the scale</li>
+      </ul>
+      <div id="chart-grid" class="grid"></div>
+    </section>
+
+    <section id="engines" aria-labelledby="engines-title" hidden>
+      <h2 id="engines-title">Engines, versions and settings</h2>
+      <div class="scroll" role="region" aria-labelledby="engines-title" tabindex="0"><table id="engines-table" class="sortable"></table></div>
+      <div id="engine-notes"></div>
+    </section>
+
+    <section id="detail" aria-labelledby="detail-title" hidden>
+      <h2 id="detail-title">Every timing</h2>
+      <p class="meta">One row per scene and engine. Choose a column to sort by it. The ratio is the median, over the repeats, of this row's time divided by this engine's time in the same repeat.</p>
+      <div class="controls">
+        <label for="scene-filter">Scene</label>
+        <select id="scene-filter"></select>
+        <label for="engine-filter">Engine</label>
+        <select id="engine-filter"></select>
+        <label for="config-filter">Settings</label>
+        <select id="config-filter"><option value="default">Each engine's default</option><option value="8">Equal budget (8 passes)</option></select>
+      </div>
+      <div class="scroll" role="region" aria-labelledby="detail-title" tabindex="0"><table id="detail-table" class="sortable"></table></div>
+    </section>
+
+    <section id="rays" aria-labelledby="rays-title" hidden>
+      <h2 id="rays-title">Ray casts</h2>
+      <p id="rays-lede" class="meta"></p>
+      <div id="rays-chart" class="grid one"></div>
+      <div class="scroll" role="region" aria-labelledby="rays-title" tabindex="0"><table id="rays-table" class="sortable"></table></div>
+    </section>
+
+    <section id="quality" aria-labelledby="quality-title" hidden>
+      <h2 id="quality-title">Solver quality</h2>
+      <p class="meta">Measured against closed forms where one exists: an ideal chain does not stretch, rigid boxes do not overlap, a frictionless pendulum keeps its energy, a sphere with restitution e rebounds to e² of its drop height. Default settings; choose a column to sort.</p>
+      <div id="quality-tables"></div>
+    </section>
+
+    <section id="determinism" aria-labelledby="determinism-title" hidden>
+      <h2 id="determinism-title">Determinism, memory and size</h2>
+      <div class="scroll" role="region" aria-labelledby="determinism-title" tabindex="0"><table id="determinism-table" class="sortable"></table></div>
+    </section>
+
+    <section id="failures" aria-labelledby="failures-title" hidden>
+      <h2 id="failures-title">Failed and unfinished runs</h2>
+      <p class="meta">A run that throws, or that does not finish inside its time budget, is listed here and never dropped.</p>
+      <div class="scroll" role="region" aria-labelledby="failures-title" tabindex="0"><table id="failures-table"></table></div>
+    </section>
+
+    <section id="actions" aria-labelledby="actions-title" hidden>
+      <h2 id="actions-title">What was changed after measuring</h2>
+      <div id="optimizations"></div>
+      <h3>Recommendations for the C side</h3>
+      <div id="recommendations"></div>
+    </section>
+
+    <section id="method" aria-labelledby="method-title" hidden>
+      <h2 id="method-title">Method</h2>
+      <p id="machine" class="meta"></p>
+      <ul id="method-list" class="plain"></ul>
+    </section>
+    <noscript><p class="status">This page needs JavaScript to draw the tables and charts. The same report is in <a href="https://github.com/nathansenn/box3d-WEBGPU/blob/main/docs/BENCHMARKS_ENGINES.md">docs/BENCHMARKS_ENGINES.md</a>, and the data in <a href="./benchmarks.json">benchmarks.json</a>.</p></noscript>
+  </main>
+  <footer class="bottom">
+    <p>Generated by <code>npm run bench:engines</code> from <a href="https://github.com/nathansenn/box3d-WEBGPU/tree/main/benchmarks/engines">benchmarks/engines/</a>. The same report as text: <a href="https://github.com/nathansenn/box3d-WEBGPU/blob/main/docs/BENCHMARKS_ENGINES.md">docs/BENCHMARKS_ENGINES.md</a>. The data: <a href="./benchmarks.json">benchmarks.json</a> (<span id="schema">schema</span>).</p>
+    <p><a href="https://github.com/nathansenn/box3d-WEBGPU">BOX3D project repository</a> · <a href="../licenses/project.txt">License</a></p>
+  </footer>
+</body>
+</html>

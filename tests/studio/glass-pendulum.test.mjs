@@ -5,7 +5,7 @@ import '../../scripts/glass-collision-qualify.mjs';
 const {GlassPendulum,glassPendulumContacts}=await import('../../src/studio/material-labs/glass-pendulum.ts');
 const {ConvexBody,ConvexContactWorld,contactBox,CONTACT_SKIN}=await import('../../src/engine/convex-contact.ts');
 const {GLASS_RIG}=await import('../../src/studio/material-labs/glass-rig.ts');
-const {GlassModel}=await import('../../src/studio/material-labs/models.ts');
+const {ConvexGlassModel:GlassModel}=await import('../../src/studio/material-labs/glass-convex.ts');
 const {LABS}=await import('../../src/studio/material-labs/catalog.ts');
 const {referenceSphereContacts}=await import('../../scripts/glass-collision-qualify.mjs');
 const close=(a,b,t=1e-9)=>assert.ok(Math.abs(a-b)<t,`${a} != ${b}`);

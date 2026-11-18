@@ -16,6 +16,14 @@ const bridgePath = path.join(root, provenance.bridge.source);
 const bridgeSha256 = digest(bridgePath);
 let qualificationChanged = provenance.bridge.sha256 !== bridgeSha256;
 provenance.bridge.sha256 = bridgeSha256;
+// The exact-checkpoint glue (the one source that reads Box3D's internal structs) is part of the bridge.
+const snapshotPath = path.join(root, 'wasm/box3d_snapshot.c');
+if (fs.existsSync(snapshotPath)) {
+  const snapshotSha256 = digest(snapshotPath);
+  if (provenance.bridge.checkpointSha256 !== snapshotSha256) qualificationChanged = true;
+  provenance.bridge.checkpointSource = 'wasm/box3d_snapshot.c';
+  provenance.bridge.checkpointSha256 = snapshotSha256;
+}
 
 for (const name of ['box3d.js', 'box3d.wasm']) {
   const artifactPath = path.join(artifactDir, name);

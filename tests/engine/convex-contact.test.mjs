@@ -194,3 +194,36 @@ test('contact position projection preserves mass-weighted centres, fixed support
     removed.push(...world.bodies.map(b=>({array:b.position,values:[...b.position]})));
   }
 });
+
+test('persistent pairs and separation certificates reproduce the original search bit for bit',()=>{
+  // A tumbling pile with a mid-run fracture, a disabled body, a teleport and a rejected transaction.
+  function pile(persistent){
+    const world=new ConvexContactWorld();world.persistentPairs=persistent;
+    let seed=7;const rng=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
+    world.add(box([6,.2,6],[0,-.1,0],1,false));world.add(box([.2,2,6],[-1.2,1,0],1,false));world.add(box([.2,2,6],[1.2,1,0],1,false));
+    for(let i=0;i<30;i++){
+      const prism=i%2===0,mass=.2+rng();
+      const tri=[[-.2,-.12,0],[.22,-.1,0],[-.02,.22,0]],shape=prism?triangularPrism(tri,.02+rng()*.03,mass):contactBox([.15+rng()*.2,.05+rng()*.1,.15+rng()*.2],mass);
+      const body=world.add(new ConvexBody(shape,[(rng()-.5)*1.6,.3+i*.16,(rng()-.5)*1.2],mass,i%7!==3));
+      body.velocity=[(rng()-.5)*2,-rng()*2,(rng()-.5)*2];body.angularVelocity=[(rng()-.5)*14,(rng()-.5)*14,(rng()-.5)*14];body.friction=.4;body.restitution=.1;
+    }
+    world.externalForces=h=>{for(const b of world.bodies)if(b.dynamic)b.velocity[1]-=9.81*h;};
+    return world;
+  }
+  const state=w=>({bodies:w.bodies.map(b=>[...b.position,...b.rotation,...b.velocity,...b.angularVelocity,...b.pose.min,...b.pose.max]),stats:{...w.stats},impacts:w.impacts.map(i=>[w.bodies.indexOf(i.a),w.bodies.indexOf(i.b),i.speed,i.impulse])});
+  const fast=pile(true),reference=pile(false);let skipped=0,contacts=0;
+  for(let step=0;step<150;step++){
+    for(const w of [fast,reference]){
+      if(step===40)for(const b of w.bodies)if(!b.dynamic&&b.mass!==1)b.dynamic=true;
+      if(step===60)w.bodies[9].collisionEnabled=false;
+      if(step===75){w.bodies[9].collisionEnabled=true;w.bodies[12].position=[0,3,0];w.bodies[12].rotation=[0,Math.SQRT1_2,0,Math.SQRT1_2];w.bodies[12].sync();}
+      if(step===90)assert.throws(()=>w.transaction(()=>{w.step(1/120,1);w.step(1/120,1);throw new Error('reject');}),/reject/);
+      w.step(1/120,1);
+    }
+    assert.deepEqual(state(fast),state(reference),`step ${step}`);
+    contacts=Math.max(contacts,fast.stats.contacts);skipped+=fast.stats.narrowPhaseTests;
+  }
+  assert.ok(contacts>40&&skipped>1000,'the pile must exercise contacts and candidate pairs');
+  assert.ok(fast.neighborPairs>0&&fast.certificates.some(v=>v>1e-6&&v<1e3),'the persistent path must hold measured certificates');
+  assert.equal(reference.neighborCount,-1,'the reference world must use the original search');
+});

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { createServer } from 'vite';
-import { create, globals } from 'webgpu';
+import { createDawnGpu, globals } from './dawn-gpu.mjs';
 
 Object.assign(globalThis, globals);
 
@@ -213,7 +213,7 @@ try {
     assert.equal((await response.arrayBuffer()).byteLength, asset.fileBytes, `${asset.fileName} response must be complete`);
   }
 
-  const r8Gpu = create([`backend=${dawnBackend}`]);
+  const r8Gpu = createDawnGpu([`backend=${dawnBackend}`]);
   const adapter = await r8Gpu.requestAdapter();
   assert.ok(adapter, `Dawn ${dawnBackend} adapter must be available`);
 
@@ -247,7 +247,7 @@ try {
   const supportsBc = adapter.features.has('texture-compression-bc');
   let bc4Result = { supported: false };
   if (supportsBc) {
-    const bc4Gpu = create([`backend=${dawnBackend}`]);
+    const bc4Gpu = createDawnGpu([`backend=${dawnBackend}`]);
     const bc4Adapter = await bc4Gpu.requestAdapter();
     assert.ok(bc4Adapter?.features.has('texture-compression-bc'), 'Dawn BC4 adapter must expose texture-compression-bc');
     const bc4Device = await bc4Adapter.requestDevice({ requiredFeatures: ['texture-compression-bc'] });
@@ -273,7 +273,7 @@ try {
   const supportsAstc = adapter.features.has('texture-compression-astc');
   let astcAtlasResult = { supported: false };
   if (supportsAstc) {
-    const astcGpu = create([`backend=${dawnBackend}`]);
+    const astcGpu = createDawnGpu([`backend=${dawnBackend}`]);
     const astcAdapter = await astcGpu.requestAdapter();
     assert.ok(astcAdapter?.features.has('texture-compression-astc'), 'Dawn ASTC adapter must expose texture-compression-astc');
     const astcDevice = await astcAdapter.requestDevice({ requiredFeatures: ['texture-compression-astc'] });

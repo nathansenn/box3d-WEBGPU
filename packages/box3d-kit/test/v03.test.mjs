@@ -98,8 +98,10 @@ test('writeInstances output reads back identically from a real WebGPU device (Da
   let webgpu;
   try { webgpu = await import('webgpu'); } catch { t.skip('webgpu (Dawn) not installed'); return; }
   Object.assign(globalThis, webgpu.globals);
-  // Keep the instance referenced: a collected Dawn instance tears down its adapters.
+  // Keep the GPU object referenced until the process exits: dawn.node frees its instance when the object is
+  // collected while queued ProcessEvents callbacks still use it (a crash; see scripts/dawn-gpu.mjs in the repository).
   const gpu = webgpu.create([]);
+  (globalThis[Symbol.for('box3d.dawnGpuObjects')] ??= []).push(gpu);
   const adapter = await gpu.requestAdapter();
   if (!adapter) { t.skip('no WebGPU adapter'); return; }
   const device = await adapter.requestDevice();
@@ -119,7 +121,7 @@ test('writeInstances output reads back identically from a real WebGPU device (Da
     read.unmap();
     assert.equal(count, 6);
     assert.deepEqual(Array.from(readback), Array.from(world.interpolatedMatrices(0.5)));
-  } finally { world.dispose(); device.destroy(); void gpu; }
+  } finally { world.dispose(); device.destroy(); }
 });
 
 test('boxOutlines draws 12 unit-length edges per cube and rayLine stops at the hit', async () => {
@@ -212,7 +214,7 @@ test('WorldScheduler keeps within budget, rotates fairly and preserves each worl
 
 test('importing every entry point is SSR-safe: no window/document access at import time', () => {
   const out = execFileSync(process.execPath, ['--input-type=module', '-e',
-    "await import('box3d-webgpu-kit'); await import('box3d-webgpu-kit/three'); await import('box3d-webgpu-kit/worker'); await import('box3d-webgpu-kit/babylon'); await import('box3d-webgpu-kit/single'); await import('box3d-webgpu-kit/cable'); await import('box3d-webgpu-kit/water'); await import('box3d-webgpu-kit/frame'); await import('box3d-webgpu-kit/gameplay'); console.log(typeof window, typeof document)"],
+    "await import('box3d-webgpu-kit'); await import('box3d-webgpu-kit/three'); await import('box3d-webgpu-kit/worker'); await import('box3d-webgpu-kit/babylon'); await import('box3d-webgpu-kit/single'); await import('box3d-webgpu-kit/cable'); await import('box3d-webgpu-kit/water'); await import('box3d-webgpu-kit/frame'); await import('box3d-webgpu-kit/gameplay'); await import('box3d-webgpu-kit/geometry'); console.log(typeof window, typeof document)"],
     {cwd: fileURLToPath(new URL('..', import.meta.url)), encoding: 'utf8'}).trim();
   assert.equal(out, 'undefined undefined');
   const dist = fileURLToPath(new URL('../dist/', import.meta.url));

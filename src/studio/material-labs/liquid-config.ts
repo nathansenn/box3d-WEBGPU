@@ -1,4 +1,5 @@
-/** Authored comparative controls; physical dimensions are SI, material factors are not calibrated. */
+import {frictionFactor} from './liquid-si';
+/** Lab controls in SI. The flume, the pipe friction and the river, rain and surface rigs (shallow water) use SI properties (liquid-si.ts); bed drag, infiltration and damping of the pipe bench's depth model are authored. */
 export const LIQUID_RIGS=[
   {id:'flume',name:'Release flume',icon:'waves',note:'Reservoir release, reflected waves and obstacle wakes.'},
   {id:'pipes',name:'Pipe flow bench',icon:'pipe',note:'Pump delivery, bore restriction and interchangeable outlets.'},
@@ -16,6 +17,8 @@ export const SURFACES=[
   {id:'concrete',name:'Concrete',color:'#b1ad9f',drag:1.6,absorb:1.1,roughness:.93,note:'Rough porous slab · some water enters the bed.'},
   {id:'gravel',name:'River gravel',color:'#9b9581',drag:2.4,absorb:2.2,roughness:1,note:'Strong drag with permeable bed storage.'},
   {id:'rubber',name:'Textured rubber',color:'#343f3d',drag:3.8,absorb:0,roughness:.95,note:'High liquid-flow resistance on a sealed surface.'},
+  {id:'loam',name:'Bare loam soil',color:'#6e5a3f',drag:2,absorb:1.5,roughness:1,note:'Bare field soil · water soaks in (Green-Ampt, loam).'},
+  {id:'clay',name:'Bare clay soil',color:'#8a6a4c',drag:2,absorb:.3,roughness:1,note:'Bare field soil · water soaks in slowly (Green-Ampt, clay).'},
 ] as const;
 export const PIPE_TOOLS=[
   {id:'straight',name:'Straight outlet',loss:.4,note:'Low-loss single discharge.'},
@@ -73,15 +76,20 @@ export function supplyFactor(time:number,program:LiquidSettings['supply']):numbe
   if(program==='surge')return .18+.82*Math.exp(-(((time-8)/2.8)**2));
   return 1;
 }
-/** Demand-limited Darcy-style resistance; authored viscosity and valve mapping are comparative. */
-export function pipeDelivery(p:LiquidSettings,viscosity:number,density:number):{flow:number;speed:number;head:number;reynolds:number} {
-  const d=p.bore/1000,area=Math.PI*d*d/4,tool=PIPE_TOOLS.find(t=>t.id===p.pipe)!,nu=(1e-6+viscosity*.00015)/density;
-  if(p.valve<=0||p.head<=0)return {flow:0,speed:0,head:0,reynolds:0};
+/**
+ * Pump delivery through the bench's pipe: the flow at which the Darcy-Weisbach losses, (f L / D + K_outlet + K_valve + 1)
+ * V^2 / 2g, use up the pump head, capped by the pump demand. f is 64 / Re when laminar (exact) and the Colebrook
+ * correlation for a hydraulically smooth pipe when turbulent (frictionFactor in liquid-si.ts). viscosity is the dynamic
+ * viscosity (Pa s), density in kg/m^3. The outlet and valve loss coefficients are authored, not sourced.
+ */
+export function pipeDelivery(p:LiquidSettings,viscosity:number,density:number):{flow:number;speed:number;head:number;reynolds:number;friction:number} {
+  const d=p.bore/1000,area=Math.PI*d*d/4,tool=PIPE_TOOLS.find(t=>t.id===p.pipe)!,nu=viscosity/density;
+  if(p.valve<=0||p.head<=0||!(nu>0))return {flow:0,speed:0,head:0,reynolds:0,friction:0};
   const valveLoss=2*(1/(p.valve/100)**2-1);
-  const headAt=(q:number)=>{const v=q/area,re=v*d/nu,f=re<2300?64/Math.max(re,1):.3164/Math.pow(re,.25);return {head:(f*p.pipeLength/d+tool.loss+valveLoss+1)*v*v/(2*9.81),re};};
-  let low=0,high=p.inflow/1000;for(let i=0;i<28;i++){const mid=(low+high)/2;if(headAt(mid).head>p.head)high=mid;else low=mid;}
-  const flow=(low+high)/2,exitArea=area*(p.pipe==='nozzle'?.25:p.pipe==='twin'?2:p.pipe==='spraybar'?1.5:p.pipe==='bell'?4:1);
-  return {flow,speed:flow/exitArea,head:headAt(flow).head,reynolds:headAt(flow).re};
+  const headAt=(q:number)=>{const v=q/area,re=v*d/nu,f=frictionFactor(re);return {head:(f*p.pipeLength/d+tool.loss+valveLoss+1)*v*v/(2*9.81),re,f};};
+  let low=0,high=p.inflow/1000;for(let i=0;i<40;i++){const mid=(low+high)/2;if(headAt(mid).head>p.head)high=mid;else low=mid;}
+  const flow=(low+high)/2,exitArea=area*(p.pipe==='nozzle'?.25:p.pipe==='twin'?2:p.pipe==='spraybar'?1.5:p.pipe==='bell'?4:1),at=headAt(flow);
+  return {flow,speed:flow/exitArea,head:at.head,reynolds:at.re,friction:at.f};
 }
 export const LIQUID_THICKNESS=[.1,.25,.5,1,2,4,8,12] as const;
 export const FILM_DEPTHS=[.1,.5,1,2,5,10,20,50] as const;

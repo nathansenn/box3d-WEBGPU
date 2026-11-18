@@ -1,10 +1,15 @@
 import {EngineError,finite,integer,onlyKeys,record,validateTickBatch,type EngineCapabilities,type EngineRuntime,type FixedTickCommand,type FixedTickStep} from './contracts.ts';
+import {captureFields,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 import {frameElementMatrices,frameTransverseSlope,type FrameElement,type FrameElementMatrices} from './frame-element.ts';
+import {EnvelopeMatrix} from './envelope-matrix.ts';
 
 export const FRAME_BACKEND='frame-eb-midpoint-js-f64-v1';
 export interface FrameConfig {
   dt:number;substeps:number;maxIterations:number;drag:number;gravity:readonly [number,number,number];
   forceTolerance:number;momentTolerance:number;impulseTolerance:number;angularImpulseTolerance:number;
+  /** Linear solver: preconditioned conjugate gradients ('cg', the default) or a Cholesky factor of the
+   * operator, formed once per operator and kept ('direct'). Both solve the same equations. */
+  solver?:'cg'|'direct';
 }
 export interface FrameDefinition {
   config:FrameConfig;positions:ArrayLike<number>;elements:readonly FrameElement[];
@@ -50,10 +55,12 @@ function array(value:unknown,count:number,label:string,min=-1e100,max=1e100):Flo
   return Float64Array.from(value,(v,i)=>zero(finite(v,`${label}[${i}]`,min,max)));
 }
 function configuration(value:unknown):FrameConfig {
-  const c=record(value,'config');onlyKeys(c,['dt','substeps','maxIterations','drag','gravity','forceTolerance','momentTolerance','impulseTolerance','angularImpulseTolerance'],'config');
+  const c=record(value,'config');onlyKeys(c,['dt','substeps','maxIterations','drag','gravity','forceTolerance','momentTolerance','impulseTolerance','angularImpulseTolerance','solver'],'config');
+  if(c.solver!==undefined&&c.solver!=='cg'&&c.solver!=='direct')throw new EngineError('INVALID_PAYLOAD','Unknown frame solver.');
   const gravity=Object.freeze(Array.from(array(c.gravity,3,'gravity',-1e5,1e5))) as unknown as readonly [number,number,number];
   return Object.freeze({dt:finite(c.dt,'dt',1e-6,1/30),substeps:integer(c.substeps,'substeps',1,16),maxIterations:integer(c.maxIterations,'maxIterations',1,1024),drag:zero(finite(c.drag,'drag',0,1000)),gravity,
-    forceTolerance:finite(c.forceTolerance,'forceTolerance',1e-14,1),momentTolerance:finite(c.momentTolerance,'momentTolerance',1e-14,1),impulseTolerance:finite(c.impulseTolerance,'impulseTolerance',1e-16,1),angularImpulseTolerance:finite(c.angularImpulseTolerance,'angularImpulseTolerance',1e-16,1)});
+    forceTolerance:finite(c.forceTolerance,'forceTolerance',1e-14,1),momentTolerance:finite(c.momentTolerance,'momentTolerance',1e-14,1),impulseTolerance:finite(c.impulseTolerance,'impulseTolerance',1e-16,1),angularImpulseTolerance:finite(c.angularImpulseTolerance,'angularImpulseTolerance',1e-16,1),
+    ...(c.solver===undefined?{}:{solver:c.solver as 'cg'|'direct'})});
 }
 const work=():Work=>({matrixProducts:0,elementVisits:0});
 
@@ -61,6 +68,11 @@ const work=():Work=>({matrixProducts:0,elementVisits:0});
  * Small-strain/small-rotation elasticity; no buckling, yielding, contact or shear.
  * Element matrix products avoid allocating a dense global system.
  */
+/** What an exact checkpoint of a FrameRuntime holds: every field but the element matrices, which never change, and the
+ * 'direct' solver's Cholesky factors, a cache of m M + k K that depends only on the elements, supports and point masses
+ * (all fixed at construction): a restored runtime factors again and gets the same bits. */
+const STATE_FIELDS:FieldOptions={label:'FrameRuntime',skip:['elements','factors']};
+
 export class FrameRuntime implements EngineRuntime<FrameStepRequest,FrameSnapshot> {
   readonly capabilities:EngineCapabilities;readonly config:FrameConfig;
   private initial:Float64Array;private elements:FrameElementMatrices[];private fixed:Uint8Array;private pointMass:Float64Array;private pointInertia:Float64Array;
@@ -113,8 +125,34 @@ export class FrameRuntime implements EngineRuntime<FrameStepRequest,FrameSnapsho
   private norms(values:Float64Array,scale=1):[number,number]{
     let force=0,moment=0;for(let i=0;i<values.length;i+=6){let f=0,t=0;for(let k=0;k<6;k++)if(!this.fixed[i+k]){const q=values[i+k]*scale;if(k<3)f+=q*q;else t+=q*q;}force=Math.max(force,Math.sqrt(f));moment=Math.max(moment,Math.sqrt(t));}return [force,moment];
   }
+  /** Cholesky factors of m M + k K on the free degrees of freedom, by (m, k); 'direct' solver only. */
+  private factors=new Map<string,{dofs:Int32Array;matrix:EnvelopeMatrix;b:Float64Array}|null>();
+  private factorFor(m:number,k:number){
+    const key=`${m}:${k}`;if(this.factors.has(key))return this.factors.get(key)!;
+    const size=this.u.length,index=new Int32Array(size).fill(-1),dofs:number[]=[];
+    for(let j=0;j<size;j++)if(!this.fixed[j]){index[j]=dofs.length;dofs.push(j);}
+    const n=dofs.length,first=Int32Array.from({length:n},(_,i)=>i);
+    for(const e of this.elements){let lo=Infinity;for(const d of e.dofs)if(index[d]>=0)lo=Math.min(lo,index[d]);for(const d of e.dofs)if(index[d]>=0&&lo<first[index[d]])first[index[d]]=lo;}
+    const A=new EnvelopeMatrix(n,first);
+    for(const e of this.elements)for(let i=0;i<12;i++){const a=index[e.dofs[i]];if(a<0)continue;for(let j=0;j<=i;j++){const b=index[e.dofs[j]];if(b>=0)A.add(a,b,m*e.massMatrix[12*i+j]+k*e.stiffness[12*i+j]);}}
+    if(m!==0)for(let i=0;i<this.pointMass.length;i++)for(let j=0;j<6;j++){const a=index[6*i+j];if(a>=0)A.add(a,a,m*(j<3?this.pointMass[i]:this.pointInertia[3*i+j-3]));}
+    let entry:{dofs:Int32Array;matrix:EnvelopeMatrix;b:Float64Array}|null;
+    try{A.factor();entry={dofs:Int32Array.from(dofs),matrix:A,b:new Float64Array(n)};}catch{entry=null;}
+    this.factors.set(key,entry);return entry;
+  }
   private solve(m:number,k:number,rhs:Float64Array,x:Float64Array,scale:number,forceTolerance:number,momentTolerance:number,counter:Work):SolveStats{
     const r=this.residual,z=this.preconditioned,p=this.direction,ap=this.ap;let iterations=0,reason:SolveStats['reason']='iteration-limit';
+    if(this.config.solver==='direct'){
+      const f=this.factorFor(m,k),refresh=()=>{this.multiply(m,k,x,ap,counter);for(let j=0;j<x.length;j++)r[j]=this.fixed[j]?0:rhs[j]-ap[j];return this.norms(r,scale);};
+      if(!f){x.fill(0);const [forceResidual,momentResidual]=refresh();return {iterations:0,converged:false,forceResidual,momentResidual,reason:'singular-or-indefinite'};}
+      const back=(source:Float64Array,add:boolean)=>{const b=f.b,dofs=f.dofs;for(let a=0;a<dofs.length;a++)b[a]=source[dofs[a]];f.matrix.solve(b);if(!add)x.fill(0);for(let a=0;a<dofs.length;a++)x[dofs[a]]+=b[a];};
+      back(rhs,false);let [forceResidual,momentResidual]=refresh();
+      // One step of iterative refinement removes what round-off left.
+      if(!(forceResidual<=forceTolerance&&momentResidual<=momentTolerance)){back(r,true);[forceResidual,momentResidual]=refresh();iterations++;}
+      if(!x.every(Number.isFinite)||!Number.isFinite(forceResidual)||!Number.isFinite(momentResidual))throw new EngineError('NUMERICAL_FAILURE','Nonfinite frame linear solve.');
+      const converged=forceResidual<=forceTolerance&&momentResidual<=momentTolerance;
+      return {iterations:iterations+1,converged,forceResidual,momentResidual,reason:converged?'converged':'iteration-limit'};
+    }
     for(let j=0;j<x.length;j++)if(this.fixed[j])x[j]=0;
     const refresh=()=>{this.multiply(m,k,x,ap,counter);for(let j=0;j<x.length;j++)r[j]=this.fixed[j]?0:rhs[j]-ap[j];return this.norms(r,scale);};
     let [forceResidual,momentResidual]=refresh(),rz=0,restart=true;
@@ -189,6 +227,66 @@ export class FrameRuntime implements EngineRuntime<FrameStepRequest,FrameSnapsho
     if(!this.u.every(Number.isFinite)||!this.v.every(Number.isFinite)||!Number.isFinite(this.externalWork)||!Number.isFinite(this.dragDissipation))throw new EngineError('NUMERICAL_FAILURE','Frame integration produced nonfinite state.');
     this.reactionTime=this.tick*this.config.dt+(index+.5)*h;
   }
+  // ---- Coupling hooks (structure-coupling.ts). Additions only: step(), substep() and solveStatic() are untouched. ----
+  private coupledOpen=false;
+  /** Live state arrays for a coupler to READ without copying: rest positions, displacements, velocities. */
+  couplingViews():{rest:Float64Array;displacements:Float64Array;velocities:Float64Array;fixed:Uint8Array} {
+    this.alive();return {rest:this.initial,displacements:this.u,velocities:this.v,fixed:this.fixed};
+  }
+  /** Column `dof` of the inverse of the midpoint operator A = M (1 + drag h/2) + (h^2/4) K with h = dt,
+   * solved by the runtime's own preconditioned CG. An impulse J on that degree of freedom during one
+   * tick changes the end-of-tick velocities by (A^-1 J). Returns false if CG did not converge. */
+  solveCoupledOperator(dof:number,out:Float64Array):boolean {
+    this.alive();if(this.config.substeps!==1)throw new EngineError('INVALID_PAYLOAD','Coupled frames need substeps = 1.');
+    if(!(dof>=0&&dof<this.u.length)||out.length!==this.u.length)throw new EngineError('INVALID_PAYLOAD','Invalid coupled operator request.');
+    const h=this.config.dt;this.temp.fill(0);this.temp[dof]=1;out.fill(0);
+    return this.solve(1+this.config.drag*h/2,h*h/4,this.temp,out,1,1e-12,1e-12,work()).converged;
+  }
+  /** First half of one tick (substeps must be 1): the midpoint velocity under the present loads, as
+   * substep() computes it. Returns the live vector; a coupler may add its interface correction to it
+   * and must then call finishCoupledTick(). */
+  beginCoupledTick():Float64Array {
+    this.alive();if(this.config.substeps!==1)throw new EngineError('INVALID_PAYLOAD','Coupled frames need substeps = 1.');
+    if(this.coupledOpen)throw new EngineError('INVALID_PAYLOAD','A coupled frame tick is already open.');
+    this.lastWork=work();this.maxForceResidual=0;this.maxMomentResidual=0;this.maxImpulseResidual=0;this.maxAngularImpulseResidual=0;this.maxIterationsUsed=0;this.unconvergedSolves=0;
+    this.supportImpulse.fill(0);this.appliedImpulse.fill(0);this.dragImpulse.fill(0);
+    const h=this.config.dt,m=1+this.config.drag*h/2,k=h*h/4;
+    try{
+      this.multiply(1,0,this.v,this.rhs,this.lastWork);this.multiply(0,1,this.u,this.product,this.lastWork);
+      for(let j=0;j<this.u.length;j++){this.rhs[j]+=h/2*(this.forces[j]+this.gravityForce[j]-this.product[j]);this.mid[j]=this.v[j];}
+      const solved=this.solve(m,k,this.rhs,this.mid,2/h,this.config.forceTolerance,this.config.momentTolerance,this.lastWork);
+      this.maxForceResidual=Math.max(this.maxForceResidual,solved.forceResidual);this.maxMomentResidual=Math.max(this.maxMomentResidual,solved.momentResidual);this.maxIterationsUsed=Math.max(this.maxIterationsUsed,solved.iterations);if(!solved.converged)this.unconvergedSolves++;
+    }catch(error){if(error instanceof EngineError&&error.code==='NUMERICAL_FAILURE')this.failed=true;throw error;}
+    this.coupledOpen=true;return this.mid;
+  }
+  /** Second half of the tick opened by beginCoupledTick(). `extra` holds interface loads (N, N m) per
+   * degree of freedom, constant over the tick; the caller has already added (h/2) A^-1 extra to the
+   * midpoint velocity. Completes the midpoint update exactly as substep() does, with loads forces+extra. */
+  finishCoupledTick(extra:Float64Array):void {
+    this.alive();if(!this.coupledOpen||extra.length!==this.u.length)throw new EngineError('INVALID_PAYLOAD','No coupled frame tick is open.');
+    this.coupledOpen=false;const h=this.config.dt,m=1+this.config.drag*h/2,k=h*h/4;
+    try{
+      for(let j=0;j<this.u.length;j++){this.rhs[j]+=h/2*extra[j];if(this.fixed[j])this.mid[j]=0;}
+      this.multiply(m,k,this.mid,this.product,this.lastWork);this.multiply(1,0,this.mid,this.temp,this.lastWork);
+      this.dragDissipation+=h*this.config.drag*this.dot(this.mid,this.temp);
+      for(let j=0;j<this.u.length;j++){
+        const du=h*this.mid[j],load=this.forces[j]+extra[j];this.externalWork+=load*du;
+        this.reactions[j]=this.fixed[j]?zero((this.product[j]-this.rhs[j])*2/h):0;
+        this.supportImpulse[j]+=h*this.reactions[j];this.appliedImpulse[j]+=h*(load+this.gravityForce[j]);this.dragImpulse[j]-=h*this.config.drag*this.temp[j];
+        this.u[j]=zero(this.u[j]+du);this.v[j]=zero(2*this.mid[j]-this.v[j]);
+      }
+      let finiteState=Number.isFinite(this.externalWork)&&Number.isFinite(this.dragDissipation);
+      for(let j=0;j<this.u.length&&finiteState;j++)finiteState=Number.isFinite(this.u[j])&&Number.isFinite(this.v[j]);
+      if(!finiteState)throw new EngineError('NUMERICAL_FAILURE','Frame integration produced nonfinite state.');
+    }catch(error){if(error instanceof EngineError&&error.code==='NUMERICAL_FAILURE')this.failed=true;throw error;}
+    this.reactionTime=this.tick*this.config.dt+.5*h;this.currentTick++;
+  }
+  /** Replace the applied nodal loads (N and N m, six per node) from the next tick or substep on. The
+   * loads are constant over a tick, as those given at construction are. */
+  setLoads(forces:ArrayLike<number>):void {
+    this.alive();if(this.coupledOpen)throw new EngineError('INVALID_PAYLOAD','Loads cannot change inside a coupled tick.');
+    this.forces.set(array(forces,this.u.length,'forces',-1e12,1e12));
+  }
   /** Static analysis is pure: it does not reset, settle or advance the runtime. */
   solveStatic(forces?:ArrayLike<number>):FrameStaticSolution{
     this.alive();this.checkWork(1);const applied=forces===undefined?this.forces:array(forces,this.u.length,'static forces',-1e12,1e12),rhs=Float64Array.from(applied,(v,j)=>v+this.gravityForce[j]),solution=new Float64Array(this.u.length),counter=work();
@@ -242,5 +340,10 @@ export class FrameRuntime implements EngineRuntime<FrameStepRequest,FrameSnapsho
       runtime.maxIterationsUsed=zero(integer(s.maxIterationsUsed,'maxIterationsUsed',0,runtime.config.maxIterations));runtime.unconvergedSolves=zero(integer(s.unconvergedSolves,'unconvergedSolves',0,runtime.config.substeps+64));runtime.lastWork={matrixProducts:zero(integer(s.matrixProducts,'matrixProducts',0,MAX_ELEMENT_VISITS)),elementVisits:zero(integer(s.elementVisits,'elementVisits',0,MAX_ELEMENT_VISITS))};return runtime;
     }catch(error){runtime.destroy();throw error;}
   }
-  destroy():void{if(this.disposed)return;this.disposed=true;this.elements=[];this.fixed=new Uint8Array();for(const key of ['initial','pointMass','pointInertia','u','v','forces','gravityForce','diagonalMass','diagonalStiffness','reactions','supportImpulse','appliedImpulse','dragImpulse','rhs','mid','product','temp','residual','direction','preconditioned','ap'] as const)this[key]=new Float64Array();}
+  /** Every field a later tick reads, as a state tree (checkpoint.ts), for exact checkpoints. Unlike `checkpoint()` it is
+   * restored in place (`restoreState`), so a coupling that holds this runtime keeps holding it. */
+  saveState():StateObject {return captureFields(this,STATE_FIELDS);}
+  /** Put back a state from `saveState()` of a runtime with the same definition. */
+  restoreState(state:StateValue):void {restoreFields(this,state,STATE_FIELDS);}
+  destroy():void{if(this.disposed)return;this.disposed=true;this.elements=[];this.factors.clear();this.fixed=new Uint8Array();for(const key of ['initial','pointMass','pointInertia','u','v','forces','gravityForce','diagonalMass','diagonalStiffness','reactions','supportImpulse','appliedImpulse','dragImpulse','rhs','mid','product','temp','residual','direction','preconditioned','ap'] as const)this[key]=new Float64Array();}
 }

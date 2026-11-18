@@ -149,8 +149,8 @@ function control() {
 }
 
 async function child(task) {
-  const {create,globals}=await import('webgpu');Object.assign(globalThis,globals);
-  const gpu=create([`backend=${dawnBackend}`]);Object.defineProperty(globalThis,'navigator',{configurable:true,value:{gpu}});
+  const {createDawnGpu,globals}=await import('./dawn-gpu.mjs');Object.assign(globalThis,globals);
+  const gpu=createDawnGpu([`backend=${dawnBackend}`]);Object.defineProperty(globalThis,'navigator',{configurable:true,value:{gpu}});
   Object.defineProperty(globalThis,'window',{configurable:true,value:{devicePixelRatio:1}});
   Object.defineProperty(globalThis,'fetch',{configurable:true,value:async()=>{throw new Error('Fixed procedural textures in this paired benchmark.');}});
   const {createLinearWaterArrays,stepLinearWaterCpu}=await import(pathToFileURL(path.join(task.sourceRoot,'src/engine/linear-water.ts')).href);

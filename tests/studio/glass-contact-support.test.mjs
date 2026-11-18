@@ -1,7 +1,7 @@
 import '../../scripts/register-typescript.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-const {GlassModel}=await import('../../src/studio/material-labs/models.ts');
+const {ConvexGlassModel:GlassModel}=await import('../../src/studio/material-labs/glass-convex.ts');
 const {LABS}=await import('../../src/studio/material-labs/catalog.ts');
 
 test('radial breakup retains nearby supports through every accepted correction interval',()=>{

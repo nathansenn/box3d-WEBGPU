@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { create, globals } from 'webgpu';
+import { createDawnGpu, globals } from './dawn-gpu.mjs';
 import { emitTypeScriptModuleTree } from './emit-typescript-module-tree.mjs';
 
 const scriptPath = fileURLToPath(import.meta.url);
@@ -35,7 +35,7 @@ async function childMain(root) {
     });
 
     Object.assign(globalThis, globals);
-    const gpu = create([`backend=${dawnBackend}`]);
+    const gpu = createDawnGpu([`backend=${dawnBackend}`]);
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { gpu } });
     Object.defineProperty(globalThis, 'window', { configurable: true, value: { devicePixelRatio: 1 } });
     Object.defineProperty(globalThis, 'fetch', {

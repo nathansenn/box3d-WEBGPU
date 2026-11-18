@@ -35,17 +35,20 @@ test('a leaked world is reclaimed by the garbage collector, releasing its native
 test('seqlock frames are never torn under a concurrently writing thread', async () => {
   const writer = new SharedFrameWriter(64);
   const reader = new SharedFrameReader(writer.buffer);
+  // The writer runs until the reader has seen enough frames (or 20 s pass), not for a fixed
+  // time: on a busy machine the reader may be scheduled only a few times in any short window.
+  const enough = new Int32Array(new SharedArrayBuffer(4)), wanted = 50;
   const thread = new Worker(`
     const {workerData, parentPort} = require('node:worker_threads');
-    const header = new Int32Array(workerData, 0, 8), m = new Float32Array(workerData, 32, 64 * 16);
-    let k = 0; const end = Date.now() + 400;
-    while (Date.now() < end) {
+    const header = new Int32Array(workerData.frames, 0, 8), m = new Float32Array(workerData.frames, 32, 64 * 16);
+    let k = 0; const end = Date.now() + 20000;
+    while (Atomics.load(workerData.enough, 0) === 0 && Date.now() < end) {
       Atomics.add(header, 0, 1); k++;
       m.fill(k); header[1] = 64;
       Atomics.add(header, 0, 1);
     }
     parentPort.postMessage(k);
-  `, {eval: true, workerData: writer.buffer});
+  `, {eval: true, workerData: {frames: writer.buffer, enough}});
   let frames = 0, torn = 0, last = 0, running = true;
   const done = new Promise(resolve => thread.once('message', k => { running = false; resolve(k); }));
   while (running) {
@@ -55,12 +58,13 @@ test('seqlock frames are never torn under a concurrently writing thread', async 
       if (!reader.matrices.subarray(0, 64 * 16).every(v => v === first)) torn++;
       assert.ok(first >= last, 'frames never go backwards');
       last = first;
+      if (frames >= wanted) Atomics.store(enough, 0, 1);
     }
     await new Promise(r => setImmediate(r));
   }
   const written = await done;
   assert.equal(torn, 0, 'every frame read was internally consistent');
-  assert.ok(frames > 10 && written > frames, `read ${frames} complete frames of ${written} written`);
+  assert.ok(frames >= wanted && written > frames, `read ${frames} complete frames of ${written} written`);
 });
 
 test('shared-memory worker: frames arrive without messages, and start() decouples physics from rendering', async () => {

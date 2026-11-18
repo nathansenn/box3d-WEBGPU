@@ -68,13 +68,14 @@ async function qualify(){
   const root=resolve(dirname(fileURLToPath(import.meta.url)),'..'),name=process.argv[2];
   if(!name||!/^[a-z0-9-]+$/.test(name))throw new Error('Usage: node scripts/glass-collision-qualify.mjs UNIQUE-RUN-ID [SOURCE-ROOT]');
   const sourceRoot=resolve(process.argv[3]??root),out=join(root,'benchmarks/results/engine-100x/runs',name);mkdirSync(out);
-  const paths=['src/engine/convex-contact.ts','src/studio/material-labs/catalog.ts','src/studio/material-labs/models.ts','src/studio/material-labs/glass-rig.ts','src/studio/material-labs/world.ts','src/studio/material-labs/main.ts','src/studio/material-labs/glass-worker.ts','src/studio/material-labs/glass-worker-client.ts','src/studio/material-labs/glass-worker-protocol.ts','tests/engine/convex-contact.test.mjs','tests/studio/material-collision.test.mjs','tests/studio/glass-worker.test.mjs','tests/qualification/glass-reference.test.mjs','scripts/glass-collision-qualify.mjs'];
+  const paths=['src/engine/convex-contact.ts','src/studio/material-labs/catalog.ts','src/studio/material-labs/lab-model.ts','src/studio/material-labs/glass-convex.ts','src/studio/material-labs/glass-rig.ts','src/studio/material-labs/world.ts','src/studio/material-labs/main.ts','src/studio/material-labs/glass-worker.ts','src/studio/material-labs/glass-worker-client.ts','src/studio/material-labs/glass-worker-protocol.ts','tests/engine/convex-contact.test.mjs','tests/studio/material-collision.test.mjs','tests/studio/glass-worker.test.mjs','tests/qualification/glass-reference.test.mjs','scripts/glass-collision-qualify.mjs'];
   paths.push('tests/fixtures/glass-contact/rotating-grazing-pair.json');
   paths.push('src/studio/material-labs/glass-pendulum.ts','tests/studio/glass-pendulum.test.mjs');
   const hashes={};for(const p of paths){const from=join(sourceRoot,p),to=join(out,'frozen',p);mkdirSync(dirname(to),{recursive:true});copyFileSync(from,to);hashes[p]=hash(readFileSync(to));}
   const manifest={schema:'box3d.glass-contact-qualification/2',startedAt:new Date().toISOString(),sourceRoot,sourceHash:hash(JSON.stringify(hashes)),hashes,node:process.version,endianness:endianness(),dt:1/120,duration:12,sampleEveryTicks:60,maximumAcceptedPenetration:.0005,performanceClaim:'CPU observations only; no renderer-inclusive speedup qualification.'};
   const {LABS}=await import(pathToFileURL(join(out,'frozen/src/studio/material-labs/catalog.ts')));
-  const {GlassModel,DT}=await import(pathToFileURL(join(out,'frozen/src/studio/material-labs/models.ts')));
+  const {ConvexGlassModel:GlassModel}=await import(pathToFileURL(join(out,'frozen/src/studio/material-labs/glass-convex.ts')));
+  const {DT}=await import(pathToFileURL(join(out,'frozen/src/studio/material-labs/lab-model.ts')));
   const programs=[];
   const priority=['laminated-retention','wired-retention'];
   const presets=[...LABS.glass.experiments].sort((a,b)=>(priority.includes(a.id)?priority.indexOf(a.id):priority.length)-(priority.includes(b.id)?priority.indexOf(b.id):priority.length));

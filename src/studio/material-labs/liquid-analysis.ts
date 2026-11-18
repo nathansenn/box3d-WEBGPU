@@ -51,7 +51,8 @@ export function* runStudyCase(settings:LabSettings,index:number,key:keyof LabSet
   const updatePeak=()=>{const f=model.frame,h=f.hydraulics!;peak.depth=Math.max(peak.depth,f.metrics[0]);peak.speed=Math.max(peak.speed,f.metrics[1]);peak.volume=Math.max(peak.volume,f.metrics[2]);peak.floodArea=Math.max(peak.floodArea,h.floodArea);peak.coverage=Math.max(peak.coverage,h.coverage);peak.balanceError=Math.max(peak.balanceError,Math.abs(h.residual));};
   updatePeak();const interval=Math.max(.1,duration/300);let nextSample=interval,nextProgress=.25;
   while(model.frame.time<duration-1e-8){
-    model.step(Math.min(DT,duration-model.frame.time));updatePeak();
+    // The flume's free-surface solver takes its own substeps (at most 1/60 s); stepping it 1/30 s at a time halves its cost.
+    model.step(Math.min(model.flume?4*DT:DT,duration-model.frame.time));updatePeak();
     if(model.frame.metrics.some(v=>!Number.isFinite(v)))throw new Error('Non-finite solver output; comparison stopped.');
     if(model.frame.time>=nextSample-1e-8){samples.push(measurementSample(model,model.frame,section));nextSample+=interval;}
     if(model.frame.time>=nextProgress){yield model.frame.time;nextProgress+=.25;}

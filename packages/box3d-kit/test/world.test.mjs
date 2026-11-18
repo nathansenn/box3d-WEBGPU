@@ -87,7 +87,7 @@ test('fixed-step loop runs whole steps, reports alpha and caps catch-up', () => 
   assert.equal(r.steps, 3); assert.ok(r.droppedSeconds > 9);
   assert.equal(loop.advance(NaN, () => ticks++).steps, 0);
   assert.equal(ticks, 4);
-  assert.throws(() => new FixedStepLoop({step: 0.1}), RangeError);
+  assert.throws(() => new FixedStepLoop({step: 0.1}), error => error.name === 'EngineError' && error.code === 'INVALID_PAYLOAD');
 });
 
 test('three adapter copies transforms and colors, and skips unchanged frames', async () => {

@@ -10,8 +10,9 @@ const {pressAttachment}=await import('../../src/studio/press-tooling.ts');
 const {toolHeight}=await import('../../src/studio/press-settings.ts');
 const T=await import('three/webgpu');
 
-test('all 24 profiles are represented and every complete preset stays within independent control bounds',()=>{
-  assert.equal(new Set(PRESS_EXPERIMENTS.map(e=>e.settings.metal)).size,METALS.length);
+test('all 24 authored profiles are represented and every complete preset stays within independent control bounds',()=>{
+  // The two library metals of the SI press (family 'Library (SI)') have their own experiments in press-si.ts.
+  assert.equal(new Set(PRESS_EXPERIMENTS.map(e=>e.settings.metal)).size,METALS.filter(m=>m.family!=='Library (SI)').length);
   for(const e of PRESS_EXPERIMENTS)assert.deepEqual(e.settings,normalizePress(e.settings),e.id);
   assert.equal(PRESS_ATTACHMENTS.length,36);
   assert.equal(new Set(PRESS_ATTACHMENTS.map(a=>[a.tool,a.toolScale,a.angle].join(':'))).size,36);

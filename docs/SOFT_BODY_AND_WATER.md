@@ -83,6 +83,15 @@ surface indices               98,304
 
 ## Cloth
 
+> **A calibrated cloth exists beside this one.** The model described here is position-based, with authored coefficients, no self-collision and scripted one-way interaction: it is built for looks and speed and is not validated against physical references. [`CLOTH.md`](CLOTH.md) documents a second model (`src/engine/cloth.ts`, `box3d-webgpu-kit/cloth`) with real material parameters, an implicit integrator, contact, friction, self-collision and two-way coupling to rigid bodies, checked against closed-form answers. The app does not use it yet. Moving these scenes onto it would take:
+>
+> 1. **Speed.** It holds about 100 nodes in real time on one thread; the scenes here run thousands. A stronger preconditioner or a GPU solve comes first.
+> 2. **Materials.** Each scene's stiffness, damping and wind coefficients would be replaced by areal density, `E t`, Poisson's ratio and a measured bending stiffness. The looks will change.
+> 3. **Tearing.** The tearing scenes mutate constraints and triangles; the calibrated model has no tearing.
+> 4. **Colliders and interaction.** Its contact covers boxes, spheres, capsules and planes of the rigid world, node against body. Projectiles, rain proxies and the scripted colliders here would become bodies of the rigid world coupled through `ClothCoupling`.
+> 5. **The frame contract.** Publishing its float64 positions as a `SoftSimulationFrame` (float32 positions, rest positions, strain and energy fields) and stepping it from the soft suite's clock, or from the one stepping loop ([`SIMULATION.md`](SIMULATION.md)).
+> 6. **Structured meshes.** Its bending is consistent on structured meshes only.
+
 ### Numerical model
 
 Cloth uses deterministic position-based dynamics:
@@ -233,9 +242,9 @@ This is the current cross-platform integration gate. The source-frozen v1.13 ben
 
 ## Remaining engineering frontiers
 
-1. Bidirectional collision coupling against arbitrary Box3D shapes.
-2. Cloth/rope self-collision and continuous collision.
-3. XPBD compliance and physically calibrated material parameters.
+1. Bidirectional collision coupling against arbitrary Box3D shapes. (The calibrated cloth of [`CLOTH.md`](CLOTH.md) does this for boxes, spheres, capsules and planes; not for the systems of this document.)
+2. Cloth/rope self-collision and continuous collision. (The calibrated cloth has both, with stated limits; these systems do not.)
+3. XPBD compliance and physically calibrated material parameters. (Calibrated parameters exist in the model of [`CLOTH.md`](CLOTH.md), by an implicit Newton solve instead of XPBD; these systems keep authored coefficients.)
 4. WebGPU compute physics solvers, GPU collision compaction, and indirect drawing; current rope compute is render expansion only.
 5. Multiple simultaneous cloth/water surface batches.
 6. Physical-GPU timestamp profiling on target browsers.

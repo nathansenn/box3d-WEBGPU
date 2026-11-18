@@ -16,7 +16,7 @@ export default defineConfig({
   plugins: [{
     name: 'box3d-license-notices',
     generateBundle() {
-      for (const [fileName, sourceFile] of [['licenses/project.txt', 'LICENSE'], ['licenses/third-party.txt', 'THIRD_PARTY_NOTICES.md']]) {
+      for (const [fileName, sourceFile] of [['licenses/project.txt', 'LICENSE'], ['licenses/third-party.txt', 'THIRD_PARTY_NOTICES.md'], ['licenses/box3d.txt', 'public/box3d/BOX3D_LICENSE.txt']]) {
         this.emitFile({ type: 'asset', fileName, source: readFileSync(new URL('./' + sourceFile, import.meta.url), 'utf8') });
       }
     },
@@ -27,6 +27,8 @@ export default defineConfig({
       input: {
         studio: fileURLToPath(new URL('./index.html', import.meta.url)),
         lab: fileURLToPath(new URL('./lab.html', import.meta.url)),
+        // The GPU compute check (docs/GPU_COMPUTE.md): validation and timings of the compute backends on the visitor's device.
+        gpu: fileURLToPath(new URL('./gpu-probe.html', import.meta.url)),
       },
     },
   },

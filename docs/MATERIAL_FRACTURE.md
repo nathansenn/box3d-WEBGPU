@@ -8,6 +8,18 @@ The current material expansion adds a separate, lazy **31-program presentation r
 
 > The material profiles are **normalized comparative presets** tuned for clear, repeatable demonstrations. They are not calibrated constitutive laws, finite-element analysis, certified test data, design allowables, or a substitute for a structural engineer. Do not use the reported thresholds for safety, fabrication, product qualification, or code compliance.
 
+> **A validated fracture model now exists beside this lab.** `src/engine/solid-fracture.ts` (kit: `box3d-webgpu-kit/fracture`, document: [`SOLID_FRACTURE.md`](SOLID_FRACTURE.md)) cracks a tetrahedral finite-element solid in SI units: a cohesive-zone law with a tensile strength in pascals and a fracture energy in J/m², or a crack band. It is checked against closed-form fracture mechanics (peak load and fracture energy of a bar, Griffith's stress for a pre-cracked plate, the work of fracture of a notched beam), with the errors stated. It is meant to replace this lattice over time. The studies below still run the normalized lattice, and nothing in this document is validated by that work.
+>
+> What moving the concrete and glass studies onto it would take:
+>
+> 1. **Material data in SI units with sources**: Young's modulus, Poisson's ratio, density, tensile strength and fracture energy for each preset, in place of the dimensionless envelopes. Concrete is within reach of the present law (linear softening; a bilinear curve would be closer). Glass has a characteristic length `E G_c / sigma_c^2` of micrometres, far below any mesh this solver can carry in a browser: its strength there is set by flaws, which needs a statistical strength model that does not exist yet.
+> 2. **Reinforcement.** The concrete studies show rebar. The solver has one bulk material per body and no bar or bond elements.
+> 3. **Contact.** Projectile, drop-weight and blast programs need contact between the specimen, the tooling and the fragments. The solver has contact only across its own crack faces; fragments are handed one-way to the rigid world as convex hulls.
+> 4. **Crack paths.** Cohesive cracks follow element faces: a crack inclined to the mesh is 24 % to 48 % too large (measured). The radial and cone cracks of the glass programs would need meshes laid along them, or a different method.
+> 5. **Plasticity and fatigue.** The metal rig yields and work-hardens; the fracture solver has neither, and no cyclic damage.
+> 6. **Cost and the renderer.** The lattice runs every frame. The finite-element solver takes about 0.7 µs per element per explicit step at time steps of microseconds, so a study would run as a precomputed or slowed sequence, and the Studio's skin, crack and debris rendering would have to read tetrahedra, split nodes and fragments.
+> 7. **Removing the disclaimer** for a study then needs that study's own validation case, as roadmap rule 1 requires.
+
 ## Model and coordinate contract
 
 The lab uses a reduced-order beam lattice in the same right-handed, Y-up world as the rest of the application. One world unit is treated as one metre for scene scale and camera behavior, but the solver coefficients are dimensionless.

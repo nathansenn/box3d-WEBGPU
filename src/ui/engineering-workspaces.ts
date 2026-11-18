@@ -299,6 +299,7 @@ export type EngineeringWorkspaceCallbacks = {
   readonly onFileImport?: (request: EngineeringImportRequest) => void | Promise<void>;
   readonly onEvidenceExport?: (request: EngineeringEvidenceRequest) => void | Promise<void>;
   readonly onLabChange?: (labId: string) => void;
+  readonly onSiDemoSelect?: (demoId: string) => void;
   readonly onControlChange?: (change: MaterialLabDesktopControlChange) => void;
   readonly onMaterialPresetChange?: (presetId: string) => void;
   readonly onPlay?: (detail: EngineeringPlayDetail) => void;
@@ -2514,6 +2515,7 @@ export function createEngineeringWorkspaces(options: EngineeringWorkspacesOption
           callbacks.onLabChange?.(labId);
           root.dispatchEvent(new CustomEvent('engineering-lab-change', { detail: { labId } }));
         },
+        onSiDemoSelect: (demoId) => callbacks.onSiDemoSelect?.(demoId),
         onParameterChange: (id, value) => {
           const input = options.testWorkspace.querySelector<HTMLInputElement>(`[data-parameter-id="${CSS.escape(id)}"]`);
           if (!input) return;

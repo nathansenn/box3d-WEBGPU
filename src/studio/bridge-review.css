@@ -57,3 +57,9 @@
   #studio.scene-workflow[data-study=bridge][data-desk-panel=review] .desk-feedback{display:none}
   .br-metrics strong{font-size:19px}.br-heading .br-mode{font-size:7px}#studio .br-heading h3{font-size:23px}
 }
+/* SI readings of the bridge (Inspect). */
+.bridge-review .br-si-list{display:grid;grid-template-columns:1fr;gap:4px;margin:6px 0 0;font-size:12px}
+.bridge-review .br-si-list div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid color-mix(in srgb,currentColor 12%,transparent);padding:3px 0}
+.bridge-review .br-si-list dt{opacity:.72}
+.bridge-review .br-si-list dd{margin:0;font-variant-numeric:tabular-nums;text-align:right}
+.studio-footer .si-scope a{color:inherit;text-decoration:underline;text-underline-offset:2px}

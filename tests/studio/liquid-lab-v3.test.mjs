@@ -40,9 +40,9 @@ test('water crosses initially dry banks; taller banks reduce floodplain inundati
   results.push({case:'bank-height',low:low.frame.hydraulics.floodArea,high:high.frame.hydraulics.floodArea});
 });
 test('pump head, supply valve and each timed program change delivered volume',()=>{
-  const p=liquidSettings({rig:'pipes',bore:50,inflow:80,head:2}),base=pipeDelivery(p,.02,1);
-  assert.ok(pipeDelivery({...p,head:8},.02,1).flow>base.flow);assert.ok(pipeDelivery({...p,valve:20},.02,1).flow<base.flow);
-  for(const off of [{head:0},{valve:0}])assert.equal(pipeDelivery({...p,...off},.02,1).flow,0);
+  const p=liquidSettings({rig:'pipes',bore:50,inflow:80,head:2}),base=pipeDelivery(p,1.0016e-3,998.207);
+  assert.ok(pipeDelivery({...p,head:8},1.0016e-3,998.207).flow>base.flow);assert.ok(pipeDelivery({...p,valve:20},1.0016e-3,998.207).flow<base.flow);
+  for(const off of [{head:0},{valve:0}])assert.equal(pipeDelivery({...p,...off},1.0016e-3,998.207).flow,0);
   for(const supply of SUPPLY_PROGRAMS){const m=run(new LiquidModel({...p,supply:supply.id,fill:0}),8);let integral=0;for(let i=0;i<80000;i++)integral+=supplyFactor((i+.5)/10000,supply.id)/10000;assert.ok(Math.abs(m.frame.hydraulics.added-base.flow*integral)<2e-6);assert.ok(Math.abs(m.frame.hydraulics.residual)<1e-8);}
 });
 test('all outlet groups add water exactly where their rendered openings discharge',()=>{

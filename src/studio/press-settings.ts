@@ -27,6 +27,10 @@ export const METALS:MetalProfile[]=[
   {id:'copper-hard',name:'Hard copper',family:'Copper alloys',description:'Compare work-hardened resistance with annealed copper.',stiffness:.89,yield:.038,rupture:.22,density:1.15,color:'#bc7756',finish:'plate-burnished-copper'},
   {id:'cupronickel',name:'Cupronickel',family:'Copper alloys',description:'A dense, ductile copper alloy for smooth forming.',stiffness:1.08,yield:.031,rupture:.39,density:1.14,color:'#c1b1a0',finish:'plate-pewter'},
   {id:'zinc',name:'Zinc sheet',family:'Specialty',description:'A light-pressure sheet comparison with early yielding.',stiffness:.42,yield:.018,rupture:.21,density:.92,color:'#aebec5',finish:'plate-galvalume'},
+  // Library metals of the SI press (src/studio/press-si.ts). The authored coefficients below only colour the strain
+  // (yield at any plastic strain, rupture at the failure strain of plasticMaterial); the press reads E, f_y, f_u and A from the library.
+  {id:'structural-steel-s355',name:'Structural steel S355',family:'Library (SI)',description:'EN 10025-2 S355: E 210 GPa, f_y 355 MPa, f_u 490 MPa, elongation 22% (unverified).',stiffness:1,yield:1e-6,rupture:.2177,density:1,color:'#879da6',finish:'plate-machined'},
+  {id:'aluminium-6061-t6',name:'Aluminium 6061-T6',family:'Library (SI)',description:'6061-T6: E 68.9 GPa, f_y 276 MPa, f_u 310 MPa, elongation 12% (1.6 mm sheet).',stiffness:.33,yield:1e-6,rupture:.1155,density:.344,color:'#b7c6cf',finish:'plate-machined'},
 ];
 export type PressToolId='round'|'wide'|'ball'|'cone'|'square'|'wedge'|'bead'|'ring'|'cross'|'four-point'|'hex'|'capsule';
 export interface PressTool {id:PressToolId;name:string;description:string;symbol:string}
@@ -78,6 +82,8 @@ export function toolDimensions(p:Pick<PressSettings,'tool'|'toolScale'|'angle'>)
 }
 export interface PressSettings {metal:string;thickness:number;tool:PressToolId;toolScale:number;angle:number;pressure:number;strikeSpeed:number;stroke:number;hold:number}
 export const DEFAULT_PRESS:PressSettings={metal:'mild-steel',thickness:2,tool:'round',toolScale:1,angle:0,pressure:80,strikeSpeed:50,stroke:130,hold:2};
+/** Default of the SI press study (src/studio/press-si.ts). */
+export const SI_DEFAULT_PRESS:PressSettings={metal:'structural-steel-s355',thickness:2,tool:'bead',toolScale:1,angle:0,pressure:40,strikeSpeed:10,stroke:30,hold:1};
 export const metalFor=(id:string)=>METALS.find(p=>p.id===id)??METALS[4];
 export const toolFor=(id:string)=>PRESS_TOOLS.find(p=>p.id===id)??PRESS_TOOLS[0];
 const bound=(v:unknown,f:number,lo:number,hi:number)=>typeof v==='number'&&Number.isFinite(v)?Math.max(lo,Math.min(hi,v)):f;

@@ -1,28 +1,29 @@
-import { bridgeModelKey, bridgePoint, type BridgeBaseline, type BridgeControls, type BridgeModel, type BridgePoint } from './bridge-review';
+import { BRIDGE_HANGERS, bridgeModelKey, bridgePoint, cuts, type BridgeBaseline, type BridgeControls, type BridgeModel, type BridgePoint } from './bridge-review';
 import { createStudioClient, type StudioClient } from '../engine/studio-client';
 import type { StudioCreateOptions, StudioStepResult } from '../engine/studio-runtime';
 
-export const BRIDGE_EXPERIMENTS_KEY = 'box3d.bridge.experiments.v1';
+export const BRIDGE_EXPERIMENTS_KEY = 'box3d.bridge.experiments.v2';
 export const EXPERIMENT_DURATIONS = [15, 30, 60, 120] as const;
-export const EXPERIMENT_CASE_COUNTS = [3, 5, 7, 9] as const;
+export const EXPERIMENT_CASE_COUNTS = [3, 4, 5, 7, 9] as const;
+// The SI bridge: the crowd in kN/m^2 on the east half, hangers cut on the upstream cable (whole numbers), wind in kN/m.
 export const EXPERIMENT_PLANS = [
-  { id: 'load', label: 'Load scan', axis: 'target', unit: '', min:0, max:5, values: [.2, .8, 1.8, 3.2, 5] },
-  { id: 'strength', label: 'Strength scan', axis: 'strength', unit: '×', min:.4, max:2, values: [.4, .7, 1, 1.4, 2] },
-  { id: 'wind', label: 'Crosswind scan', axis: 'wind', unit: '', min:0, max:2, values: [0, .25, .65, 1.2, 2] },
+  { id: 'load', label: 'Crowd scan', axis: 'target', unit: ' kN/m²', min:0, max:5, values: [0, 1, 2, 3.7, 5], step:.0001 },
+  { id: 'cuts', label: 'Hanger loss scan', axis: 'strength', unit: ' cut', min:0, max:6, values: [0, 1, 2, 4, 6], step:1 },
+  { id: 'wind', label: 'Wind scan', axis: 'wind', unit: ' kN/m', min:0, max:2, values: [0, .5, 1, 1.5, 2], step:.0001 },
 ] as const;
 export type ExperimentPlanId = typeof EXPERIMENT_PLANS[number]['id'];
 export type ExperimentDuration = typeof EXPERIMENT_DURATIONS[number];
 export const EXPERIMENT_PRESETS:readonly {id:string;plan:ExperimentPlanId;label:string;description:string;duration:ExperimentDuration;values:readonly number[]}[] = [
-  {id:'load-overview',plan:'load',label:'Load overview',description:'A broad first look at load sensitivity.',duration:30,values:EXPERIMENT_PLANS[0].values},
-  {id:'load-low',plan:'load',label:'Low-load response',description:'Compare the lower end of the normalized load range.',duration:30,values:[0,.25,.5,.75,1]},
-  {id:'load-high',plan:'load',label:'High-load response',description:'Resolve differences near the upper load range.',duration:30,values:[3,3.5,4,4.5,5]},
-  {id:'load-extended',plan:'load',label:'Extended load observation',description:'Watch the response evolve over 120 model seconds; this is not a fatigue test.',duration:120,values:[0,1,2,3,4,4.5,5]},
-  {id:'strength-overview',plan:'strength',label:'Strength overview',description:'Compare reduced, nominal and increased connection strength.',duration:30,values:EXPERIMENT_PLANS[1].values},
-  {id:'strength-low',plan:'strength',label:'Reduced connection strength',description:'Study response between 0.40× and the nominal 1.00× setting.',duration:30,values:[.4,.55,.7,.85,1]},
-  {id:'strength-high',plan:'strength',label:'Increased connection strength',description:'Compare connection multipliers from 1.00× to 2.00×.',duration:30,values:[1,1.25,1.5,1.75,2]},
-  {id:'wind-overview',plan:'wind',label:'Crosswind overview',description:'Compare no wind through the highest normalized crosswind setting.',duration:30,values:EXPERIMENT_PLANS[2].values},
-  {id:'wind-low',plan:'wind',label:'Light crosswind',description:'Look more closely at sideways response under light crosswind.',duration:30,values:[0,.1,.2,.35,.5]},
-  {id:'wind-high',plan:'wind',label:'Strong crosswind',description:'Resolve the upper half of the normalized crosswind range.',duration:60,values:[1,1.25,1.5,1.75,2]},
+  {id:'load-overview',plan:'load',label:'Crowd overview',description:'Empty deck to the EN 1991-2 upper crowd of 5 kN/m² on the east half.',duration:30,values:EXPERIMENT_PLANS[0].values},
+  {id:'load-low',plan:'load',label:'Light crowds',description:'Crowds from 0 to 1 kN/m²: the service range of a footbridge.',duration:30,values:[0,.25,.5,.75,1]},
+  {id:'load-high',plan:'load',label:'Dense crowds',description:'From 3 kN/m² through the 3.7 kN/m² crowd of this span to 5 kN/m².',duration:30,values:[3,3.5,3.7,4.5,5]},
+  {id:'load-extended',plan:'load',label:'Extended crowd observation',description:'Watch the response over 120 s; this is not a fatigue test.',duration:120,values:[0,1,2,3,4,4.5,5]},
+  {id:'cuts-overview',plan:'cuts',label:'Hanger loss overview',description:'No hanger lost to six adjacent hangers of one cable lost.',duration:30,values:EXPERIMENT_PLANS[1].values},
+  {id:'cuts-low',plan:'cuts',label:'First hangers lost',description:'None to three hangers lost at midspan.',duration:30,values:[0,1,2,3]},
+  {id:'cuts-high',plan:'cuts',label:'Several hangers lost',description:'Three to six adjacent hangers lost.',duration:30,values:[3,4,5,6]},
+  {id:'wind-overview',plan:'wind',label:'Wind overview',description:'No wind to a 2 kN/m lateral load on the deck.',duration:30,values:EXPERIMENT_PLANS[2].values},
+  {id:'wind-low',plan:'wind',label:'Light wind',description:'Lateral loads up to 0.5 kN/m.',duration:30,values:[0,.1,.2,.35,.5]},
+  {id:'wind-high',plan:'wind',label:'Strong wind',description:'The upper half of the range, 1 to 2 kN/m.',duration:60,values:[1,1.25,1.5,1.75,2]},
 ];
 export interface ExperimentDesign { values:readonly number[]; preset:string|null }
 type CaseStatus = 'pending' | 'running' | 'completed' | 'cancelled' | 'failed';
@@ -35,7 +36,7 @@ export interface BridgeExperimentCase {
   phase: string;
 }
 export interface BridgeExperimentBatch {
-  format: 'box3d-bridge-experiments'; version: 1 | 2;
+  format: 'box3d-bridge-experiments'; version: 2;
   model: string; createdAt: string; plan: ExperimentPlanId; duration: ExperimentDuration;
   base: BridgeControls; status: Exclude<CaseStatus, 'pending'>;
   transport: 'worker' | 'sync' | null; cases: BridgeExperimentCase[];
@@ -43,19 +44,20 @@ export interface BridgeExperimentBatch {
 }
 export const experimentPlan = (id: ExperimentPlanId) => EXPERIMENT_PLANS.find(p => p.id === id)!;
 const bounded = (n: unknown, lo: number, hi: number): n is number => typeof n === 'number' && Number.isFinite(n) && n >= lo && n <= hi;
-const validControls = (s: BridgeControls) => !!s && bounded(s.target, 0, 5) && bounded(s.strength, .4, 2) && bounded(s.wind, 0, 2) && [.25, .5, 1, 2].includes(s.speed) && ['service', 'failure'].includes(s.program);
+const validControls = (s: BridgeControls) => !!s && bounded(s.target, 0, 5) && cuts(s.strength) && bounded(s.wind, 0, 2) && [.25, .5, 1, 2].includes(s.speed) && ['service', 'failure'].includes(s.program);
 const copyControls = (s: BridgeControls): BridgeControls => ({ target:s.target, strength:s.strength, wind:s.wind, program:s.program, speed:s.speed });
 export const experimentValue = (value:number) => value.toFixed(4).replace(/0{1,2}$/, '');
 const validValues = (plan:ExperimentPlanId, values:readonly number[]):boolean => {
   const p=experimentPlan(plan);
   return !!p && Array.isArray(values) && (EXPERIMENT_CASE_COUNTS as readonly number[]).includes(values.length) &&
-    values.every((v,i)=>bounded(v,p.min,p.max)&&Math.abs(v*10000-Math.round(v*10000))<1e-7&&(!i||v>values[i-1]));
+    values.every((v,i)=>bounded(v,p.min,p.max)&&Math.abs(v/p.step-Math.round(v/p.step))<1e-7&&(!i||v>values[i-1]));
 };
 const validDesign = (plan:ExperimentPlanId, design:ExperimentDesign):boolean => {
   if(!design||!validValues(plan,design.values))return false;
   if(design.preset===null){
     const start=design.values[0],end=design.values.at(-1)!;
-    return design.values.every((v,i)=>v===Math.round((start+(end-start)*i/(design.values.length-1))*10000)/10000);
+    const p=experimentPlan(plan);
+    return design.values.every((v,i)=>v===rounded(start+(end-start)*i/(design.values.length-1),p.step));
   }
   const preset=EXPERIMENT_PRESETS.find(p=>p.id===design.preset&&p.plan===plan);
   return !!preset&&preset.values.length===design.values.length&&preset.values.every((v,i)=>v===design.values[i]);
@@ -65,8 +67,8 @@ export function experimentRange(plan:ExperimentPlanId,start:number,end:number,co
   const p=experimentPlan(plan);
   if(!p||!bounded(start,p.min,p.max)||!bounded(end,p.min,p.max)||start>=end)throw new Error(`Enter an increasing range from ${p?.min??0} to ${p?.max??5}.`);
   if(!(EXPERIMENT_CASE_COUNTS as readonly number[]).includes(count))throw new Error('Choose 3, 5, 7 or 9 cases.');
-  if([start,end].some(v=>Math.abs(v*10000-Math.round(v*10000))>1e-7))throw new Error('Use at most four decimal places for the range.');
-  const values=Array.from({length:count},(_,i)=>Math.round((start+(end-start)*i/(count-1))*10000)/10000);
+  if([start,end].some(v=>Math.abs(v/p.step-Math.round(v/p.step))>1e-7))throw new Error(p.step===1?'Hangers cut are whole numbers.':'Use at most four decimal places for the range.');
+  const values=Array.from({length:count},(_,i)=>rounded(start+(end-start)*i/(count-1),p.step));
   if(!validValues(plan,values))throw new Error('Widen this range or use fewer cases so every setting is distinct.');
   return values;
 }
@@ -86,7 +88,8 @@ export function makeExperimentBatch(model: BridgeModel, plan: ExperimentPlanId, 
 }
 export function experimentCaseLabel(batch: BridgeExperimentBatch, c: BridgeExperimentCase): string {
   const p = experimentPlan(batch.plan);
-  return `${batch.plan === 'load' ? 'Load' : batch.plan === 'wind' ? 'Wind' : 'Strength'} ${experimentValue(c.settings[p.axis])}${p.unit}`;
+  if (batch.plan === 'cuts') { const n=c.settings.strength; return `${n} hanger${n===1?'':'s'} cut`; }
+  return `${batch.plan === 'load' ? 'Crowd' : 'Wind'} ${experimentValue(c.settings[p.axis])}${p.unit}`;
 }
 /** Adjacent completed observations only; do not assume a monotonic or safe failure boundary. */
 export function experimentTransitions(batch:BridgeExperimentBatch) {
@@ -108,14 +111,16 @@ export function experimentFollowUp(batch:BridgeExperimentBatch,lowerIndex:number
 export function experimentSummary(c: BridgeExperimentCase) {
   if (!c.points.length) return undefined;
   const peak = c.points.reduce((a,b) => b.drop > a.drop ? b : a);
-  return { time:c.points.at(-1)!.time, peak:peak.drop, peakTime:peak.time, lateral:Math.max(...c.points.map(p => p.lateral)), broken:c.points.at(-1)!.broken,
-    outcome:c.phase === 'Collapsed' ? 'Collapsed' : c.points.at(-1)!.broken ? 'Ruptured' : 'No rupture observed' };
+  const broken=c.points.at(-1)!.broken;
+  return { time:c.points.at(-1)!.time, peak:peak.drop, peakTime:peak.time, lateral:Math.max(...c.points.map(p => p.lateral)), broken, hanger:Math.max(...c.points.map(p => p.hanger)),
+    outcome:c.phase === 'Beyond stated strength' ? 'Beyond stated strength' : broken ? `${broken} hanger${broken===1?'':'s'} failed` : 'No hanger failure' };
 }
 
 export const EXPERIMENT_METRICS = [
-  { id:'drop', label:'Deck drop', title:'Recorded deck drop', unit:'model units' },
-  { id:'lateral', label:'Sideways', title:'Recorded sideways movement', unit:'model units' },
-  { id:'broken', label:'Lost links', title:'Recorded lost connections', unit:'connections' },
+  { id:'drop', label:'Deck drop', title:'Recorded deck drop', unit:'mm' },
+  { id:'lateral', label:'Sideways', title:'Recorded sideways movement', unit:'mm' },
+  { id:'hanger', label:'Hanger', title:'Recorded largest hanger tension', unit:'kN' },
+  { id:'broken', label:'Hangers failed', title:'Recorded failed hangers', unit:'hangers' },
 ] as const;
 export type ExperimentMetric = typeof EXPERIMENT_METRICS[number]['id'];
 
@@ -164,7 +169,7 @@ export function experimentOverview(batch: BridgeExperimentBatch) {
 }
 export function experimentBaseline(batch: BridgeExperimentBatch, c: BridgeExperimentCase): BridgeBaseline | undefined {
   if (c.points.length < 2 || c.status === 'pending' || c.status === 'running') return;
-  return { format:'box3d-bridge-baseline', version:1, model:batch.model, savedAt:new Date().toISOString(),
+  return { format:'box3d-bridge-baseline', version:2, model:batch.model, savedAt:new Date().toISOString(),
     name:`${experimentCaseLabel(batch,c)} / ${c.points.at(-1)!.time.toFixed(1)} s${c.status === 'completed' ? '' : ' partial'}`,
     settings:copyControls(c.settings), changes:[{time:0,...copyControls(c.settings)}], points:c.points.map(p => ({...p})), historyComplete:true };
 }
@@ -194,7 +199,7 @@ export async function runBridgeExperiments(batch: BridgeExperimentBatch, model: 
   try {
     for (const c of batch.cases) {
       checkAbort(); active=c; c.status='running'; options.progress(batch);
-      const s=c.settings, setup:StudioCreateOptions={study:'bridge',backend:model.backend,controls:{targetLoad:s.target,strength:s.strength,wind:s.wind}};
+      const s=c.settings, setup:StudioCreateOptions={study:'bridge',backend:model.backend,controls:{targetLoad:s.target,wind:s.wind,cuts:Math.round(s.strength)}};
       if (!client) {
         client=await (options.createClient ?? createStudioClient)(setup);
         checkAbort(); batch.transport=client.mode; consume(await client.inspect(),c,true);
@@ -232,10 +237,9 @@ export function parseBridgeExperiments(raw: string | null, model: string): Bridg
   if (!raw || raw.length > 3_000_000) return;
   try {
     const b=JSON.parse(raw) as BridgeExperimentBatch, p=experimentPlan(b.plan);
-    if (b.format !== 'box3d-bridge-experiments' || ![1,2].includes(b.version) || b.model !== model || !p || !EXPERIMENT_DURATIONS.includes(b.duration) || !validControls(b.base)) return;
-    if(b.version===1&&(b.duration===120||b.design!==undefined))return;
-    if(b.version===2&&(!b.design||!validDesign(b.plan,b.design)))return;
-    const values=b.version===1?p.values:b.design!.values;
+    if (b.format !== 'box3d-bridge-experiments' || b.version !== 2 || b.model !== model || !p || !EXPERIMENT_DURATIONS.includes(b.duration) || !validControls(b.base)) return;
+    if(!b.design||!validDesign(b.plan,b.design))return;
+    const values=b.design.values;
     if (typeof b.createdAt !== 'string' || !Number.isFinite(Date.parse(b.createdAt)) || !['completed','cancelled','failed'].includes(b.status) || ![null,'worker','sync'].includes(b.transport)) return;
     if (!Array.isArray(b.cases) || b.cases.length !== values.length) return;
     let stopped=false, pendingSeen=false, partials=0;
@@ -246,11 +250,11 @@ export function parseBridgeExperiments(raw: string | null, model: string): Bridg
       if (c.status !== 'completed') stopped=true;
       if (c.status === 'cancelled' || c.status === 'failed') { if (pendingSeen || ++partials > 1 || c.status !== b.status) return; }
       if (c.status === 'pending') pendingSeen=true;
-      if (!['Ready','Elastic response','Damage accumulating','Plastic deformation','Fracturing','Collapsed'].includes(c.phase)) return;
+      if (!['Ready','Elastic response','Hangers failed','Beyond stated strength'].includes(c.phase)) return;
       if (!Array.isArray(c.points) || c.points.length > b.duration*10+1 || (c.status === 'pending' && c.points.length) || (c.status === 'completed' && c.points.length !== b.duration*10+1)) return;
       for (let j=0;j<c.points.length;j++) {
         const pt=c.points[j];
-        if (!pt || !bounded(pt.time,0,b.duration+1e-7) || Math.abs(pt.time-j/10)>1e-7 || !bounded(pt.load,0,5) || !bounded(pt.drop,0,1e6) || !bounded(pt.lateral,0,1e6) || !Number.isInteger(pt.broken) || pt.broken<0 || pt.broken>327 || (j>0 && pt.broken<c.points[j-1].broken)) return;
+        if (!pt || !bounded(pt.time,0,b.duration+1e-7) || Math.abs(pt.time-j/10)>1e-7 || !bounded(pt.load,0,5) || !bounded(pt.drop,0,1e6) || !bounded(pt.lateral,0,1e6) || !bounded(pt.hanger,0,1e5) || !Number.isInteger(pt.broken) || pt.broken<0 || pt.broken>BRIDGE_HANGERS || (j>0 && pt.broken<c.points[j-1].broken)) return;
       }
       if (c.points.length && (c.points[0].broken !== 0 || c.points[0].load !== 0)) return;
       const firstBroken=c.points.findIndex(pt => pt.broken>0);
@@ -261,19 +265,21 @@ export function parseBridgeExperiments(raw: string | null, model: string): Bridg
   } catch { return; }
 }
 
+const BASIS='SI suspension model on validated solvers (docs/SI_BRIDGE.md); not calibrated against a built bridge';
+const rounded=(value:number,step:number)=>step===1?Math.round(value):Math.round(value*10000)/10000;
 const csvCell=(value:string|number|null)=>`"${String(value ?? '').replace(/^[=+\-@\t\r]/,"'$&").replaceAll('"','""')}"`;
 export function experimentCSV(batch: BridgeExperimentBatch): string {
-  const headers=['case','scan','status','target_load_normalized','strength_multiplier','crosswind_normalized','planned_model_seconds','recorded_model_seconds','outcome_observed','first_rupture_model_seconds','peak_recorded_drop_model_units','peak_drop_model_seconds','peak_recorded_lateral_model_units','lost_links','model','created_at','basis'];
-  const rows=batch.cases.map(c => { const s=experimentSummary(c); return [experimentCaseLabel(batch,c),batch.plan,c.status,c.settings.target,c.settings.strength,c.settings.wind,batch.duration,s?.time??null,s?.outcome??'',c.firstRupture,s?.peak??null,s?.peakTime??null,s?.lateral??null,s?.broken??null,batch.model,batch.createdAt,'Authored comparative model; not calibrated']; });
+  const headers=['case','scan','status','crowd_kN_per_m2','hangers_cut','wind_kN_per_m','planned_seconds','recorded_seconds','outcome_observed','first_hanger_failure_seconds','peak_deck_drop_mm','peak_drop_seconds','peak_lateral_mm','peak_hanger_tension_kN','hangers_failed','model','created_at','basis'];
+  const rows=batch.cases.map(c => { const s=experimentSummary(c); return [experimentCaseLabel(batch,c),batch.plan,c.status,c.settings.target,c.settings.strength,c.settings.wind,batch.duration,s?.time??null,s?.outcome??'',c.firstRupture,s?.peak??null,s?.peakTime??null,s?.lateral??null,s?.hanger??null,s?.broken??null,batch.model,batch.createdAt,BASIS]; });
   return [headers,...rows].map(row => row.map(csvCell).join(',')).join('\r\n')+'\r\n';
 }
 export function experimentSamplesCSV(batch:BridgeExperimentBatch):string {
-  const headers=['case','scan','status','model_seconds','applied_load_normalized','deck_drop_model_units','sideways_model_units','lost_links','target_load_normalized','strength_multiplier','crosswind_normalized','planned_model_seconds','model','created_at','basis'];
-  const rows=batch.cases.flatMap(c=>c.points.map(p=>[experimentCaseLabel(batch,c),batch.plan,c.status,p.time,p.load,p.drop,p.lateral,p.broken,c.settings.target,c.settings.strength,c.settings.wind,batch.duration,batch.model,batch.createdAt,'Authored comparative model; not calibrated']));
+  const headers=['case','scan','status','seconds','crowd_kN_per_m2','deck_drop_mm','sideways_mm','largest_hanger_kN','hangers_failed','target_crowd_kN_per_m2','hangers_cut','wind_kN_per_m','planned_seconds','model','created_at','basis'];
+  const rows=batch.cases.flatMap(c=>c.points.map(p=>[experimentCaseLabel(batch,c),batch.plan,c.status,p.time,p.load,p.drop,p.lateral,p.hanger,p.broken,c.settings.target,c.settings.strength,c.settings.wind,batch.duration,batch.model,batch.createdAt,BASIS]));
   return [headers,...rows].map(row=>row.map(csvCell).join(',')).join('\r\n')+'\r\n';
 }
 export function experimentExport(batch: BridgeExperimentBatch) {
-  return {...batch, exportedAt:new Date().toISOString(), units:{time:'model seconds',drop:'model units',lateral:'model units',load:'normalized',wind:'normalized',strength:'multiplier'},
-    basis:{fixedHz:120,sampleHz:10,initialState:'intact bridge',loadHistory:'constant target with existing solver load ramp',calibration:'authored comparative',speed:'Playback speed does not affect fixed-tick experiments.',water:'Visual surroundings do not apply river forces.',geometry:'Response samples and settings only; load a case and rerun to inspect geometry.'},
+  return {...batch, exportedAt:new Date().toISOString(), units:{time:'s',drop:'mm',lateral:'mm',hanger:'kN',load:'kN/m² crowd on the east half',wind:'kN/m on the deck',strength:'hangers cut on the upstream cable'},
+    basis:{fixedHz:120,sampleHz:10,initialState:'intact bridge at rest under its dead load',loadHistory:'crowd builds up at 0.5 kN/m² per second to its target; wind and cuts act from the start',calibration:BASIS,speed:'Playback speed does not affect fixed-tick experiments.',water:'Visual surroundings do not apply river forces.',geometry:'Response samples and settings only; load a case and rerun to inspect geometry.'},
     summaries:batch.cases.map(c => ({index:c.index,label:experimentCaseLabel(batch,c),status:c.status,firstRupture:c.firstRupture,...experimentSummary(c)}))};
 }

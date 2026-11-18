@@ -7,9 +7,13 @@ import {GLASS_RIG,glassFixtures} from './glass-rig';
 import {GroundedSkybox} from 'three/addons/objects/GroundedSkybox.js';
 import {StudioMaterials} from '../materials';
 import {studioEnvironment,riverNormals} from '../lighting';
+import {watchDeviceLoss,framesSettled,initWebGL} from '../device-loss';
 import {LABS,type LabId} from './catalog';
-import {GlassModel,GranularModel,LiquidModel,RubberModel,type LabFrame,type LabModel,type V3,random} from './models';
+import {ConcreteModel,GlassModel,GranularModel,LiquidModel,RubberModel,type LabFrame,type LabModel,type V3,random} from './models';
+import {liveFaces} from './concrete-si';
 
+/** Triangles of a prism over an n-gon: bottom vertices 0..n-1, top n..2n-1. */
+const prismFaces=(n:number):number[]=>{const out:number[]=[];for(let k=1;k<n-1;k++)out.push(0,k+1,k,n,n+k,n+k+1);for(let a=0;a<n;a++){const b=(a+1)%n;out.push(a,b,n+b,a,n+b,n+a);}return out;};
 const UP=new T.Vector3(0,1,0),faces=[0,2,1,0,3,2,4,5,6,4,6,7,0,1,5,0,5,4,3,7,6,3,6,2,1,2,6,1,6,5,0,4,7,0,7,3];
 export type LabView='hero'|'detail'|'top';
 export class MaterialLabWorld {
@@ -22,7 +26,9 @@ export class MaterialLabWorld {
   private liquidSection=3;private sectionVisible=false;
   private water?:T.Mesh<T.BufferGeometry>;private waterSides?:T.Mesh<T.BufferGeometry>;private foam?:T.InstancedMesh;
   private dummy=new T.Object3D();private color=new T.Color();private localVertices=new Float32Array();private ranges:number[]=[];
-  private rubberRest?:Float32Array;private labels:T.Texture[]=[];private view:LabView='hero';private disposed=false;
+  private rubberRest?:Float32Array;private concreteSpalled=-1;private concreteFaces:Uint32Array=new Uint32Array(0);private concreteOwners:Uint32Array=new Uint32Array(0);private paneRest?:Float32Array;private labels:T.Texture[]=[];private view:LabView='hero';private disposed=false;private recovering=false;private recovery?:Promise<void>;
+  /** Called after a lost WebGPU device has been replaced by the WebGL renderer. */
+  onBackendChange?:()=>void;
   private tint:T.MeshPhysicalMaterial;private ripple=riverNormals();private lastFrame?:LabFrame;private rotate=false;private key=new T.DirectionalLight('#fff1d7',3.6);
   constructor(private host:HTMLElement,public model:LabModel){
     this.renderer=this.makeRenderer();this.controls=new OrbitControls(this.camera,this.renderer.domElement);this.setupControls();
@@ -32,6 +38,10 @@ export class MaterialLabWorld {
   private own<M extends T.Material>(m:M):M {this.extraMaterials.add(m);return m;}
   private makeRenderer(forceWebGL=false):T.WebGPURenderer {
     const r=new T.WebGPURenderer({antialias:true,alpha:false,forceWebGL});r.setPixelRatio(Math.min(devicePixelRatio,1.5));
+    // A WebGPU loss before init() wires the recovery is the first-frame probe's to report (watchDeviceLoss): three.js's
+    // default handler would log it as an error whenever the browser gives a reason other than "destroyed" ("A valid external
+    // Instance reference no longer exists" under software rendering). WebGL context losses keep the default report.
+    const report=r.onDeviceLost;r.onDeviceLost=info=>{if(info.api!=='WebGPU')report.call(r,info);};
     r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=1;r.shadowMap.enabled=true;r.shadowMap.type=T.PCFShadowMap;
     r.domElement.setAttribute('role','img');r.domElement.setAttribute('aria-label','Interactive 3D material experiment. Drag to orbit and scroll to zoom.');this.host.append(r.domElement);return r;
   }
@@ -43,14 +53,26 @@ export class MaterialLabWorld {
     catch{this.controls.dispose();first.domElement.remove();void initializing.then(()=>first.dispose()).catch(()=>{});this.renderer=this.makeRenderer(true);this.controls=new OrbitControls(this.camera,this.renderer.domElement);this.setupControls();await this.renderer.init();}
     finally{if(timeout)clearTimeout(timeout);}
     if(this.disposed)return;
+    // Software rendering can destroy a WebGPU device at its first frame. Find out with an empty frame before building
+    // the apparatus, so the scene is not built for a lost device and then again on WebGL.
+    if(this.backend==='WebGPU'){
+      const probe=this.renderer;let lost=false;
+      // Also guards three.js's error scopes on the probed device (its rejections are otherwise unhandled when the device is dropped).
+      watchDeviceLoss(probe,()=>{lost=true;});
+      try{probe.render(new T.Scene(),this.camera);}catch{lost=true;}
+      await framesSettled(probe);
+      if(lost&&!this.disposed){
+        console.warn('The WebGPU device was lost on its first frame. Starting on the WebGL renderer.');
+        this.controls.dispose();probe.domElement.remove();try{probe.dispose();}catch{/* its device is already gone */}
+        this.renderer=await initWebGL(()=>this.makeRenderer(true));this.controls=new OrbitControls(this.camera,this.renderer.domElement);this.setupControls();
+      }
+    }
     stage('Loading metal and surface textures');await this.library.init('plate');if(this.disposed)return;stage('Preparing the laboratory environment');
     try{
       this.panorama=await new T.TextureLoader().loadAsync(`${import.meta.env.BASE_URL}studio/references/material-labs/hall-panorama.png`);this.panorama.colorSpace=T.SRGBColorSpace;this.panorama.mapping=T.EquirectangularReflectionMapping;
-      const pmrem=new T.PMREMGenerator(this.renderer);this.environment=pmrem.fromEquirectangular(this.panorama);pmrem.dispose();
-    }catch{this.environment=studioEnvironment(this.renderer);}
-    if(this.disposed){this.environment?.dispose();this.panorama?.dispose();return;}
-    if(this.model.id==='liquid')this.liquidMetalEnvironment=studioEnvironment(this.renderer,true);
-    this.scene.environment=this.environment.texture;this.scene.environmentIntensity=1.35;this.scene.background=new T.Color('#cecfc5');
+    }catch{/* The studio emitters stand in for a missing panorama. */}
+    if(this.disposed){this.panorama?.dispose();return;}
+    this.buildEnvironment();this.scene.environmentIntensity=1.35;this.scene.background=new T.Color('#cecfc5');
     const source=this.library.materials;
     this.materials={floor:source.floor,wall:source.concrete,steel:this.own(new T.MeshStandardMaterial({color:'#b7c0ba',map:source.steel.map,normalMap:source.steel.normalMap,normalScale:new T.Vector2(.1,.1),roughness:.32,metalness:.48,envMapIntensity:1.8})),chrome:source.chrome,
       orange:this.own(new T.MeshStandardMaterial({color:'#f07422',roughness:.46,metalness:.32})),black:this.own(new T.MeshStandardMaterial({color:'#1a2020',roughness:.73,metalness:.22})),
@@ -64,6 +86,34 @@ export class MaterialLabWorld {
       this.materials.liquidRock=this.own(new T.MeshStandardMaterial({map:entries[1],bumpMap:entries[1],bumpScale:.025,roughness:.93,color:'#aaa997'}));
     }
     stage('Building the apparatus');this.buildHall();this.setModel(this.model);this.resize();
+    const renderer=this.renderer;
+    if(this.backend==='WebGPU'){
+      const lose=(message:string)=>{this.recovery??=this.recover(renderer,message);};
+      renderer.onDeviceLost=info=>lose(info.message);watchDeviceLoss(renderer,lose);
+      // Prove the device by its first frame, so the lab is not shown on one that cannot present.
+      this.render();await framesSettled(renderer);await this.recovery;
+    }
+  }
+  /** Reflection maps live on the renderer that drew them, so a replacement renderer draws them again. */
+  private buildEnvironment():void {
+    this.environment?.dispose();this.liquidMetalEnvironment?.dispose();this.environment=undefined;
+    if(this.panorama)try{const pmrem=new T.PMREMGenerator(this.renderer);this.environment=pmrem.fromEquirectangular(this.panorama);pmrem.dispose();}catch{/* use the emitters below */}
+    this.environment??=studioEnvironment(this.renderer);
+    this.liquidMetalEnvironment=this.model.id==='liquid'?studioEnvironment(this.renderer,true):undefined;
+    this.scene.environment=this.environment.texture;
+  }
+  /** A lost WebGPU device rejects every later buffer and pipeline. Move the same scene to WebGL. */
+  private async recover(lost:T.WebGPURenderer,message:string):Promise<void> {
+    if(this.disposed||lost!==this.renderer)return;this.recovering=true;
+    console.warn(`Graphics device lost (${message}). Continuing on the WebGL renderer.`);
+    const position=this.camera.position.clone(),target=this.controls.target.clone(),frame=this.lastFrame,exposure=lost.toneMappingExposure;
+    this.controls.dispose();lost.domElement.remove();try{lost.dispose();}catch{/* its device is already gone */}
+    const renderer=await initWebGL(()=>this.makeRenderer(true));if(this.disposed){renderer.dispose();renderer.domElement.remove();return;}
+    this.renderer=renderer;renderer.toneMappingExposure=exposure;
+    this.controls=new OrbitControls(this.camera,renderer.domElement);this.setupControls();this.setRotate(this.rotate);
+    this.buildEnvironment();this.setModel(this.model);if(frame)this.update(frame);this.recovering=false;this.resize();
+    this.camera.position.copy(position);this.controls.target.copy(target);this.camera.lookAt(target);this.controls.update();
+    this.onBackendChange?.();
   }
   private mesh(g:T.BufferGeometry,m:T.Material,p:V3,parent:T.Object3D=this.rig):T.Mesh {const mesh=new T.Mesh(g,m);mesh.position.set(...p);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh;}
   private box(size:V3,p:V3,mat='steel',bevel=0,parent:T.Object3D=this.rig):T.Mesh {const box=this.mesh(bevel?new RoundedBoxGeometry(...size,2,bevel):new T.BoxGeometry(...size),this.materials[mat],p,parent);if(mat==='glass')box.castShadow=false;return box;}
@@ -72,10 +122,15 @@ export class MaterialLabWorld {
   private bolt(x:number,y:number,z:number,parent:T.Object3D=this.rig):void {this.cylinder(.056,.025,[x,y,z],'black',parent);this.mesh(new T.CylinderGeometry(.037,.037,.043,6),this.materials.chrome,[x,y+.018,z],parent);}
   private hose(points:V3[],r=.035,parent:T.Object3D=this.rig):void {const curve=new T.CatmullRomCurve3(points.map(p=>new T.Vector3(...p)));this.mesh(new T.TubeGeometry(curve,40,r,10,false),this.materials.rubber,[0,0,0],parent);}
   private label(text:string,width:number,height:number,p:V3,background='#222a28',color='#dadcd2',parent:T.Object3D=this.rig):T.Mesh {
+    // One material per distinct label for the world's lifetime: a new canvas texture is a new shader program in three.js, so a
+    // label drawn again at every reset compiled its render pipelines again.
+    const key=[text,width,height,background,color].join('\u0000'),cached=this.labelMaterials.get(key);
+    if(cached)return this.mesh(new T.PlaneGeometry(width,height),cached,p,parent);
     const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=Math.max(48,Math.round(1024*height/width));const ctx=canvas.getContext('2d')!;ctx.fillStyle=background;ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle=color;ctx.font=`600 ${Math.round(canvas.height*.48)}px Inter, sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,512,canvas.height/2,980);
-    const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;this.labels.push(texture);
-    const m=this.own(new T.MeshBasicMaterial({map:texture}));return this.mesh(new T.PlaneGeometry(width,height),m,p,parent);
+    const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;
+    const m=new T.MeshBasicMaterial({map:texture});this.labelMaterials.set(key,m);return this.mesh(new T.PlaneGeometry(width,height),m,p,parent);
   }
+  private readonly labelMaterials=new Map<string,T.MeshBasicMaterial>();
   private buildHall():void {
     if(this.panorama){
       const skybox=new GroundedSkybox(this.panorama,3,55,64);skybox.position.y=3;(skybox.material as T.MeshBasicMaterial).toneMapped=false;this.own(skybox.material as T.Material);this.hall.add(skybox);
@@ -114,17 +169,21 @@ export class MaterialLabWorld {
     this.scene.add(new T.HemisphereLight('#f2f7f4','#8a8068',1.9));const rim=new T.DirectionalLight('#d9edf1',1.5);rim.position.set(2,6,-4);this.scene.add(rim);const fill=new T.DirectionalLight('#fff4df',1.6);fill.position.set(7,4,8);this.scene.add(fill);if(this.model.id==='liquid'){this.key.intensity=2.7;fill.intensity=1;this.scene.environmentIntensity=.9;}
   }
   setModel(model:LabModel):void {
-    this.hydraulics?.dispose();this.hydraulics=undefined;
+    // The replaced apparatus is disposed after the new one has drawn its first frame (render()): its materials keep their
+    // compiled render pipelines alive until then, so the new apparatus, made of materials with the same programs, reuses them.
+    // Disposed first, every reset of the liquid lab compiled 32 render pipelines again, each one seconds of work under software
+    // rendering.
+    const retired=this.retired,hydraulics=this.hydraulics;if(hydraulics)retired.push(()=>hydraulics.dispose());this.hydraulics=undefined;
     const shared=new Set(Object.values(this.materials));
-    this.rig.traverse(o=>{if(o instanceof T.Mesh||o instanceof T.LineSegments){o.geometry.dispose();for(const material of Array.isArray(o.material)?o.material:[o.material])if(material!==this.tint&&!shared.has(material)&&this.extraMaterials.has(material)){const texture=(material as T.MeshBasicMaterial).map;if(texture instanceof T.CanvasTexture){texture.dispose();this.labels=this.labels.filter(t=>t!==texture);}material.dispose();this.extraMaterials.delete(material);}}});this.rig.clear();this.model=model;this.actuator=new T.Group();this.rig.add(this.actuator);
-    this.specimen=undefined;this.intactPane=undefined;this.piston=undefined;this.grains=undefined;this.water=undefined;this.waterSides=undefined;this.cracks=undefined;this.foam=undefined;this.rubberRest=undefined;
-    this.tint.dispose();this.extraMaterials.delete(this.tint);
+    this.rig.traverse(o=>{if(o instanceof T.Mesh||o instanceof T.LineSegments){const geometry=o.geometry;retired.push(()=>geometry.dispose());for(const material of Array.isArray(o.material)?o.material:[o.material])if(material!==this.tint&&!shared.has(material)&&this.extraMaterials.has(material)){const texture=(material as T.MeshBasicMaterial).map;if(texture instanceof T.CanvasTexture){retired.push(()=>texture.dispose());this.labels=this.labels.filter(t=>t!==texture);}retired.push(()=>material.dispose());this.extraMaterials.delete(material);}}});this.rig.clear();this.model=model;this.actuator=new T.Group();this.rig.add(this.actuator);
+    this.specimen=undefined;this.intactPane=undefined;this.paneRest=undefined;this.piston=undefined;this.grains=undefined;this.water=undefined;this.waterSides=undefined;this.cracks=undefined;this.foam=undefined;this.rubberRest=undefined;
+    const tint=this.tint;retired.push(()=>tint.dispose());this.extraMaterials.delete(tint);
     const id=model.id,p=model.material;
     this.tint=this.own(new T.MeshPhysicalMaterial({color:p.color,roughness:id==='glass'?(p.id==='frosted'?.55:.08):id==='liquid'?.12:id==='rubber'?.47:.85,metalness:id==='granular'&&p.id==='steel'?.8:0,
       clearcoat:id==='liquid'||id==='glass'?1:id==='rubber'?.18:0,transparent:id==='glass'||id==='liquid',opacity:id==='glass'?.38:id==='liquid'?.82:1,side:T.DoubleSide,depthWrite:id!=='glass',envMapIntensity:id==='liquid'?1.4:.8}));
     if(id==='liquid'){this.tint.normalMap=this.ripple;this.tint.normalScale.set(.13,.13);this.tint.roughness=.075;this.tint.metalness=0;this.tint.opacity=1;this.tint.transmission=.48;this.tint.ior=1.333;this.tint.thickness=.35;this.tint.attenuationColor.set(p.color);this.tint.attenuationDistance=1.4;this.tint.color.lerp(new T.Color('#dcefee'),.12);this.ripple.repeat.set(2,2);}
     if(id==='concrete'){this.tint.map=this.library.materials.concrete.map;this.tint.bumpMap=this.library.materials.concrete.map;this.tint.bumpScale=.035;}
-    if(id==='liquid'){this.hydraulics=new LiquidScene(model as LiquidModel,this.materials,this.ripple,this.liquidMetalEnvironment?.texture);this.hydraulics.setDisplay(this.liquidDisplay);this.hydraulics.setSection(this.liquidSection,this.sectionVisible);this.rig.add(this.hydraulics.group);}else if(id==='granular')this.buildTank();else if(id==='glass')this.buildGlassRig();else this.buildPressRig();
+    if(id==='liquid'){this.hydraulics=new LiquidScene(model as LiquidModel,this.materials,this.ripple,this.liquidMetalEnvironment?.texture,this.labelMaterials);this.hydraulics.setDisplay(this.liquidDisplay);this.hydraulics.setSection(this.liquidSection,this.sectionVisible);this.rig.add(this.hydraulics.group);}else if(id==='granular')this.buildTank();else if(id==='glass')this.buildGlassRig();else this.buildPressRig();
     this.update(model.frame);this.fit(this.view);
   }
   private feet(width:number,depth:number,top:number,parent:T.Object3D=this.rig):void {
@@ -189,7 +248,9 @@ export class MaterialLabWorld {
     this.cylinder(.15,.3,[m.impactX,r.pivotY+.02,0],'steel').rotation.z=Math.PI/2;
     this.buildPieces(true);
     const paneMaterial=this.own(this.tint.clone());paneMaterial.transmission=.82;paneMaterial.opacity=1;paneMaterial.ior=1.5;paneMaterial.thickness=m.settings.size/1000;paneMaterial.envMapIntensity=1.25;
-    this.intactPane=this.mesh(new T.BoxGeometry(m.panelWidth,m.panelHeight,m.settings.size/1000),paneMaterial,[0,m.panelCenterY,0]);this.intactPane.castShadow=false;
+    // The intact pane bends with the plate: one vertex column per node on both faces.
+    this.intactPane=this.mesh(new T.BoxGeometry(m.panelWidth,m.panelHeight,m.settings.size/1000,m.plate.cx,m.plate.cy,1),paneMaterial,[0,m.panelCenterY,0]);this.intactPane.castShadow=false;
+    this.paneRest=(this.intactPane.geometry.getAttribute('position').array as Float32Array).slice();
   }
   private buildPressRig():void {
     const rubber=this.model.id==='rubber',width=rubber?2.5:3.4,depth=rubber?1.65:2.7,height=rubber?3.75:4.9;
@@ -203,13 +264,54 @@ export class MaterialLabWorld {
     this.piston=this.cylinder(rubber?.095:.2,1,[0,1,0],'chrome',this.actuator);this.housingEnd=height-.3;
     if(rubber){
       this.cylinder(.66,.09,[0,.745,0],'steel');this.cylinder(.88,.21,[0,.895,0]);this.cylinder(.88,.21,[0,.105,0],'chrome',this.actuator);
-      const g=new T.CylinderGeometry((this.model as RubberModel).radius,(this.model as RubberModel).radius,(this.model as RubberModel).initialHeight,72,32,false);this.rubberRest=(g.getAttribute('position').array as Float32Array).slice();this.specimen=this.mesh(g,this.tint,[0,0,0]);this.specimen.frustumCulled=false;
+      // The specimen is the boundary of the tetrahedral solid: its nodes move with the model, its triangles are the solid's outer faces.
+      const solid=(this.model as RubberModel).solid,g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(new Float32Array(solid.nodeCount*3),3).setUsage(T.DynamicDrawUsage));g.setIndex(Array.from((this.model as RubberModel).surface));
+      this.rubberRest=new Float32Array(0);this.specimen=this.mesh(g,this.tint,[0,0,0]);this.specimen.frustumCulled=false;
       this.trayRack();this.box([.28,.19,.22],[1.3,1.6,.25],'black',.02);this.rod([1.01,1.6,-.1],[1.3,1.6,.25],.025,'steel');this.hose([[1.25,1.6,.2],[1.55,2.4,.2],[1.3,3.65,0]],.028);
     }else{
-      this.box([2.5,.13,1.7],[0,.765,0],'steel',.02);this.tray(2.7,1.9,.95);this.box([1.9,.19,1.9],[0,.095,0],'chrome',.016,this.actuator);this.buildPieces(false);
-      if(this.model.material.retention)for(const x of [-.4,.4])for(const z of [-.4,.4]){this.cylinder(.037,1.45,[x,1.61,z],'steel');for(let y=1;y<2.2;y+=.085){const ring=this.mesh(new T.TorusGeometry(.04,.009,5,8),this.materials.chrome,[x,y,z]);ring.rotation.x=Math.PI/2;}}
+      this.box([2.5,.13,1.7],[0,.765,0],'steel',.02);this.tray(2.7,1.9,.95);this.box([1.9,.19,1.9],[0,.095,0],'chrome',.016,this.actuator);this.buildConcrete();
       this.box([.78,1.2,.8],[2.45,.6,-.35],'orange',.035);this.label('HYDRAULIC / 03',.64,.15,[2.45,.96,.056],'#d87127','#29332d');this.hose([[2.5,1,-.65],[2.3,2.1,-1.6],[1.2,4.15,-.3],[.44,height-.55,0]],.056);this.hose([[2.25,.6,-.35],[1.7,.25,-1.35],[.3,.62,-1.4]],.045);
     }
+  }
+  /** The concrete cube: the boundary triangles of the elements that have not spalled, one vertex per corner (flat faces),
+   * coloured by the strength each element has lost. Rebuilt when an element spalls. */
+  private buildConcrete():void {
+    const m=this.model as ConcreteModel,n=m.solid.tetCount*12,g=new T.BufferGeometry();
+    g.setAttribute('position',new T.BufferAttribute(new Float32Array(3*n),3).setUsage(T.DynamicDrawUsage));
+    g.setAttribute('color',new T.BufferAttribute(new Float32Array(3*n),3).setUsage(T.DynamicDrawUsage));
+    g.setAttribute('uv',new T.BufferAttribute(new Float32Array(2*n),2).setUsage(T.DynamicDrawUsage));
+    this.tint.vertexColors=true;this.concreteSpalled=-1;
+    this.specimen=this.mesh(g,this.tint,[0,0,0]);this.specimen.frustumCulled=false;this.specimen.castShadow=true;
+    // Embedded bars, drawn through the concrete (no depth test) as dark steel lines.
+    const bars=m.frame.bars;
+    if(bars){
+      const bg=new T.BufferGeometry();bg.setAttribute('position',new T.BufferAttribute(new Float32Array(bars.length),3).setUsage(T.DynamicDrawUsage));
+      const lines=new T.LineSegments(bg,this.own(new T.LineBasicMaterial({color:'#2f3d47',depthTest:false,transparent:true,opacity:.9})));
+      lines.frustumCulled=false;lines.renderOrder=5;lines.name='concrete-bars';this.specimen.add(lines);
+    }
+  }
+  private updateConcrete(f:LabFrame):void {
+    const m=this.model as ConcreteModel,g=this.specimen!.geometry,X=m.solid.referencePositions,p=g.getAttribute('position'),c=g.getAttribute('color'),uv=g.getAttribute('uv');
+    if(f.positions.length!==3*m.solid.nodeCount||f.damage.length!==m.solid.tetCount)return;
+    let spalled=0;for(let e=0;e<f.damage.length;e++)if(f.damage[e]===255)spalled++;
+    if(spalled!==this.concreteSpalled){
+      const live=liveFaces(m.solid,e=>f.damage[e]!==255);this.concreteFaces=live.faces;this.concreteOwners=live.owners;this.concreteSpalled=spalled;
+      // Texture coordinates by the reference face orientation, in drawn metres.
+      for(let k=0;k<this.concreteFaces.length;k+=3){
+        const a=3*this.concreteFaces[k],b=3*this.concreteFaces[k+1],d=3*this.concreteFaces[k+2];
+        const ux=X[b]-X[a],uy=X[b+1]-X[a+1],uz=X[b+2]-X[a+2],vx=X[d]-X[a],vy=X[d+1]-X[a+1],vz=X[d+2]-X[a+2],nx=Math.abs(uy*vz-uz*vy),ny=Math.abs(uz*vx-ux*vz),nz=Math.abs(ux*vy-uy*vx);
+        for(let q=0;q<3;q++){const i=3*this.concreteFaces[k+q],s=8;uv.setXY(k+q,ny>=nx&&ny>=nz?X[i]*s:nx>=nz?X[i+2]*s:X[i]*s,ny>=nx&&ny>=nz?X[i+2]*s:X[i+1]*s);}
+      }
+      uv.needsUpdate=true;g.setDrawRange(0,this.concreteFaces.length);
+    }
+    const intact=new T.Color(1,1,1),crushed=new T.Color('#9a3b1f'),col=this.color;
+    for(let k=0;k<this.concreteFaces.length;k++){
+      const i=3*this.concreteFaces[k];p.setXYZ(k,f.positions[i],f.positions[i+1],f.positions[i+2]);
+      const d=f.damage[this.concreteOwners[(k-k%3)/3]]/254;col.copy(intact).lerp(crushed,Math.min(1,d*1.15));c.setXYZ(k,col.r,col.g,col.b);
+    }
+    p.needsUpdate=true;c.needsUpdate=true;g.computeVertexNormals();
+    const lines=this.specimen!.getObjectByName('concrete-bars') as T.LineSegments|undefined;
+    if(lines&&f.bars){const a=lines.geometry.getAttribute('position') as T.BufferAttribute;if(a.array.length===f.bars.length){(a.array as Float32Array).set(f.bars);a.needsUpdate=true;}}
   }
   private trayRack():void {
     this.box([1.15,.12,.72],[-2,.28,.2],'steel',.025);const colors=['#dc742b','#d6cba9'];for(let i=0;i<2;i++)this.mesh(new T.CylinderGeometry(.19,.19,.23,32),this.own(new T.MeshStandardMaterial({color:colors[i],roughness:.7})),[-2.27+i*.5,.455,.2]);for(const x of [-2.45,-1.55])for(const z of [-.08,.48])this.cylinder(.045,.22,[x,.11,z],'black');
@@ -219,14 +321,14 @@ export class MaterialLabWorld {
     const thickness=this.model.settings.size/1000;
     for(const piece of this.model.pieces){this.ranges.push(local.length/3);const tone=.98+rng()*.035;
       const verts=glass?[...piece.vertices.map(p=>[p[0],p[1],-thickness/2] as V3),...piece.vertices.map(p=>[p[0],p[1],thickness/2] as V3)]:piece.vertices;
-      const indices=glass?[0,2,1,3,4,5,0,1,4,0,4,3,1,2,5,1,5,4,2,0,3,2,3,5]:faces;
+      const indices=glass?prismFaces(piece.vertices.length):faces;
       for(let j=0;j<indices.length;j++){const v=verts[indices[j]];local.push(...v);if(glass)uv.push(v[0],v[1]);else{const start=Math.floor(j/3)*3,a=new T.Vector3(...verts[indices[start]]),b=new T.Vector3(...verts[indices[start+1]]),c=new T.Vector3(...verts[indices[start+2]]),n=b.sub(a).cross(c.sub(a));const x=v[0]+piece.center[0],y=v[1]+piece.center[1],z=v[2]+piece.center[2];if(Math.abs(n.y)>Math.max(Math.abs(n.x),Math.abs(n.z)))uv.push(x,z);else if(Math.abs(n.x)>Math.abs(n.z))uv.push(z,y);else uv.push(x,y);}colors.push(tone,tone,tone);}
     }
     this.ranges.push(local.length/3);this.localVertices=Float32Array.from(local);
     const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(new Float32Array(local.length),3).setUsage(T.DynamicDrawUsage));g.setAttribute('uv',new T.BufferAttribute(Float32Array.from(uv),2));
     if(!glass){g.setAttribute('color',new T.BufferAttribute(Float32Array.from(colors),3));this.tint.vertexColors=true;}
     this.specimen=this.mesh(g,this.tint,[0,0,0]);this.specimen.frustumCulled=false;this.specimen.castShadow=!glass;
-    if(glass){const edges=new T.BufferGeometry();edges.setAttribute('position',new T.BufferAttribute(new Float32Array(this.model.pieces.length*18),3).setUsage(T.DynamicDrawUsage));this.cracks=new T.LineSegments(edges,this.own(new T.LineBasicMaterial({color:'#b5dad4',transparent:true,opacity:.35})));this.cracks.frustumCulled=false;this.rig.add(this.cracks);}
+    if(glass){const edges=new T.BufferGeometry();edges.setAttribute('position',new T.BufferAttribute(new Float32Array((this.model as GlassModel).plate.bondCount*12),3).setUsage(T.DynamicDrawUsage));this.cracks=new T.LineSegments(edges,this.own(new T.LineBasicMaterial({color:'#e9f6f2',transparent:true,opacity:.7})));this.cracks.frustumCulled=false;this.rig.add(this.cracks);}
   }
   update(f:LabFrame):void {
     this.lastFrame=f;const m=this.model;
@@ -235,17 +337,20 @@ export class MaterialLabWorld {
     if(m.id==='glass'){
       this.actuator.rotation.x=-f.actuator;const fractured=f.damage.some(d=>d>0);
       if(this.intactPane)this.intactPane.visible=!fractured;this.specimen!.visible=fractured;if(this.cracks)this.cracks.visible=fractured;
+      if(!fractured&&this.intactPane&&this.paneRest){
+        const plate=(m as GlassModel).plate,p=this.intactPane.geometry.getAttribute('position'),rest=this.paneRest;
+        for(let k=0;k<p.count;k++){const i=Math.round((rest[3*k]+(m as GlassModel).panelWidth/2)/plate.hx),j=Math.round((rest[3*k+1]+(m as GlassModel).panelHeight/2)/plate.hy);p.setZ(k,rest[3*k+2]+(f.positions[3*(j*plate.nx+i)+2]||0));}
+        p.needsUpdate=true;this.intactPane.geometry.computeVertexNormals();
+      }
       // The intact pane is a separate mesh. Build fragment poses only when visible,
       // including the first fractured frame after live stepping or replay.
       if(fractured)this.updatePieces(f,true);
     }
-    if(m.id==='concrete'){this.actuator.position.y=f.actuator;this.updatePieces(f,false);}
+    if(m.id==='concrete'){this.actuator.position.y=f.actuator;if(this.specimen)this.updateConcrete(f);}
     if(m.id==='rubber'&&this.specimen&&this.rubberRest){
-      const g=this.specimen.geometry,p=g.getAttribute('position'),height=f.positions[0],radius=f.positions[1],rubber=m as RubberModel;
-      // Normalize the bulge profile so the radial shape does not invent volume.
-      const b=f.positions[2]*.16,norm=Math.sqrt(1+4*b/3+8*b*b/15);
-      for(let i=0;i<p.count;i++){const y=this.rubberRest[i*3+1]/rubber.initialHeight+.5,scale=radius/rubber.radius*(1+b*4*y*(1-y))/norm;p.setXYZ(i,this.rubberRest[i*3]*scale,1+y*height,this.rubberRest[i*3+2]*scale);}
-      p.needsUpdate=true;g.computeVertexNormals();this.actuator.position.y=f.actuator;
+      const g=this.specimen.geometry,p=g.getAttribute('position');
+      if(f.positions.length===p.array.length){(p.array as Float32Array).set(f.positions);p.needsUpdate=true;g.computeVertexNormals();}
+      this.actuator.position.y=f.actuator;
     }
     if(m.id==='liquid'||m.id==='granular')this.actuator.position.y=f.actuator;
     if(this.piston){const h=Math.max(.1,this.housingEnd-f.actuator-.21);this.piston.scale.y=h;this.piston.position.y=.21+h/2;}
@@ -255,7 +360,15 @@ export class MaterialLabWorld {
     for(let i=0;i<this.model.pieces.length;i++){
       this.dummy.position.fromArray(f.positions,i*3);this.dummy.rotation.set(f.rotations[i*3],f.rotations[i*3+1],f.rotations[i*3+2]);this.dummy.scale.set(1,1,1);this.dummy.updateMatrix();const e=this.dummy.matrix.elements;
       for(let j=this.ranges[i];j<this.ranges[i+1];j++){const x=this.localVertices[j*3],y=this.localVertices[j*3+1],z=this.localVertices[j*3+2];positions.setXYZ(j,e[0]*x+e[4]*y+e[8]*z+e[12],e[1]*x+e[5]*y+e[9]*z+e[13],e[2]*x+e[6]*y+e[10]*z+e[14]);}
-      if(glass&&f.damage[i]&&edges){const first=this.ranges[i];for(let a=0;a<3;a++)for(const b of [a,(a+1)%3])edges.setXYZ(edgeCount++,positions.getX(first+b),positions.getY(first+b),positions.getZ(first+b)+.004);}
+    }
+    if(glass&&edges&&f.cracks){
+      // A broken bond is the edge two tiles share: the +x edge (corners 1, 2) or the +y edge (corners 2, 3) of its first node,
+      // drawn on both faces of that node's tile as it moves now.
+      const plate=(this.model as GlassModel).plate,xBonds=plate.cx*plate.ny,n=this.model.pieces[0].vertices.length,corner=(node:number,k:number,face:number)=>this.ranges[node]+(face?n+k:k);
+      for(let b=0;b<plate.bondCount;b++){
+        if(!f.cracks[b])continue;const [p]=plate.bondNodes(b),pair=b<xBonds?[1,2]:[2,3];
+        for(const face of [0,1])for(const k of pair){const j=corner(p,k,face);edges.setXYZ(edgeCount++,positions.getX(j),positions.getY(j),positions.getZ(j)+(face?.0015:-.0015));}
+      }
     }
     positions.needsUpdate=true;g.computeVertexNormals();if(edges&&this.cracks){edges.needsUpdate=true;this.cracks.geometry.setDrawRange(0,edgeCount);}
   }
@@ -303,9 +416,23 @@ export class MaterialLabWorld {
   setLiquidDisplay(mode:LiquidDisplay):void {this.liquidDisplay=mode;this.hydraulics?.setDisplay(mode);}
   setLiquidSection(distance:number,visible:boolean):void {if(distance===this.liquidSection&&visible===this.sectionVisible)return;this.liquidSection=distance;this.sectionVisible=visible;this.hydraulics?.setSection(distance,visible);if(this.lastFrame)this.hydraulics?.update(this.lastFrame);}
   setRotate(on:boolean):void {this.rotate=on;this.controls.autoRotate=on;this.controls.autoRotateSpeed=.4;}
-  resize():void {if(this.disposed)return;const w=this.host.clientWidth,h=this.host.clientHeight;if(!w||!h)return;this.renderer.setSize(w,h);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();if(Object.keys(this.materials).length)this.fit(this.view);}
-  render():void {if(this.disposed)return;this.controls.update();this.renderer.render(this.scene,this.camera);}
+  resize():void {if(this.disposed||this.recovering)return;const w=this.host.clientWidth,h=this.host.clientHeight;if(!w||!h)return;this.renderer.setSize(w,h);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();if(Object.keys(this.materials).length)this.fit(this.view);}
+  /** The animation loop's frame: skipped while two frames are still on the GPU (WebGPU only), as StudioWorld.renderFrame. */
+  renderFrame():void {
+    const device=(this.renderer.backend as unknown as {device?:{queue:{onSubmittedWorkDone():Promise<unknown>}}|null}).device;
+    if(!device||this.recovering){this.render();return;}
+    if(this.framesInFlight>=2){this.controls.update();return;}
+    this.framesInFlight++;this.render();
+    const done=()=>{this.framesInFlight--;};device.queue.onSubmittedWorkDone().then(done,done);
+  }
+  private framesInFlight=0;
+  render():void {
+    if(this.disposed||this.recovering)return;this.controls.update();this.renderer.render(this.scene,this.camera);
+    if(this.retired.length){const retired=this.retired.splice(0);for(const dispose of retired)dispose();}
+  }
+  /** Disposals of a replaced apparatus, run after the next frame (setModel). */
+  private retired:(()=>void)[]=[];
   async capture():Promise<string>{await this.renderer.renderAsync(this.scene,this.camera);return this.renderer.domElement.toDataURL('image/png');}
   get backend():string{return (this.renderer.backend as unknown as {isWebGPUBackend?:boolean}).isWebGPUBackend?'WebGPU':'WebGL';}
-  dispose():void {if(this.disposed)return;this.disposed=true;this.observer.disconnect();this.hydraulics?.dispose();this.controls.dispose();this.scene.traverse(o=>{if(o instanceof T.Mesh||o instanceof T.LineSegments)o.geometry.dispose();});this.labels.forEach(t=>t.dispose());this.extraMaterials.forEach(m=>m.dispose());this.ripple.dispose();this.library.dispose();this.environment?.dispose();this.liquidMetalEnvironment?.dispose();this.liquidTextures.forEach(t=>t.dispose());this.panorama?.dispose();this.renderer.dispose();this.renderer.domElement.remove();}
+  dispose():void {if(this.disposed)return;this.disposed=true;this.observer.disconnect();for(const dispose of this.retired.splice(0))dispose();this.hydraulics?.dispose();this.controls.dispose();this.scene.traverse(o=>{if(o instanceof T.Mesh||o instanceof T.LineSegments)o.geometry.dispose();});this.labels.forEach(t=>t.dispose());this.labelMaterials.forEach(m=>{m.map?.dispose();m.dispose();});this.extraMaterials.forEach(m=>m.dispose());this.ripple.dispose();this.library.dispose();this.environment?.dispose();this.liquidMetalEnvironment?.dispose();this.liquidTextures.forEach(t=>t.dispose());this.panorama?.dispose();this.renderer.dispose();this.renderer.domElement.remove();}
 }

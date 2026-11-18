@@ -40,6 +40,10 @@ Transverse shear, bending rotary inertia, geometric stiffness, finite rotations,
 
 Limits are 4,096 nodes, 8,192 elements, 16 substeps and 1,024 iterations, subject to a combined two-million estimated element-visit budget per request. Up to 120 ticks and 64 commands may be batched when that bound permits. The runtime does not allocate a dense global matrix. These are work/capacity guards, not maximum-size performance acceptance.
 
+## Direct solver and changing loads
+
+`config.solver: 'direct'` replaces the preconditioned conjugate gradients by a Cholesky factor of `m M + k K` on the free degrees of freedom, formed once for each operator (`src/engine/envelope-matrix.ts`, node order as given) and kept, with one step of iterative refinement if round-off leaves the residual above the tolerances. Both solve the same equations; on a three-element cantilever the two agree to 10⁻⁹ in statics and over 30 ticks. The default stays `'cg'`, and every existing path is unchanged. `setLoads(forces)` replaces the applied nodal loads from the next tick on (outside a coupled tick). The Studio's suspension bridge uses both: its 834-degree-of-freedom frame is factorised once, and the crowd and wind change during a run.
+
 ## Accepted evidence
 
 `benchmarks/results/engine-100x/runs/frame-accuracy-20260911-04/` retains **52 cases, 704 full sampled states and 24,980 checked outer ticks** under protocol version 4. Its auditor re-executes every case, every-tick diagnostics, static result, checkpoint and 17-tick continuation. Independent Gaussian integration and dense Cholesky dynamics check the production matrix tables and conjugate-gradient solver on small spatial frames.

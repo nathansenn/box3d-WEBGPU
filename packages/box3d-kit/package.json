@@ -1,7 +1,7 @@
 {
   "name": "box3d-webgpu-kit",
-  "version": "0.7.0",
-  "description": "Drop-in Box3D rigid-body physics for games and apps: prebuilt, integrity-checked WebAssembly, isolated worlds, fixed-step loop with interpolation, worker hosting, network snapshots, deterministic replay, spatial queries, debug draw, and three.js, Babylon.js and raw WebGPU adapters.",
+  "version": "0.9.0",
+  "description": "Box3D rigid-body physics for the web, in SI units: prebuilt, integrity-checked WebAssembly, every Box3D shape and joint, events, queries, exact checkpoints and deterministic replay, with validated solvers for water, cables and frames, cloth, grains, deformable solids and fracture, heat and fluids under one stepping loop, a scene format, and three.js, Babylon.js and raw WebGPU adapters.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
@@ -32,13 +32,77 @@
       "types": "./dist/water.d.ts",
       "default": "./dist/water.js"
     },
+    "./coupling": {
+      "types": "./dist/coupling.d.ts",
+      "default": "./dist/coupling.js"
+    },
     "./frame": {
       "types": "./dist/frame.d.ts",
       "default": "./dist/frame.js"
     },
+    "./structure": {
+      "types": "./dist/structure.d.ts",
+      "default": "./dist/structure.js"
+    },
+    "./heat": {
+      "types": "./dist/heat.d.ts",
+      "default": "./dist/heat.js"
+    },
+    "./solid": {
+      "types": "./dist/solid.d.ts",
+      "default": "./dist/solid.js"
+    },
+    "./cloth": {
+      "types": "./dist/cloth.d.ts",
+      "default": "./dist/cloth.js"
+    },
+    "./granular": {
+      "types": "./dist/granular.d.ts",
+      "default": "./dist/granular.js"
+    },
+    "./fluid": {
+      "types": "./dist/fluid.d.ts",
+      "default": "./dist/fluid.js"
+    },
+    "./shallow-water": {
+      "types": "./dist/shallow-water.d.ts",
+      "default": "./dist/shallow-water.js"
+    },
+    "./materials": {
+      "types": "./dist/materials.d.ts",
+      "default": "./dist/materials.js"
+    },
+    "./solid-contact": {
+      "types": "./dist/solid-contact.d.ts",
+      "default": "./dist/solid-contact.js"
+    },
     "./gameplay": {
       "types": "./dist/gameplay.d.ts",
       "default": "./dist/gameplay.js"
+    },
+    "./geometry": {
+      "types": "./dist/geometry.d.ts",
+      "default": "./dist/geometry.js"
+    },
+    "./scene": {
+      "types": "./dist/scene.d.ts",
+      "default": "./dist/scene.js"
+    },
+    "./scene-format": {
+      "types": "./dist/scene-format.d.ts",
+      "default": "./dist/scene-format.js"
+    },
+    "./simulation": {
+      "types": "./dist/simulation.d.ts",
+      "default": "./dist/simulation.js"
+    },
+    "./robot": {
+      "types": "./dist/robot.d.ts",
+      "default": "./dist/robot.js"
+    },
+    "./fracture": {
+      "types": "./dist/fracture.d.ts",
+      "default": "./dist/fracture.js"
     },
     "./single": {
       "types": "./dist/index.d.ts",
@@ -46,6 +110,8 @@
     },
     "./wasm/box3d.js": "./wasm/box3d.js",
     "./wasm/box3d.wasm": "./wasm/box3d.wasm",
+    "./wasm/box3d-mt.js": "./wasm/box3d-mt.js",
+    "./wasm/box3d-mt.wasm": "./wasm/box3d-mt.wasm",
     "./package.json": "./package.json"
   },
   "files": [
@@ -62,10 +128,24 @@
   "engines": {
     "node": ">=20"
   },
+  "peerDependencies": {
+    "three": ">=0.150.0",
+    "@babylonjs/core": ">=6.0.0"
+  },
+  "peerDependenciesMeta": {
+    "three": {
+      "optional": true
+    },
+    "@babylonjs/core": {
+      "optional": true
+    }
+  },
   "scripts": {
     "sync": "node scripts/sync-core.mjs",
     "build": "node scripts/sync-core.mjs && rm -rf dist && tsc -p tsconfig.json && node scripts/build-single.mjs",
     "test": "npm run build && node --test test/*.test.mjs",
+    "test:gate": "npm run build && node scripts/test-gate.mjs",
+    "clean": "node --input-type=module -e \"import {rmSync} from 'node:fs'; for (const path of ['dist', 'src/core', 'wasm', 'test/.generated', 'LICENSE', 'THIRD_PARTY_NOTICES.md']) rmSync(path, {recursive: true, force: true});\"",
     "test:pack": "npm run build && node scripts/pack-smoke.mjs",
     "prepack": "npm run build",
     "api": "node scripts/api-report.mjs && node scripts/api-docs.mjs",
@@ -76,12 +156,20 @@
   "keywords": [
     "babylonjs",
     "box3d",
+    "checkpoint",
+    "cloth",
     "deterministic",
+    "fluid",
+    "fracture",
     "game",
+    "granular",
     "multiplayer",
     "physics",
     "rigid-body",
+    "si-units",
+    "simulation",
     "threejs",
+    "typescript",
     "wasm",
     "webassembly",
     "webgpu"
@@ -93,5 +181,9 @@
   },
   "bin": {
     "box3d-kit": "./bin/box3d-kit.mjs"
+  },
+  "homepage": "https://nathansenn.github.io/box3d-WEBGPU/docs/",
+  "bugs": {
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/issues"
   }
 }

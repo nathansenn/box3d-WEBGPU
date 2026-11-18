@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
-import { create, globals } from 'webgpu';
+import { createDawnGpu, globals } from './dawn-gpu.mjs';
 
 Object.assign(globalThis, globals);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -734,7 +734,7 @@ async function main() {
   assert.ok(INSTANCE_COUNT > 0, 'instance count must be positive');
   assert.ok(BATCHES >= 3 && FRAMES_PER_BATCH >= 2, 'benchmark needs multiple batches and frames');
 
-  const gpu = create(['backend=metal']);
+  const gpu = createDawnGpu(['backend=metal']);
   const adapter = await gpu.requestAdapter({ powerPreference: 'high-performance' });
   assert.ok(adapter, 'Dawn Metal adapter must be available');
   assert.ok(adapter.features.has('timestamp-query'), 'Metal adapter must support timestamp-query');

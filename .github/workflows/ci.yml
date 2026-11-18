@@ -15,7 +15,8 @@ jobs:
     # The required check. Same name as before so existing branch rules keep matching.
     name: Typecheck, test, and build
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    # The gate gained the fuzzers, the pack smoke test and the documentation check (about four minutes).
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -86,7 +87,15 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Install Chromium for software-rendered browser acceptance
-        run: npx playwright install --with-deps chromium
+        # The system packages come from Ubuntu's mirrors, which the runner sometimes cannot resolve
+        # for a minute or two. Retry before giving up, so a network blip isn't reported as a failure.
+        run: |
+          for attempt in 1 2 3 4; do
+            npx playwright install --with-deps chromium && exit 0
+            echo "::warning::Chromium install attempt $attempt failed; retrying in $((attempt * 30)) s"
+            sleep $((attempt * 30))
+          done
+          exit 1
       - id: suite
         name: Browser acceptance
         continue-on-error: true

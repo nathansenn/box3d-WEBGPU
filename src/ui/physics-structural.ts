@@ -198,6 +198,8 @@ export type PhysicsStructuralRuntimeCounts = {
 export type PhysicsStructuralCallbacks = {
   readonly onRunCommand?: (command: PhysicsStructuralRunCommand) => void | Promise<void>;
   readonly onLabSelect?: (labId: string) => void;
+  /** An SI demo was picked in the laboratory catalog. These are not labs: see src/engine/mechanisms-scene.ts. */
+  readonly onSiDemoSelect?: (demoId: string) => void;
   readonly onComponentSelect?: (component: EngineeringAssemblyComponent | null) => void;
   readonly onParameterChange?: (id: WorkbenchParameterId, value: number) => void;
   readonly onOverlayChange?: (overlay: PhysicsStructuralOverlayId) => void;
@@ -451,6 +453,25 @@ function gizmoMarkup(): string {
     </svg>
   `;
 }
+
+// The SI entries the catalog lists after the laboratories. None is a catalogue recipe. 'mechanisms' is
+// MECHANISMS_SCENE_ID in src/engine/mechanisms-scene.ts; 'bridge' is SI_BRIDGE_ID in src/engine/si-bridge.ts; 'example:<name>' is an example scene of the
+// box3d-scene format (src/engine/scene-examples.ts); 'open-file' opens the Lab's file dialog. The
+// workbench only reports the id: src/main.ts acts on it.
+const SI_DEMO_ENTRIES = [
+  { id: 'mechanisms', title: 'Mechanisms (SI demo)', detail: 'Spheres, capsules and joints in SI units · not a catalogue recipe' },
+  { id: 'bridge', title: 'Cable-stayed bridge (SI)', detail: '120 m deck, 2 towers, 16 stays, a crossing vehicle · validated frame and cable solvers, SI units' },
+  { id: 'example:pendulum-wave', title: 'Pendulum wave (scene file)', detail: '9 spheres on revolute joints · example scene, SI units' },
+  { id: 'example:newtons-cradle', title: "Newton's cradle (scene file)", detail: '5 elastic balls on hinges · example scene, SI units' },
+  { id: 'example:domino-run', title: 'Domino run (scene file)', detail: '12 boxes, the first one leaning · example scene, SI units' },
+  { id: 'example:terrain-car', title: 'Car on terrain (scene file)', detail: 'Wheel joints with suspension on a height field · example scene, SI units' },
+  { id: 'example:ragdoll', title: 'Ragdoll (scene file)', detail: 'Capsules on spherical joints with cone limits · example scene, SI units' },
+  { id: 'example:buoy-and-crates', title: 'Buoy and crates (coupled scene)', detail: 'A moored buoy and floating crates in a shallow-water basin · water and cable solvers, SI units' },
+  { id: 'example:trampoline', title: 'Trampoline (coupled scene)', detail: 'A ball and a box on a cloth of 81 nodes · cloth solved with the bodies, SI units' },
+  { id: 'example:hopper-seesaw', title: 'Hopper and see-saw (coupled scene)', detail: '150 beads run out of a hopper and tip a see-saw · discrete elements, SI units' },
+  { id: 'example:suspended-platform', title: 'Suspended platform (coupled scene)', detail: 'A platform on four compliant cables under falling boxes · cable solver, SI units' },
+  { id: 'open-file', title: 'Open file…', detail: 'A scene (.json) or geometry (.obj, .stl, .glb, .gltf) · you can also drop a file on the page' },
+] as const;
 
 function shellMarkup(prefix: string): string {
   const id = (suffix: string): string => `${prefix}-${suffix}`;
@@ -1048,6 +1069,26 @@ export function createPhysicsStructural(options: PhysicsStructuralOptions): Phys
       }
       labList.append(section);
     }
+    // SI demos are listed apart from the laboratories: they are not catalogue recipes.
+    const siEntries = SI_DEMO_ENTRIES.filter((entry) => !needle || `${entry.id} ${entry.title} ${entry.detail}`.toLowerCase().includes(needle));
+    if (siEntries.length > 0) {
+      const section = document.createElement('section');
+      section.className = 'phys-str-lab-group';
+      const heading = document.createElement('h3');
+      heading.textContent = 'SI scenes · general rigid-body API';
+      section.append(heading);
+      for (const entry of siEntries) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'phys-str-lab-item';
+        button.dataset.physStrSiDemo = entry.id;
+        button.innerHTML = `<strong></strong><span></span>`;
+        button.querySelector('strong')!.textContent = entry.title;
+        button.querySelector('span')!.textContent = entry.detail;
+        section.append(button);
+      }
+      labList.append(section);
+    }
   };
 
   const renderTree = (): void => {
@@ -1635,6 +1676,13 @@ export function createPhysicsStructural(options: PhysicsStructuralOptions): Phys
     const labRoot = target?.closest<HTMLButtonElement>('[data-phys-str-lab-root]');
     if (labRoot) {
       labMenu.hidden = !labMenu.hidden;
+      return;
+    }
+    const siDemoButton = target?.closest<HTMLButtonElement>('[data-phys-str-si-demo]');
+    if (siDemoButton?.dataset.physStrSiDemo) {
+      labMenu.hidden = true;
+      callbacks.onSiDemoSelect?.(siDemoButton.dataset.physStrSiDemo);
+      announce(`${SI_DEMO_ENTRIES.find((entry) => entry.id === siDemoButton.dataset.physStrSiDemo)?.title ?? 'SI scene'} selected.`);
       return;
     }
     const labButton = target?.closest<HTMLButtonElement>('[data-phys-str-lab]');

@@ -12,7 +12,7 @@ const T=await import('three/webgpu');
 const run=(p,seconds=12,load=p.pressure/20)=>{const s=new FailureSimulation('plate',p);s.targetLoad=load;for(let i=0;i<seconds*120;i++)s.step();return s;};
 test('canopy and bridge retain exact pre-change positions, failures and responses',verifyNonPress);
 test('complete press catalogue covers all tools and metal families with unique identities',()=>{
-  assert.equal(METALS.length,24);assert.equal(PRESS_TOOLS.length,12);assert.equal(THICKNESSES.length,16);assert.equal(PRESS_EXPERIMENTS.length,54);
+  assert.equal(METALS.length,26,'24 authored profiles and the 2 library metals of the SI press');assert.equal(METALS.filter(m=>m.family==='Library (SI)').length,2);assert.equal(PRESS_TOOLS.length,12);assert.equal(THICKNESSES.length,16);assert.equal(PRESS_EXPERIMENTS.length,54);
   for(const list of [METALS,PRESS_TOOLS,PRESS_EXPERIMENTS])assert.equal(new Set(list.map(x=>x.id)).size,list.length);
   assert.equal(new Set(PRESS_EXPERIMENTS.map(e=>e.settings.tool)).size,12);
 });

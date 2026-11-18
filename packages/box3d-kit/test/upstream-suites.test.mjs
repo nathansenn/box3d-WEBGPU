@@ -16,8 +16,10 @@ const MAP = {
   '../../src/engine/closed-water.ts': 'box3d-webgpu-kit/water',
   '../../src/engine/frame-runtime.ts': 'box3d-webgpu-kit/frame',
   '../../src/engine/frame-element.ts': 'box3d-webgpu-kit/frame',
+  '../../src/engine/solid.ts': 'box3d-webgpu-kit/solid',
+  '../../src/engine/contracts.ts': 'box3d-webgpu-kit',
 };
-const SUITES = ['compliant-cable', 'proximal-cable', 'linear-water', 'closed-water', 'frame'];
+const SUITES = ['compliant-cable', 'proximal-cable', 'linear-water', 'closed-water', 'frame', 'solid'];
 const counts = {};
 test.after(() => { if (Object.keys(counts).length) console.log(`app suites passing against the package: ${JSON.stringify(counts)}`); });
 

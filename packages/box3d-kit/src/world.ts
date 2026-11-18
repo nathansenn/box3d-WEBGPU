@@ -1,20 +1,262 @@
-import {EngineError} from './core/contracts.js';
-import type {NativeBodyHandle, NativeQueryCastHit, NativeQueryFilter, NativeSpatialQuery, NativeWorldBackend, NativeWorldPool} from './core/native-world.js';
+import {EngineError, RIGID_LIMITS, showValue, type DiagnosticFinding} from './core/contracts.js';
+import {checkpointError, readCheckpoint, writeCheckpoint, type StateObject} from './core/checkpoint.js';
+import type {
+  NativeBodyHandle, NativeBodyKind, NativeBodyMassState, NativeBodyState, NativeConvexShape, NativeBodyType, NativeJointHandle, NativeJointState, NativeJointType, NativeQueryCastHit, NativeQueryFilter,
+  NativeSpatialQuery, NativeWorldBackend, NativeWorldEvent, NativeWorldPool, NativeBodyFlags, NativeDebugDrawOptions, NativeDebugLines, NativeJointDetails, NativeJointDrive,
+  NativeJointThresholds, NativeMoverPlane, NativeRayBatch, NativeStepProfile, NativeWorldSettings, NativeContactStats,
+} from './core/native-world.js';
 import {FixedStepLoop, type FixedStepOptions, type FixedStepResult} from './loop.js';
+import {box3dThreading, type Box3DThreading} from './loader.js';
 
+/** Three numbers [x, y, z]: a position or displacement in metres, a velocity in m/s, a force in newtons, as the method says. */
 export type Vec3 = readonly [number, number, number];
 /** A tuple, a plain {x, y, z} object or a three.js Vector3: all accepted wherever a vector is taken. */
 export type Vec3Like = Vec3 | {readonly x: number; readonly y: number; readonly z: number};
 
 /** Normalize any Vec3Like to a fresh tuple. */
 export function toVec3(value: Vec3Like): [number, number, number] {
-  if (Array.isArray(value)) return [value[0], value[1], value[2]];
-  const v = value as {x: number; y: number; z: number};
-  if (v && typeof v.x === 'number') return [v.x, v.y, v.z];
-  throw new EngineError('INVALID_PAYLOAD', 'Expected [x, y, z] or {x, y, z}.');
+  if (Array.isArray(value) || ArrayBuffer.isView(value)) {
+    const list = value as unknown as ArrayLike<number>;
+    if (list.length === 3) return [list[0], list[1], list[2]];
+  } else {
+    const v = value as {x: number; y: number; z: number};
+    if (v !== null && typeof v === 'object' && typeof v.x === 'number' && typeof v.y === 'number' && typeof v.z === 'number') return [v.x, v.y, v.z];
+  }
+  throw new EngineError('INVALID_PAYLOAD', `Expected a vector as [x, y, z] or {x, y, z}; got ${showValue(value)}.`, {value: showValue(value), expected: '[x, y, z] or {x, y, z}'});
 }
+/** An opaque handle to a body of one world. It never names another body, even after this one is destroyed; test it with isAlive(). */
 export type Body = NativeBodyHandle;
+/** An opaque handle to a joint of one world; test it with isJointAlive(). */
+export type Joint = NativeJointHandle;
+/** 'dynamic' is simulated, 'kinematic' is moved by you and pushes dynamic bodies, 'static' never moves. */
+export type BodyType = NativeBodyType;
+/** A body as the solver holds it: position (m), rotation [x, y, z, w], linear (m/s) and angular (rad/s) velocity, mass (kg), whether it is awake, and its type. */
+export type BodyState = NativeBodyState;
+/** The six joint types: 'weld', 'revolute', 'spherical', 'prismatic', 'distance' and 'wheel'. JointOptions says what each constrains. */
+export type JointType = NativeJointType;
+/** What a joint reports: its angle (rad), travel (m) or length (m) in `value`, and the force (N) and torque (N m) it carries. */
+export type JointState = NativeJointState;
+/** A contact or sensor event of one step: kind ('contact-begin', 'contact-end', 'hit', 'sensor-begin', 'sensor-end'), the two bodies and, for a hit, the point, normal and approach speed. */
+export type WorldEvent = NativeWorldEvent;
+/** World-wide solver settings; see PhysicsWorld.configure(). */
+export type WorldSettings = NativeWorldSettings;
+/** A body's bullet flag, sleep settings and motion locks; see PhysicsWorld.getBodyFlags(). */
+export type BodyFlags = NativeBodyFlags;
+/** Everything the solver holds about one joint: separation errors, thresholds, stiffness and the values of its type; see PhysicsWorld.getJointDetails(). */
+export type JointDetails = NativeJointDetails;
+/** What a motor joint does; see JointOptions.drive. */
+export type JointDrive = Omit<NativeJointDrive, 'linearVelocity' | 'angularVelocity'> & {readonly linearVelocity?: Vec3Like; readonly angularVelocity?: Vec3Like};
+/** Force and torque at which a joint reports 'joint-overload', and whether it then breaks; see JointOptions.thresholds. */
+export type JointThresholds = NativeJointThresholds;
+/** Results of PhysicsWorld.raycastBatch(): flat arrays indexed by ray; a miss has fraction -1 and a null body. */
+export type RayBatch = NativeRayBatch;
+/** Box3D's timing of the most recent step by stage (ms) and the sizes it worked on; see PhysicsWorld.profile(). */
+export type StepProfile = NativeStepProfile;
+/** Contact statistics, with the impulses of the last sub-step also given as forces. */
+export type ContactStats = NativeContactStats & {
+  /** Sum of the normal forces of all contact points (N). For a pile at rest, each body's weight counted once per layer of contacts under it. */
+  readonly totalNormalForce: number;
+  /** Largest normal force on one contact point (N). */
+  readonly largestNormalForce: number;
+};
+/** What PhysicsWorld.debugLines() draws: switches per layer, scales, and an optional box to draw in. */
+export type DebugDrawOptions = Omit<NativeDebugDrawOptions, 'region'> & {readonly region?: {readonly min: Vec3Like; readonly max: Vec3Like}};
+/** Line segments from PhysicsWorld.debugLines(): vertex pairs, x y z and r g b (0..1) per vertex. */
+export type DebugDrawLines = NativeDebugLines;
+/** A surface around a moved capsule: normal, closest point, push and whether it acted as a wall. */
+export type MoverPlane = NativeMoverPlane;
+/** An upright capsule to move through the world; see PhysicsWorld.moveCapsule(). */
+export interface CapsuleMoveOptions {
+  readonly position: Vec3Like;
+  readonly radius: number;
+  /** Half the distance between the cap centres. */
+  readonly halfLength: number;
+  readonly translation: Vec3Like;
+  /** Planes steeper than this many degrees from horizontal act as vertical walls. Omit to slide on every plane. */
+  readonly maxSlopeDegrees?: number;
+  readonly iterations?: number;
+  readonly tolerance?: number;
+  readonly bodies?: {readonly static?: boolean; readonly kinematic?: boolean; readonly dynamic?: boolean};
+  readonly categoryBits?: bigint;
+  readonly maskBits?: bigint;
+  readonly ignoreBody?: Body;
+}
+/** Where PhysicsWorld.moveCapsule() left the capsule, the planes around it, and the rounds it took. */
+export interface CapsuleMoveResult { readonly position: [number, number, number]; readonly planes: MoverPlane[]; readonly iterations: number }
+/** Unit quaternion as [x, y, z, w] or {x, y, z, w} (a three.js Quaternion works). */
+export type QuatLike = readonly [number, number, number, number] | {readonly x: number; readonly y: number; readonly z: number; readonly w: number};
 
+/** Normalize any QuatLike to a fresh tuple. */
+export function toQuat(value: QuatLike): [number, number, number, number] {
+  if (Array.isArray(value) || ArrayBuffer.isView(value)) {
+    const list = value as unknown as ArrayLike<number>;
+    if (list.length === 4) return [list[0], list[1], list[2], list[3]];
+  } else {
+    const q = value as {x: number; y: number; z: number; w: number};
+    if (q !== null && typeof q === 'object' && typeof q.x === 'number' && typeof q.y === 'number' && typeof q.z === 'number' && typeof q.w === 'number') return [q.x, q.y, q.z, q.w];
+  }
+  throw new EngineError('INVALID_PAYLOAD', `Expected a quaternion as [x, y, z, w] or {x, y, z, w}; got ${showValue(value)}.`, {value: showValue(value), expected: '[x, y, z, w] or {x, y, z, w}'});
+}
+
+/** The shapes a compound body may hold. */
+export type ConvexShapeOptions =
+  | {readonly kind: 'box'; readonly halfExtents: Vec3Like}
+  | {readonly kind: 'sphere'; readonly radius: number}
+  | {readonly kind: 'capsule'; readonly radius: number; readonly halfLength: number}
+  | {readonly kind: 'hull'; readonly points: ArrayLike<number>};
+/** One shape of a compound body, placed in the body's frame. */
+export interface CompoundShapeOptions {
+  readonly shape: ConvexShapeOptions;
+  /** The shape's origin in the body frame. Default [0, 0, 0]. */
+  readonly position?: Vec3Like;
+  /** The shape's orientation in the body frame. Default identity. */
+  readonly rotation?: QuatLike;
+  /** kg/m^3, friction and restitution of this shape. Each defaults to the body's. */
+  readonly density?: number;
+  readonly friction?: number;
+  readonly restitution?: number;
+}
+/**
+ * Mass in kg, centre of mass in the body frame (default the origin), and the inertia tensor about
+ * the centre of mass in body axes as [Ixx, Iyy, Izz, Ixy, Ixz, Iyz] in kg m^2.
+ */
+export interface MassDataOptions {
+  readonly mass: number;
+  readonly center?: Vec3Like;
+  readonly inertia: readonly [number, number, number, number, number, number];
+}
+/** Mass (kg), centre of mass in the body frame (m) and inertia tensor about it [Ixx, Iyy, Izz, Ixy, Ixz, Iyz] in kg m^2, as getMassData() reports them. */
+export type BodyMassData = NativeBodyMassState;
+/** The shape of a body: a box, sphere, capsule or convex hull, a compound of those, or static scenery (a triangle mesh or a height field). Sizes in metres. */
+export type ShapeOptions =
+  | {readonly kind: 'box'; readonly halfExtents: Vec3Like}
+  | {readonly kind: 'sphere'; readonly radius: number}
+  /** The capsule's axis is the body's local Y; halfLength is half the distance between the cap centers. */
+  | {readonly kind: 'capsule'; readonly radius: number; readonly halfLength: number}
+  /** Convex hull of 4 or more body-local points, as a flat [x, y, z, x, y, z, ...] list. Box3D keeps at most 64 hull vertices. */
+  | {readonly kind: 'hull'; readonly points: ArrayLike<number>}
+  /**
+   * 1 to 64 convex shapes on one body. Mass, centre of mass and inertia are the sum over the
+   * shapes; `position` is the origin of the frame the shapes are placed in.
+   */
+  | {readonly kind: 'compound'; readonly shapes: readonly CompoundShapeOptions[]}
+  /** Triangle mesh for static scenery: flat vertex list and counter-clockwise index triples. The body is always static. */
+  | {readonly kind: 'mesh'; readonly vertices: ArrayLike<number>; readonly indices: ArrayLike<number>}
+  /**
+   * Terrain: countX by countZ heights in metres (index x + z * countX) on a grid of spacing [dx, dz],
+   * starting at the body position and extending along +x and +z. The body is always static.
+   */
+  | {readonly kind: 'heightfield'; readonly heights: ArrayLike<number>; readonly countX: number; readonly countZ: number; readonly spacing: readonly [number, number]};
+/** The shape kind of a render row: 'box', 'sphere', 'capsule', 'hull', 'mesh', 'heightfield' or 'compound'. */
+export type BodyKind = NativeBodyKind;
+
+/** Lengths in metres, masses from density in kg/m^3, angles in radians. */
+export interface BodyOptions {
+  readonly shape: ShapeOptions;
+  /** 'dynamic' (default) is simulated, 'kinematic' is moved by you and pushes dynamic bodies, 'static' never moves. */
+  readonly type?: BodyType;
+  readonly position: Vec3Like;
+  readonly rotation?: QuatLike;
+  readonly linearVelocity?: Vec3Like;
+  readonly angularVelocity?: Vec3Like;
+  /** Default 1000 (water). */
+  readonly density?: number;
+  /** Default 0.6. */
+  readonly friction?: number;
+  /** Bounciness 0..1. Default 0. */
+  readonly restitution?: number;
+  /** 0xRRGGBB. */
+  readonly color?: number;
+  /** Continuous collision against other moving bodies, for small fast objects. */
+  readonly bullet?: boolean;
+  /** Reports overlaps as sensor events instead of colliding. */
+  readonly sensor?: boolean;
+  /** Also report 'hit' events (point, normal, approach speed) for this body. */
+  readonly hitEvents?: boolean;
+  readonly neverSleeps?: boolean;
+  readonly lockRotation?: boolean;
+  readonly linearDamping?: number;
+  readonly angularDamping?: number;
+  /** Multiplier on world gravity. Default 1; 0 makes the body float. */
+  readonly gravityScale?: number;
+  /** Two bodies collide when each one's categoryBits shares a bit with the other's maskBits. */
+  readonly filter?: {readonly categoryBits?: bigint; readonly maskBits?: bigint; readonly groupIndex?: number};
+  /** Use this mass, centre of mass and inertia tensor instead of the ones the shape and density give. See setMassData(). */
+  readonly massData?: MassDataOptions;
+}
+
+/** Where a joint attaches to a body: a position (m) and rotation in that body's own frame. Both default to the body's origin and axes. */
+export interface JointFrame { readonly position?: Vec3Like; readonly rotation?: QuatLike }
+/**
+ * Connects two bodies; pass null for a body to attach to the fixed world.
+ * Frames are local to each body. Revolute and wheel joints turn about the
+ * frame's z axis; prismatic travel and wheel suspension run along frame A's x
+ * axis. Use `axisRotation()` to aim a frame at another axis.
+ */
+export interface JointOptions {
+  readonly type: JointType;
+  readonly bodyA: Body | null;
+  readonly bodyB: Body | null;
+  readonly frameA?: JointFrame;
+  readonly frameB?: JointFrame;
+  /** Let the two connected bodies collide with each other. Default false. */
+  readonly collideConnected?: boolean;
+  /** Angle (rad), travel (m) or length (m) limits. On a spherical joint these limit twist. */
+  readonly limits?: {readonly lower: number; readonly upper: number};
+  /** speed in rad/s or m/s; maxForce in N, or N·m for a turning motor. */
+  readonly motor?: {readonly speed: number; readonly maxForce: number};
+  /** Spring towards `target` (angle or travel). On a weld joint it makes the weld flexible. */
+  readonly spring?: {readonly hertz: number; readonly dampingRatio: number; readonly target?: number};
+  /** Distance joints: rest length in metres (required). */
+  readonly length?: number;
+  /** Spherical joints: cone limit half-angle in radians. */
+  readonly coneAngle?: number;
+  /**
+   * How stiffly the joint holds its bodies together. The default (60 Hz, damping ratio 2) lets a
+   * loaded chain sag by millimetres; raise it for robot arms, keeping it well below the sub-step
+   * rate (steps per second x subSteps).
+   */
+  readonly stiffness?: {readonly hertz: number; readonly dampingRatio?: number};
+  /**
+   * Report a 'joint-overload' event in every step in which the joint carries at least this force (N) or torque
+   * (N m); with `breakable: true` the joint is destroyed at the end of that step and reports 'joint-break'.
+   */
+  readonly thresholds?: JointThresholds;
+  /** Motor joints: hold a relative velocity with a bounded force, and/or pull frame B onto frame A with bounded springs. */
+  readonly drive?: JointDrive;
+  /** Parallel joints: the largest torque the spring may use (N·m). */
+  readonly maxTorque?: number;
+  /** Wheel joints: steer about frame A's x axis towards `angle`, optionally limited. */
+  readonly steering?: {readonly angle: number; readonly hertz: number; readonly dampingRatio: number; readonly maxTorque: number; readonly limits?: {readonly lower: number; readonly upper: number}};
+}
+
+/** What reset() starts the empty world with: the ground slab, gravity and the seed. */
+export interface ResetOptions {
+  /** Add the static 88 m x 88 m ground whose top face is y = 0. Default true. */
+  readonly ground?: boolean;
+  /** Default [0, -9.81, 0]. */
+  readonly gravity?: Vec3Like;
+  readonly seed?: number;
+}
+
+/**
+ * Rotation that turns the +z axis onto `axis`: a joint frame built from it
+ * hinges about `axis`. For a prismatic joint, which slides along +x, pass
+ * `from: 'x'`.
+ */
+export function axisRotation(axisLike: Vec3Like, from: 'x' | 'z' = 'z'): [number, number, number, number] {
+  const a = toVec3(axisLike), length = Math.hypot(a[0], a[1], a[2]);
+  if (!(length > 0) || !Number.isFinite(length)) throw new EngineError('INVALID_PAYLOAD', 'axis must be a non-zero vector.');
+  const x = a[0] / length, y = a[1] / length, z = a[2] / length;
+  const f: [number, number, number] = from === 'x' ? [1, 0, 0] : [0, 0, 1];
+  const dot = f[0] * x + f[1] * y + f[2] * z;
+  // Opposite direction: turn half a revolution about any perpendicular axis.
+  if (dot < -0.999999) return from === 'x' ? [0, 1, 0, 0] : [1, 0, 0, 0];
+  const cx = f[1] * z - f[2] * y, cy = f[2] * x - f[0] * z, cz = f[0] * y - f[1] * x, w = 1 + dot, n = 1 / Math.hypot(cx, cy, cz, w);
+  return [cx * n, cy * n, cz * n, w * n];
+}
+
+/** A body's pose as getPose() reads it from the render transforms. */
 export interface BodyPose {
   /** World-space center. */
   position: [number, number, number];
@@ -24,17 +266,44 @@ export interface BodyPose {
   halfExtents: [number, number, number];
 }
 
+/** How a world steps: the fixed step and the most steps per update() (FixedStepOptions), the sub-steps, the seed, the body capacity, interpolation and strict mode. */
 export interface WorldOptions extends FixedStepOptions {
   /** Solver substeps per fixed step, 1..16. Default 4. */
   readonly subSteps?: number;
   /** Deterministic seed for presets and scattered spawns. Default 1. */
   readonly seed?: number;
-  /** Reserve this many bodies up front (4,096..65,536) so growth never stalls gameplay. */
+  /**
+   * Reserve this many bodies up front (4,096..65,536) so growth never stalls gameplay. Box3D is told the same number
+   * when the world is (re)set, so its own arrays are sized for it too; what is simulated does not change.
+   */
   readonly capacity?: number;
   /** Keep the previous step's transforms for render interpolation. Default true. */
   readonly interpolate?: boolean;
+  /**
+   * Throw an EngineError with code NUMERICAL_FAILURE from step() or update() as soon as a step leaves a body with a
+   * transform that is not finite, or diverges so that the native bridge has to contain a body (stats().contained), instead
+   * of only recording it in stats().nonFiniteSince or stats().contained. Default false: a game loop keeps running and
+   * decides for itself (restore a checkpoint, reset the level). Tests and tools should pass true.
+   */
+  readonly strict?: boolean;
+  /**
+   * Stiffness of every joint created without its own `stiffness`. Default: Box3D's, 60 Hz with damping ratio 2.
+   * `'match-substeps'` takes the stiffest Box3D allows at this step and sub-step count, a quarter of the sub-step
+   * rate (60 Hz at 1/60 s and 4 sub-steps, 120 Hz at 8, 240 Hz at 16), with damping ratio 2. Box3D caps a joint at
+   * that rate whatever it is given, so more sub-steps make joints stiffer only with this option (or a per-joint
+   * `stiffness`). A joint is created with the stiffness it gets here, so recordings, checkpoints and saved scenes
+   * hold it like any other joint setting.
+   */
+  readonly jointStiffness?: 'match-substeps' | {readonly hertz: number; readonly dampingRatio?: number};
+  /**
+   * Contact stiffness set at every reset: `{hertz, dampingRatio, pushSpeed}` as `configure()` takes them (defaults
+   * 30 Hz, 10, 3 m/s), or `'match-substeps'`: an eighth of the sub-step rate (Box3D's cap: 30 Hz at 1/60 s and 4
+   * sub-steps, 60 Hz at 8, 120 Hz at 16) with the default damping and push-out speed. Default: Box3D's settings.
+   */
+  readonly contactStiffness?: 'match-substeps' | {readonly hertz?: number; readonly dampingRatio?: number; readonly pushSpeed?: number};
 }
 
+/** What spawnBox() takes: where the cube appears, its half size and an initial impulse. */
 export interface SpawnBoxOptions {
   readonly position: Vec3Like;
   /** Cube half size in meters. Default 0.5. Values <= 0.05 are replaced with 0.8 by the native bridge. Cubes only. */
@@ -43,14 +312,19 @@ export interface SpawnBoxOptions {
   readonly impulse?: Vec3Like;
 }
 
+/** Options of the casts and overlaps: which bodies to consider and how many hits to return. */
 export interface QueryOptions {
   readonly filter?: NativeQueryFilter;
   /** Most hits returned, 1..256. Default 1 for casts, 32 for overlaps. */
   readonly limit?: number;
 }
-/** @deprecated Use QueryOptions. */
+/**
+ * The old name of QueryOptions.
+ * @deprecated Use QueryOptions.
+ */
 export type RaycastOptions = QueryOptions;
 
+/** Counts and timings of a world, from stats(): cheap enough to read every frame. */
 export interface WorldStats {
   readonly bodies: number;
   readonly awake: number;
@@ -65,17 +339,41 @@ export interface WorldStats {
   readonly lastUpdateMs: number;
   /** Seconds discarded by the most recent update() because maxSteps was reached. */
   readonly droppedSeconds: number;
+  /**
+   * The tick of the first step that left a body with a transform that is not finite (NaN or infinite), or null when
+   * every transform has been finite since the last reset or restore. Once set, the world's numbers cannot be trusted:
+   * restore a checkpoint taken before that tick, or reset. See diagnose() for what makes a set-up unstable.
+   */
+  readonly nonFiniteSince: number | null;
+  /**
+   * Bodies the native bridge contained since the last reset or restore: a step diverged for the body (joints that
+   * contradict each other can make Box3D's solve run away), so the bridge put it back at its pose of the step before, at
+   * rest, and the world stayed finite. Each is also a 'body-contained' event. 0 in a sound scene and with a WASM build
+   * that does not contain. A world created with `strict: true` throws NUMERICAL_FAILURE at the step instead; diagnose()
+   * reports it as the rule `body-contained`.
+   */
+  readonly contained: number;
 }
 
+/** One recorded action of a ReplayLog, with the tick it happened at. Bodies are named by render row and joints by creation order, so that a log replays in any world. */
 export type ReplayCommand =
   | {readonly t: number; readonly op: 'spawnBox'; readonly position: Vec3; readonly halfSize: number; readonly impulse: Vec3}
   | {readonly t: number; readonly op: 'destroyBody'; readonly row: number}
   | {readonly t: number; readonly op: 'applyImpulse'; readonly row: number; readonly impulse: Vec3}
-  | {readonly t: number; readonly op: 'explode'; readonly center: Vec3; readonly strength: number; readonly radius: number};
+  | {readonly t: number; readonly op: 'explode'; readonly center: Vec3; readonly strength: number; readonly radius: number}
+  /**
+   * Any other mutating call (createBody, createJoint, setVelocity, ...). In `args`, a body is
+   * {$body: row}, a joint is {$joint: n} (the n-th joint created since recording began) and a
+   * bigint is {$bigint: 'decimal'}, so the log stays plain JSON.
+   */
+  | {readonly t: number; readonly op: 'call'; readonly method: string; readonly args: readonly unknown[]};
 
 /** Everything needed to reproduce a session bit-for-bit on the same WASM build. JSON-serializable. */
 export interface ReplayLog {
-  readonly version: 1;
+  /** 2 when the log starts from an SI world or holds 'call' commands; such logs need kit 0.8 or later. */
+  readonly version: 1 | 2;
+  /** Present when recording began with reset() instead of the classic arena. */
+  readonly world?: {readonly ground: boolean; readonly gravity: Vec3};
   readonly seed: number;
   readonly step: number;
   readonly subSteps: number;
@@ -87,11 +385,15 @@ export interface ReplayLog {
   readonly checkpoints?: readonly (readonly [number, number])[];
 }
 
+/** Options of startRecording(): how often to record a state hash, and whether to start from an SI world. */
 export interface RecordingOptions {
   /** Capture exactHash every N ticks (0 disables). Default 60. */
   readonly checkpointEvery?: number;
+  /** Start from an empty SI world (as reset() does) instead of the classic arena. */
+  readonly world?: {readonly ground?: boolean; readonly gravity?: Vec3Like};
 }
 
+/** The result of replayDetailed(): whether the replay matched the recording and, if not, between which ticks it first differed. */
 export interface ReplayReport {
   /** True when every checkpoint and the final state match bit-for-bit. */
   readonly matches: boolean;
@@ -101,7 +403,24 @@ export interface ReplayReport {
   readonly checkpointsCompared: number;
 }
 
+/** A seed as the 32-bit unsigned integer the native world takes: any finite number, reduced modulo 2^32 (so Date.now() works). */
+function seedOf(seed: unknown): number {
+  if (typeof seed !== 'number' || !Number.isFinite(seed)) throw new EngineError('INVALID_PAYLOAD', `seed must be a finite number; got ${showValue(seed)}. It is reduced modulo 2^32.`, {path: 'seed', value: showValue(seed), expected: 'a finite number'});
+  return seed >>> 0;
+}
+const massData = (data: MassDataOptions) => ({mass: data?.mass, center: data?.center ? toVec3(data.center) : undefined, inertia: data?.inertia});
 const now = () => globalThis.performance?.now() ?? Date.now();
+/** The methods a 'call' replay command may name. */
+const REPLAYABLE = new Set(['setGravity', 'createBody', 'setTransform', 'setVelocity', 'moveKinematic', 'setBodyType', 'setAwake', 'setGravityScale',
+  'setDamping', 'setCollisionFilter', 'applyForce', 'applyTorque', 'applyImpulseAt', 'applyAngularImpulse', 'createJoint', 'destroyJoint',
+  'setJointMotor', 'setJointLimits', 'setJointSpring', 'setJointSteering', 'setJointStiffness', 'setMassData', 'resetMassData',
+  'setJointDrive', 'setJointThresholds', 'setJointSteeringLimits', 'setJointTargetRotation', 'setJointAngularMotor', 'setJointParallelSpring', 'setJointConeLimit',
+  'setJointCollideConnected', 'configure', 'setBullet', 'setSleep', 'setMotionLocks', 'explodeArea']);
+/** Refuse, by name, an argument that must be a plain object before any of its fields is read. */
+function objectArg(value: unknown, label: string, expected: string): void {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new EngineError('INVALID_PAYLOAD', `${label} must be ${expected}; got ${showValue(value)}.`, {path: label, value: showValue(value), expected});
+}
+const drive = (d: JointDrive): NativeJointDrive => (objectArg(d, 'drive', '{linearVelocity?, angularVelocity?, maxForce?, maxTorque?, linearSpring?, angularSpring?}'), {...d, linearVelocity: d?.linearVelocity ? toVec3(d.linearVelocity) : undefined, angularVelocity: d?.angularVelocity ? toVec3(d.angularVelocity) : undefined});
 
 /**
  * Game-facing wrapper around one isolated native Box3D world.
@@ -119,6 +438,10 @@ export class PhysicsWorld {
   readonly subSteps: number;
   readonly seed: number;
   private ownedPool: NativeWorldPool | null;
+  private readonly threadingInfo: Box3DThreading;
+  // The jointStiffness and contactStiffness options, as given (resolved against the step when used).
+  private readonly jointStiffnessOption: WorldOptions['jointStiffness'];
+  private readonly contactStiffnessOption: WorldOptions['contactStiffness'];
   private readonly userData = new Map<bigint, unknown>();
   private tickCount = 0;
   private lastStepMs = 0;
@@ -130,19 +453,40 @@ export class PhysicsWorld {
   private previousCount = 0;
   private rowsMoved = true;
   private blended = new Float32Array(0);
-  private recording: {seed: number; commands: ReplayCommand[]; every: number; checkpoints: [number, number][]} | null = null;
+  private recording: {seed: number; commands: ReplayCommand[]; every: number; checkpoints: [number, number][]; world?: {ground: boolean; gravity: Vec3}} | null = null;
+  // Joints created since the recording or replay began, so a log can name them by order.
+  private jointLog: Joint[] = [];
   private readonly stepListeners = new Set<(tick: number) => void>();
+  private readonly eventListeners = new Set<(event: WorldEvent) => void>();
+  private droppedEventCount = 0;
+  private readonly strict: boolean;
+  private nonFiniteTick: number | null = null;
+  // Containments by the native bridge (ND-2): its running total when last read, how many since the last reset or
+  // restore, and the tick of the first of them.
+  private containedSeen = 0;
+  private containedCount = 0;
+  private containedTick: number | null = null;
+  // What diagnose() needs to know about each joint made through createJoint, by joint token.
+  private readonly jointInfo = new Map<bigint, {joint: Joint; a: Body | null; b: Body | null; spring: number; stiffness: number; anchorA: Vec3; anchorB: Vec3}>();
+  private jointPruneAt = 256;
+  // Scratch for castRays(): body tokens of the latest batch.
+  private rayTokens = new BigUint64Array(0);
 
   constructor(pool: NativeWorldPool, options: WorldOptions = {}, ownPool = false) {
     this.native = pool.createWorld();
     this.ownedPool = ownPool ? pool : null;
+    this.threadingInfo = box3dThreading(pool);
     try {
       if (!this.native.supportsBodyLifecycle) throw new EngineError('UNSUPPORTED_BACKEND', 'box3d.wasm lacks body handles; rebuild with npm run build:wasm.');
       this.loop = new FixedStepLoop(options);
       this.subSteps = options.subSteps ?? 4;
       this.seed = (options.seed ?? 1) >>> 0;
       this.interpolate = options.interpolate ?? true;
+      this.strict = options.strict === true;
+      this.jointStiffnessOption = checkStiffness(options.jointStiffness, 'jointStiffness');
+      this.contactStiffnessOption = checkStiffness(options.contactStiffness, 'contactStiffness');
       if (options.capacity !== undefined) this.native.reserveBodyCapacity(options.capacity);
+      this.containedSeen = this.native.containedTotal();
     } catch (error) {
       this.native.destroy();
       throw error;
@@ -158,7 +502,7 @@ export class PhysicsWorld {
    */
   resetArena(seed = this.seed): this {
     this.stopRecordingIfActive('resetArena');
-    this.native.createScene({id: 0}, 1, seed >>> 0);
+    this.native.createScene({id: 0}, 1, seedOf(seed));
     const extra: Body[] = [];
     for (let i = 1; i < this.native.bodyCount(); i++) extra.push(this.native.bodyHandle(i));
     for (const body of extra) this.native.destroyBody(body);
@@ -169,20 +513,290 @@ export class PhysicsWorld {
   /** Load one of the 800 built-in native presets (0..799) at stress 1..5. */
   loadPreset(id: number, stress = 1, seed = this.seed): number {
     this.stopRecordingIfActive('loadPreset');
-    const count = this.native.createScene({id}, stress, seed >>> 0);
+    const count = this.native.createScene({id}, stress, seedOf(seed));
     this.afterReset();
     return count;
   }
 
+  /**
+   * Replace the world with an empty one in SI units: real gravity (9.81 m/s^2
+   * down) and, unless `ground: false`, the static ground slab. Use this, then
+   * createBody() and createJoint(), to build your own scene.
+   */
+  reset(options: ResetOptions = {}): this {
+    this.stopRecordingIfActive('reset');
+    if (options === null || typeof options !== 'object' || Array.isArray(options)) throw new EngineError('INVALID_PAYLOAD', `reset takes {ground?, gravity?, seed?} or nothing; got ${showValue(options)}.`);
+    this.native.resetWorld({seed: seedOf(options.seed ?? this.seed), ground: options.ground, gravity: options.gravity !== undefined && options.gravity !== null ? toVec3(options.gravity) : undefined});
+    this.afterReset();
+    return this;
+  }
+
+  setGravity(gravity: Vec3Like): void { const g = toVec3(gravity); this.general('setGravity', [g]); this.native.setGravity(g[0], g[1], g[2]); }
+  gravity(): [number, number, number] { return this.native.gravity(); }
+
+  // Log a mutating call while recording. Arguments are encoded before the call runs,
+  // because a body's row is only meaningful at that moment.
+  private general(method: string, args: readonly unknown[] = []): void {
+    if (this.recording) this.recording.commands.push({t: this.tickCount, op: 'call', method, args: args.map(arg => this.encodeArg(arg))});
+  }
+  private encodeArg(value: unknown): unknown {
+    if (typeof value === 'bigint') return {$bigint: value.toString()};
+    if (value === null || typeof value !== 'object') return value;
+    if (ArrayBuffer.isView(value)) return Array.from(value as unknown as ArrayLike<number>);
+    if (Array.isArray(value)) return value.map(item => this.encodeArg(item));
+    if (typeof (value as {token?: unknown}).token === 'bigint') {
+      const joint = this.jointLog.indexOf(value as Joint);
+      if (joint >= 0) return {$joint: joint};
+      let row: number | null = null;
+      try { row = this.native.bodyIndex(value as Body); } catch { /* not a body of this world */ }
+      if (row === null) throw new EngineError('INVALID_STATE', 'Recording met a destroyed body, or a joint created before recording began.');
+      return {$body: row};
+    }
+    const out: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) if (item !== undefined) out[key] = this.encodeArg(item);
+    return out;
+  }
+  private decodeArg(value: unknown): unknown {
+    if (value === null || typeof value !== 'object') return value;
+    if (Array.isArray(value)) return value.map(item => this.decodeArg(item));
+    const tagged = value as {$body?: number; $joint?: number; $bigint?: string};
+    if (typeof tagged.$bigint === 'string') return BigInt(tagged.$bigint);
+    if (typeof tagged.$body === 'number') return this.bodyAt(tagged.$body);
+    if (typeof tagged.$joint === 'number') {
+      const joint = this.jointLog[tagged.$joint];
+      if (!joint) throw new EngineError('INVALID_PAYLOAD', `Replay log names joint ${tagged.$joint}, which it never created.`);
+      return joint;
+    }
+    const out: Record<string, unknown> = {};
+    // A log is JSON from outside: a key named __proto__ must stay data and never become a prototype.
+    for (const [key, item] of Object.entries(value)) if (key !== '__proto__') out[key] = this.decodeArg(item);
+    return out;
+  }
+
+  /**
+   * Create a body: box, sphere, capsule, convex hull or a compound of those, of any type, or a
+   * static triangle mesh or height field. Returns null when the world is at body capacity.
+   */
+  createBody(options: BodyOptions): Body | null {
+    if (options === null || typeof options !== 'object') throw new EngineError('INVALID_PAYLOAD', `createBody takes {shape, position, ...}; got ${showValue(options)}.`);
+    this.general('createBody', [options]);
+    const shape = options.shape ?? ({} as ShapeOptions);
+    const convex = (one: ConvexShapeOptions): NativeConvexShape => one?.kind === 'box' ? {kind: 'box', halfExtents: toVec3(one.halfExtents)} : one;
+    return this.native.createBody({
+      ...options,
+      shape: shape.kind === 'box' ? {kind: 'box', halfExtents: toVec3(shape.halfExtents)}
+        // A `shapes` that is not an array is passed on as it is, for the native check to refuse by name.
+        : shape.kind === 'compound' ? {kind: 'compound', shapes: !Array.isArray(shape.shapes) ? shape.shapes as never : shape.shapes.map((child: CompoundShapeOptions) => ({
+          ...child, shape: convex(child?.shape), position: child?.position ? toVec3(child.position) : undefined, rotation: child?.rotation ? toQuat(child.rotation) : undefined,
+        }))} : shape,
+      massData: options.massData ? massData(options.massData) : undefined,
+      position: toVec3(options.position),
+      rotation: options.rotation ? toQuat(options.rotation) : undefined,
+      linearVelocity: options.linearVelocity ? toVec3(options.linearVelocity) : undefined,
+      angularVelocity: options.angularVelocity ? toVec3(options.angularVelocity) : undefined,
+    });
+  }
+
+  /**
+   * Replace the mass, centre of mass and inertia tensor that the body's shapes and densities give.
+   * The pose and the velocity of the body's origin do not change. The values stay until
+   * resetMassData(), also across setBodyType(), and act while the body is dynamic; the shapes
+   * still decide how it collides. Throws unless the mass is positive and the tensor positive definite.
+   */
+  setMassData(body: Body, data: MassDataOptions): void { this.general('setMassData', [body, data]); this.native.setBodyMassData(body, massData(data)); }
+  /** Back to the mass, centre of mass and inertia of the body's shapes. */
+  resetMassData(body: Body): void { this.general('resetMassData', [body]); this.native.resetBodyMassData(body); }
+  /**
+   * Mass, centre of mass (body frame) and inertia tensor (about that centre, body axes, as
+   * [Ixx, Iyy, Izz, Ixy, Ixz, Iyz]) as the solver holds them, whether they come from the shapes
+   * or were set. A static or kinematic body reports zeros.
+   */
+  getMassData(body: Body): BodyMassData { return this.native.bodyMassData(body); }
+  /** Position, rotation, velocities, mass, sleep state and type, read from the solver. */
+  getState(body: Body): BodyState { return this.native.bodyState(body); }
+  /** Teleport a body. To move a kinematic body through the world use moveKinematic(). */
+  setTransform(body: Body, position: Vec3Like, rotation: QuatLike = [0, 0, 0, 1]): void {
+    this.general('setTransform', [body, position, rotation]); this.native.setBodyTransform(body, toVec3(position), toQuat(rotation)); this.rowsMoved = true;
+  }
+  setVelocity(body: Body, linear: Vec3Like, angular: Vec3Like = [0, 0, 0]): void {
+    this.general('setVelocity', [body, linear, angular]); this.native.setBodyVelocity(body, toVec3(linear), toVec3(angular));
+  }
+  /**
+   * Drive a kinematic body so that it reaches the pose after `seconds`
+   * (default: one fixed step). This sets its velocity, which it then keeps:
+   * call it every step while following a path, or setVelocity(body, [0, 0, 0])
+   * to stop.
+   */
+  moveKinematic(body: Body, position: Vec3Like, rotation: QuatLike = [0, 0, 0, 1], seconds = this.loop.step): void {
+    this.general('moveKinematic', [body, position, rotation, seconds]); this.native.setBodyTarget(body, toVec3(position), toQuat(rotation), seconds);
+  }
+  setBodyType(body: Body, type: BodyType): void { this.general('setBodyType', [body, type]); this.native.setBodyType(body, type); }
+  setAwake(body: Body, awake: boolean): void { this.general('setAwake', [body, awake]); this.native.setBodyAwake(body, awake); }
+  setGravityScale(body: Body, scale: number): void { this.general('setGravityScale', [body, scale]); this.native.setBodyGravityScale(body, scale); }
+  setDamping(body: Body, linear: number, angular: number): void { this.general('setDamping', [body, linear, angular]); this.native.setBodyDamping(body, linear, angular); }
+  setCollisionFilter(body: Body, categoryBits: bigint, maskBits: bigint, groupIndex = 0): void {
+    this.general('setCollisionFilter', [body, categoryBits, maskBits, groupIndex]); this.native.setBodyFilter(body, categoryBits, maskBits, groupIndex);
+  }
+  /** Force in newtons, acting over the next step. With `point` (world space) it also produces torque. */
+  applyForce(body: Body, force: Vec3Like, point?: Vec3Like): void {
+    this.general('applyForce', point ? [body, force, point] : [body, force]); this.native.applyToBody(body, 'force', toVec3(force), point ? toVec3(point) : undefined);
+  }
+  applyTorque(body: Body, torque: Vec3Like): void { this.general('applyTorque', [body, torque]); this.native.applyToBody(body, 'torque', toVec3(torque)); }
+  /** Impulse in N·s at a world-space point. applyImpulse() acts at the center. */
+  applyImpulseAt(body: Body, impulse: Vec3Like, point: Vec3Like): void {
+    this.general('applyImpulseAt', [body, impulse, point]); this.native.applyToBody(body, 'impulse', toVec3(impulse), toVec3(point));
+  }
+  applyAngularImpulse(body: Body, impulse: Vec3Like): void { this.general('applyAngularImpulse', [body, impulse]); this.native.applyToBody(body, 'angular-impulse', toVec3(impulse)); }
+
+  /** Connect two bodies, or a body and the fixed world, with a joint. */
+  createJoint(options: JointOptions): Joint {
+    if (options === null || typeof options !== 'object' || Array.isArray(options)) throw new EngineError('INVALID_PAYLOAD', `createJoint takes {type, bodyA, bodyB, ...}; got ${showValue(options)}.`);
+    const stiffness = options.stiffness === undefined ? this.jointDefaults() : null;
+    if (stiffness) options = {...options, stiffness};
+    this.general('createJoint', [options]);
+    // A frame that is not an object is passed on as it is, for the native check to refuse by name.
+    const frame = (f?: JointFrame) => f !== null && typeof f === 'object' && !Array.isArray(f) ? {position: f.position ? toVec3(f.position) : undefined, rotation: f.rotation ? toQuat(f.rotation) : undefined} : f as undefined;
+    const joint = this.native.createJoint({...options, frameA: frame(options.frameA), frameB: frame(options.frameB), drive: options.drive !== undefined && options.drive !== null ? drive(options.drive) : undefined});
+    if (this.recording || this.replayCheck) this.jointLog.push(joint);
+    const anchor = (f?: JointFrame): Vec3 => f?.position ? toVec3(f.position) : [0, 0, 0];
+    this.jointInfo.set(joint.token, {joint, a: options.bodyA, b: options.bodyB, spring: options.spring?.hertz ?? 0, stiffness: options.stiffness?.hertz ?? 0, anchorA: anchor(options.frameA), anchorB: anchor(options.frameB)});
+    // Joints that died with their bodies are dropped now and then, so the table follows the live joints.
+    if (this.jointInfo.size > this.jointPruneAt) { for (const [token, info] of this.jointInfo) if (!this.native.jointAlive(info.joint)) this.jointInfo.delete(token); this.jointPruneAt = Math.max(256, 2 * this.jointInfo.size); }
+    return joint;
+  }
+  /** False once the joint, or either of its bodies, has been destroyed. */
+  isJointAlive(joint: Joint): boolean { return this.native.jointAlive(joint); }
+  destroyJoint(joint: Joint): boolean { this.general('destroyJoint', [joint]); const destroyed = this.native.destroyJoint(joint); this.jointInfo.delete(joint.token); return destroyed; }
+  /** Pass null to switch the motor off. */
+  setJointMotor(joint: Joint, motor: {speed: number; maxForce: number} | null): void { this.general('setJointMotor', [joint, motor]); this.native.setJointMotor(joint, motor); }
+  /** Pass null to remove the limits. */
+  setJointLimits(joint: Joint, limits: {lower: number; upper: number} | null): void { this.general('setJointLimits', [joint, limits]); this.native.setJointLimits(joint, limits); }
+  /** Pass null to switch the spring off. */
+  setJointSpring(joint: Joint, spring: {hertz: number; dampingRatio: number; target?: number} | null): void {
+    this.general('setJointSpring', [joint, spring]); this.native.setJointSpring(joint, spring);
+    const info = this.jointInfo.get(joint.token); if (info) info.spring = spring?.hertz ?? 0;
+  }
+  /** Set how stiffly a joint holds its bodies together; see JointOptions.stiffness. */
+  setJointStiffness(joint: Joint, hertz: number, dampingRatio = 2): void {
+    this.general('setJointStiffness', [joint, hertz, dampingRatio]); this.native.setJointStiffness(joint, hertz, dampingRatio);
+    const info = this.jointInfo.get(joint.token); if (info) info.stiffness = hertz;
+  }
+  /** Wheel joints: steer towards an angle. Pass null to switch steering off. */
+  setJointSteering(joint: Joint, steering: {angle: number; hertz: number; dampingRatio: number; maxTorque: number} | null): void {
+    this.general('setJointSteering', [joint, steering]); this.native.setJointSteering(joint, steering);
+  }
+  /** Joint angle, travel or length, and the force and torque it is carrying. */
+  getJointState(joint: Joint): JointState { return this.native.jointState(joint); }
+  /** Everything the solver holds about a joint: separation errors, thresholds, limits, motor output, wheel spin, steering and suspension travel. */
+  getJointDetails(joint: Joint): JointDetails { return this.native.jointDetails(joint); }
+  /** Motor joints: replace the drive (velocity targets, force limits and springs). */
+  setJointDrive(joint: Joint, options: JointDrive): void { this.general('setJointDrive', [joint, options]); this.native.setJointDrive(joint, drive(options)); }
+  /** Force and torque thresholds for joint events, and whether the joint breaks at them. Pass null to remove them. */
+  setJointThresholds(joint: Joint, thresholds: JointThresholds | null): void { this.general('setJointThresholds', [joint, thresholds]); this.native.setJointThresholds(joint, thresholds); }
+  /** Wheel joints: limit the steering angle. Pass null to remove the limit. */
+  setJointSteeringLimits(joint: Joint, limits: {lower: number; upper: number} | null): void { this.general('setJointSteeringLimits', [joint, limits]); this.native.setJointSteeringLimits(joint, limits); }
+  /** Spherical joints: the orientation of frame B in frame A that the joint's spring pulls towards. */
+  setJointTargetRotation(joint: Joint, rotation: QuatLike): void { this.general('setJointTargetRotation', [joint, rotation]); this.native.setJointTargetRotation(joint, toQuat(rotation)); }
+  /** Spherical joints: turn body B relative to body A at `velocity` (rad/s) with at most `maxTorque`. Pass null to switch it off. */
+  setJointAngularMotor(joint: Joint, motor: {velocity: Vec3Like; maxTorque: number} | null): void {
+    this.general('setJointAngularMotor', [joint, motor]); this.native.setJointAngularMotor(joint, motor ? {velocity: toVec3(motor.velocity), maxTorque: motor.maxTorque} : null);
+  }
+  /** Parallel joints: the spring that keeps the two frames' z axes aligned, and the largest torque it may use. */
+  setJointParallelSpring(joint: Joint, spring: {hertz: number; dampingRatio: number; maxTorque: number}): void {
+    this.general('setJointParallelSpring', [joint, spring]); this.native.setJointParallelSpring(joint, spring);
+    const info = this.jointInfo.get(joint.token); if (info) info.spring = spring.hertz;
+  }
+  /** Spherical joints: limit the swing to a cone of this half angle (rad). Pass null to remove the limit. */
+  setJointConeLimit(joint: Joint, angle: number | null): void { this.general('setJointConeLimit', [joint, angle]); this.native.setJointConeLimit(joint, angle); }
+  /** Whether the two bodies of a joint collide with each other. */
+  setJointCollideConnected(joint: Joint, collide: boolean): void { this.general('setJointCollideConnected', [joint, collide]); this.native.setJointCollideConnected(joint, collide); }
+
+  /** The world-wide solver settings: sleeping, continuous collision, contact tuning, thresholds and the speed limit. */
+  settings(): WorldSettings { return this.native.worldSettings(); }
+  /**
+   * Change world-wide solver settings. They last until the next reset() or preset and are part of a checkpoint.
+   * Every dynamic body is woken so that the new rule applies from the next step.
+   */
+  configure(settings: Partial<WorldSettings>): void { this.general('configure', [settings]); this.native.setWorldSettings(settings); }
+  /** Continuous collision against other moving bodies for this body: for small fast things that must not pass through thin dynamic ones. */
+  setBullet(body: Body, bullet: boolean): void { this.general('setBullet', [body, bullet]); this.native.setBodyBullet(body, bullet); }
+  /** Whether the body may fall asleep, and below what speed (m/s). */
+  setSleep(body: Body, options: {enabled?: boolean; threshold?: number}): void { this.general('setSleep', [body, options]); this.native.setBodySleep(body, options); }
+  /** Stop the body from translating along, or turning about, chosen world axes (a 2D body: lock linearZ, angularX and angularY). */
+  setMotionLocks(body: Body, locks: Partial<BodyFlags['locks']>): void { this.general('setMotionLocks', [body, locks]); this.native.setBodyMotionLocks(body, locks); }
+  /** Bullet flag, sleep settings and motion locks of a body. */
+  getBodyFlags(body: Body): BodyFlags { return this.native.bodyFlags(body); }
+  /**
+   * Box3D's explosion: an impulse on every sphere, capsule and hull within `radius + falloff`, proportional to the
+   * shape area facing the centre (`impulsePerArea`, N·s per m^2; negative pulls inwards), fading to zero across
+   * `falloff`. Unlike explode(), which pushes each body's centre, this one spins what it hits off-centre.
+   */
+  explodeArea(options: {center: Vec3Like; radius: number; falloff?: number; impulsePerArea: number; maskBits?: bigint}): void {
+    objectArg(options, 'explodeArea options', '{center, radius, falloff?, impulsePerArea, maskBits?}');
+    this.general('explodeArea', [options]); this.native.explodeArea({...options, center: toVec3(options.center)});
+  }
+  /**
+   * Box3D's own timing of the most recent step by stage (milliseconds: pairs, collide, solve and its parts,
+   * continuous collision, sleeping, sensors) and the sizes it worked on (bodies, shapes, contacts, joints, islands,
+   * tree heights, awake bodies). Wall-clock numbers: they differ from run to run and are not part of a checkpoint.
+   */
+  profile(): StepProfile { return this.native.profile(); }
+  /**
+   * What the solver's contact manifolds hold: touching pairs, contact points, the deepest and the mean overlap, and
+   * the normal forces of the last sub-step. A cheap health check for stacks and piles: resting contacts sit near
+   * Box3D's linear slop (5 mm), and a deepest overlap that keeps growing means the solver is losing.
+   */
+  contactStats(): ContactStats {
+    const stats = this.native.contactStats(), perSecond = this.subSteps / this.loop.step;
+    return {...stats, totalNormalForce: stats.totalImpulse * perSecond, largestNormalForce: stats.largestImpulse * perSecond};
+  }
+  /**
+   * Box3D's own debug drawing as line segments (vertex pairs with a colour each): joints, shape bounds, centres of
+   * mass, contact points, normals and forces, and islands. Draw it with LineSegments in three.js or any line pipeline.
+   */
+  debugLines(options: DebugDrawOptions = {}): DebugDrawLines {
+    objectArg(options, 'debugLines options', 'an object of debug-draw switches');
+    if (options.region !== undefined) objectArg(options.region, 'debugLines options.region', '{min, max}');
+    return this.native.debugLines({...options, region: options.region ? {min: toVec3(options.region.min), max: toVec3(options.region.max)} : undefined});
+  }
+
+  /**
+   * Call `listener(event)` for every contact and sensor event, after the step
+   * that produced it: 'contact-begin' and 'contact-end' when two bodies start
+   * or stop touching, 'hit' for impacts on bodies created with
+   * `hitEvents: true`, and 'sensor-begin' / 'sensor-end' for sensor overlaps.
+   * Destroying a body does not produce a 'contact-end' for what it touched.
+   * Returns a function that removes the listener.
+   */
+  onEvent(listener: (event: WorldEvent) => void): () => void {
+    this.eventListeners.add(listener);
+    return () => { this.eventListeners.delete(listener); };
+  }
+  /** Events lost because one step produced more than 65,536 of them. */
+  get droppedEvents(): number { return this.droppedEventCount; }
+
+  /**
+   * Shape of every render row, in the same order as matrices(). Box, sphere and
+   * capsule rows are scaled by their size; hull, mesh, height-field and compound
+   * rows are unscaled, for drawing with the geometry you created them from.
+   */
+  bodyKinds(): BodyKind[] { return this.native.bodyKinds(); }
+
   private afterReset(): void {
+    const contact = this.contactDefaults();
+    if (contact) this.native.setWorldSettings(contact);
     this.loop.reset();
     this.userData.clear();
     this.tickCount = 0;
     this.rowsMoved = true;
+    this.nonFiniteTick = null;
+    this.clearContained();
+    this.jointInfo.clear();
   }
 
   /** Spawn a dynamic cube. Returns null when the world is at body capacity. */
   spawnBox(options: SpawnBoxOptions): Body | null {
+    if (options === null || typeof options !== 'object') throw new EngineError('INVALID_PAYLOAD', `spawnBox takes {position, halfSize?, impulse?}; got ${showValue(options)}.`);
     const position = toVec3(options.position), impulse = options.impulse ? toVec3(options.impulse) : [0, 0, 0] as const, halfSize = options.halfSize ?? 0.5;
     const body = this.native.launchProjectileBody(position[0], position[1], position[2], impulse[0], impulse[1], impulse[2], halfSize);
     // Spawning appends a row, so interpolation of existing rows stays valid.
@@ -224,7 +838,7 @@ export class PhysicsWorld {
     this.userData.set(body.token, value);
   }
   /** The value from setUserData, e.g. to turn a raycast hit into your entity. */
-  getUserData<T = unknown>(body: Body): T | undefined { return this.userData.get(body.token) as T | undefined; }
+  getUserData<T = unknown>(body: Body): T | undefined { return this.userData.get((body as Body | null | undefined)?.token as bigint) as T | undefined; }
 
   /** The body drawn at instance row `row` (0 is the ground in an arena). Rows change on destroy; handles do not. */
   bodyAt(row: number): Body { return this.native.bodyHandle(row); }
@@ -247,12 +861,50 @@ export class PhysicsWorld {
     this.native.step(dt, this.subSteps);
     this.lastStepMs = now() - start;
     this.tickCount++;
+    if (this.nonFiniteTick === null) this.checkFinite();
+    this.checkContained();
     const rec = this.recording;
     if (rec && rec.every > 0 && this.tickCount % rec.every === 0) rec.checkpoints.push([this.tickCount, this.exactHash()]);
     const check = this.replayCheck;
+    if (this.eventListeners.size > 0) {
+      const {events, dropped} = this.native.collectEvents();
+      this.droppedEventCount += dropped;
+      for (const event of events) for (const listener of this.eventListeners) listener(event);
+    }
     if (check) check(this.tickCount);
     // Listener side effects (impulses, spawns) are already in a replay log's commands.
     else for (const listener of this.stepListeners) listener(this.tickCount);
+  }
+
+  // One pass over four numbers per body (a rotation entry and the position). Their sum is finite exactly when each of
+  // them is: single-precision values cannot overflow a double sum, and NaN or an infinity makes the sum non-finite.
+  private checkFinite(): void {
+    const m = this.matrices();
+    let sum = 0;
+    for (let o = 0; o < m.length; o += 16) sum += m[o] + m[o + 12] + m[o + 13] + m[o + 14];
+    if (Number.isFinite(sum)) return;
+    this.nonFiniteTick = this.tickCount;
+    if (!this.strict) return;
+    let row = 0;
+    while (row * 16 < m.length && Number.isFinite(m[row * 16] + m[row * 16 + 12] + m[row * 16 + 13] + m[row * 16 + 14])) row++;
+    throw new EngineError('NUMERICAL_FAILURE', `Step ${this.tickCount} left body row ${row} with a transform that is not finite. The solver diverged: usually joints that contradict each other, or a mass ratio or stiffness beyond what the step size resolves. Restore a checkpoint from before this step, and run world.diagnose() on the set-up.`, {path: `body row ${row}`});
+  }
+
+  // The bridge's running total of contained bodies is one call per step; it only grows while this world exists.
+  private checkContained(): void {
+    const total = this.native.containedTotal();
+    if (total === this.containedSeen) return;
+    const added = Math.max(0, total - this.containedSeen);
+    this.containedSeen = total;
+    this.containedCount += added;
+    this.containedTick ??= this.tickCount;
+    if (!this.strict) return;
+    throw new EngineError('NUMERICAL_FAILURE', `Step ${this.tickCount} diverged for ${added === 1 ? 'a body' : `${added} bodies`}: the native bridge put ${added === 1 ? 'it' : 'them'} back at the pose of the step before, at rest ('body-contained' events), so the world is finite but no longer what the set-up computes. Usually joints that contradict each other, or a joint anchored far from its body. Restore a checkpoint from before this step, and run world.diagnose() on the set-up.`);
+  }
+  private clearContained(): void {
+    this.containedSeen = this.native.containedTotal();
+    this.containedCount = 0;
+    this.containedTick = null;
   }
 
   /**
@@ -313,18 +965,41 @@ export class PhysicsWorld {
 
   private cast(query: NativeSpatialQuery): NativeQueryCastHit[] {
     const [result] = this.native.queryBatch([query]);
-    return result.kind === 'ray' || result.kind === 'sphere-cast' || result.kind === 'box-cast' ? [...result.hits] : [];
+    return result.kind === 'ray' || result.kind === 'sphere-cast' || result.kind === 'box-cast' || result.kind === 'capsule-cast' ? [...result.hits] : [];
   }
   private overlap(query: NativeSpatialQuery): Body[] {
     return this.native.queryBatch([query])[0].hits.map(hit => hit.body);
   }
   private static common(options: QueryOptions, limit: number): {limit: number; filter?: NativeQueryFilter} {
-    return options.filter ? {limit: options.limit ?? limit, filter: options.filter} : {limit: options.limit ?? limit};
+    if (options === null || typeof options !== 'object' || Array.isArray(options)) throw new EngineError('INVALID_PAYLOAD', `Query options must be {filter?, limit?}; got ${showValue(options)}.`);
+    return options.filter !== undefined && options.filter !== null ? {limit: options.limit ?? limit, filter: options.filter} : {limit: options.limit ?? limit};
   }
 
   /** Closest hit along origin -> origin + translation, or null. */
   raycast(origin: Vec3Like, translation: Vec3Like, options: QueryOptions = {}): NativeQueryCastHit | null {
     return this.cast({kind: 'ray', origin: toVec3(origin), translation: toVec3(translation), ...PhysicsWorld.common(options, 1)})[0] ?? null;
+  }
+  /**
+   * Closest hits of many rays in one call, from flat arrays into flat arrays: nothing is allocated per ray, which
+   * makes it several times faster than a loop of raycast() for sensor fans, line-of-sight grids and picking
+   * batches. `origins` and `translations` hold x, y, z per ray (a translation is the whole displacement, as in
+   * raycast()). `fractions[i]` receives the hit fraction 0..1 of ray i, or -1 for a miss. The optional `points` and
+   * `normals` (x, y, z per ray) are filled for the rays that hit, and `bodies[i]` is set to the body hit or null.
+   * Returns the number of rays that hit. Each ray gives exactly the hit raycast() gives for the same float32 inputs.
+   */
+  castRays(origins: Float32Array, translations: Float32Array, fractions: Float32Array,
+    options: {readonly filter?: NativeQueryFilter; readonly points?: Float32Array; readonly normals?: Float32Array; readonly bodies?: (Body | null)[]} = {}): number {
+    objectArg(options, 'castRays options', '{filter?, points?, normals?, bodies?}');
+    if (!(fractions instanceof Float32Array)) throw new EngineError('INVALID_PAYLOAD', `castRays fills a Float32Array of fractions, one per ray; got ${showValue(fractions)}.`, {path: 'fractions', value: showValue(fractions), expected: 'a Float32Array'});
+    const list = options.bodies;
+    if (list === undefined) return this.native.castRays(origins, translations, fractions, {filter: options.filter, points: options.points, normals: options.normals});
+    if (!Array.isArray(list)) throw new EngineError('INVALID_PAYLOAD', 'bodies must be an array to fill.');
+    if (this.rayTokens.length < fractions.length) this.rayTokens = new BigUint64Array(fractions.length);
+    const tokens = this.rayTokens.subarray(0, fractions.length);
+    const hits = this.native.castRays(origins, translations, fractions, {filter: options.filter, points: options.points, normals: options.normals, bodies: tokens});
+    list.length = fractions.length;
+    for (let i = 0; i < fractions.length; i++) list[i] = tokens[i] === 0n ? null : this.native.bodyFromToken(tokens[i]);
+    return hits;
   }
   /** Closest hit of a sphere swept along translation, or null. */
   sphereCast(origin: Vec3Like, radius: number, translation: Vec3Like, options: QueryOptions = {}): NativeQueryCastHit | null {
@@ -333,6 +1008,40 @@ export class PhysicsWorld {
   /** Closest hit of an axis-aligned box swept along translation, or null. */
   boxCast(origin: Vec3Like, halfExtents: Vec3Like, translation: Vec3Like, options: QueryOptions = {}): NativeQueryCastHit | null {
     return this.cast({kind: 'box-cast', origin: toVec3(origin), halfExtents: toVec3(halfExtents), translation: toVec3(translation), ...PhysicsWorld.common(options, 1)})[0] ?? null;
+  }
+  /** Closest hit of an upright capsule (axis along world Y) swept along translation, or null. */
+  capsuleCast(origin: Vec3Like, radius: number, halfLength: number, translation: Vec3Like, options: QueryOptions = {}): NativeQueryCastHit | null {
+    return this.cast({kind: 'capsule-cast', origin: toVec3(origin), radius, halfLength, translation: toVec3(translation), ...PhysicsWorld.common(options, 1)})[0] ?? null;
+  }
+  /** Every hit along origin -> origin + translation, nearest first (up to `limit`, default 32). */
+  raycastAll(origin: Vec3Like, translation: Vec3Like, options: QueryOptions = {}): NativeQueryCastHit[] {
+    return this.cast({kind: 'ray', origin: toVec3(origin), translation: toVec3(translation), ...PhysicsWorld.common(options, 32)});
+  }
+  /**
+   * Closest hit of each of up to 65,536 rays in one call into the engine: a lidar sweep, a visibility fan, bullet
+   * traces. `rays` holds origin x, y, z and translation x, y, z per ray. Results come back as flat arrays indexed
+   * by ray; a miss has fraction -1 and a null body.
+   */
+  raycastBatch(rays: ArrayLike<number>, filter?: NativeQueryFilter): RayBatch {
+    if (filter !== undefined && filter !== null) objectArg(filter, 'raycastBatch filter', '{bodies?, categoryBits?, maskBits?, ignoreBody?}');
+    return this.native.castRayBatch(rays, filter ?? undefined);
+  }
+  /** Bodies whose shapes overlap an upright capsule. */
+  overlapCapsule(center: Vec3Like, radius: number, halfLength: number, options: QueryOptions = {}): Body[] {
+    return this.overlap({kind: 'capsule-overlap', origin: toVec3(center), radius, halfLength, ...PhysicsWorld.common(options, 32)});
+  }
+  /**
+   * Move an upright capsule by `translation`, sliding along what it meets and never passing through thin geometry
+   * (Box3D's character mover). Returns where it ends up and the surfaces around it. Reads the world only:
+   * CapsuleCharacterController in `box3d-webgpu-kit/gameplay` builds walking, slopes, steps and pushing on it.
+   */
+  moveCapsule(options: CapsuleMoveOptions): CapsuleMoveResult {
+    objectArg(options, 'moveCapsule options', '{position, radius, halfLength, translation, ...}');
+    const slope = options.maxSlopeDegrees;
+    if (slope !== undefined && (typeof slope !== 'number' || !(slope >= 0 && slope <= 90))) throw new EngineError('INVALID_PAYLOAD', `maxSlopeDegrees must be a number of degrees from 0 to 90; got ${showValue(slope)}.`, {path: 'maxSlopeDegrees', value: showValue(slope), expected: '[0, 90]'});
+    const {maxSlopeDegrees, ...rest} = options;
+    return this.native.moverMove({...rest, position: toVec3(options.position), translation: toVec3(options.translation),
+      wallBelowNormalY: maxSlopeDegrees === undefined ? undefined : Math.cos(maxSlopeDegrees * Math.PI / 180)});
   }
   /** Bodies whose shapes overlap a sphere. */
   overlapSphere(center: Vec3Like, radius: number, options: QueryOptions | number = {}): Body[] {
@@ -371,6 +1080,11 @@ export class PhysicsWorld {
 
   bodyCount(): number { return this.native.bodyCount(); }
   awakeCount(): number { return this.native.awakeCount(); }
+  /**
+   * How this world is stepped: `threads` (1 unless the module was loaded with `threads`), the awake-body `threshold`
+   * from which they are used, and `lastStepThreads()`. The simulation is the same at every thread count.
+   */
+  get threading(): Box3DThreading { return this.threadingInfo; }
   /** Fixed steps since the last reset. */
   get tick(): number { return this.tickCount; }
   /** Order-sensitive FNV hash of every transform quantized to 1 mm. Cheap desync detector; see exactHash(). */
@@ -396,8 +1110,83 @@ export class PhysicsWorld {
     return {
       bodies: this.native.bodyCount(), awake: this.native.awakeCount(), contacts: this.native.contactCount(),
       capacity: this.native.maxBodies, tick: this.tickCount, lastStepMs: this.lastStepMs,
-      lastUpdateMs: this.lastUpdateMs, droppedSeconds: this.droppedSeconds,
+      lastUpdateMs: this.lastUpdateMs, droppedSeconds: this.droppedSeconds, nonFiniteSince: this.nonFiniteTick,
+      contained: this.containedCount,
     };
+  }
+
+  /**
+   * What in this world is unstable, or close to it, as a list of findings that each name a rule and carry its numbers.
+   * Call it after building a scene and when something misbehaves; it reads every body, so not every step.
+   *
+   * - `non-finite` (error): a step left a body with a transform that is not finite (see stats().nonFiniteSince).
+   * - `body-contained` (error): a step diverged and the native bridge put bodies back at their previous pose, at rest
+   *   (see stats().contained). The world is finite, but the mechanism did not do what its set-up computes.
+   * - `far-from-origin` (warning): a body more than 16 km out. Box3D holds positions in single precision, which
+   *   resolves about a millimetre there (box3d/constants.h: "positions greater than about 16km have precision problems").
+   * - `tiny-shape` (warning): a box, sphere or capsule thinner than 1 cm. Box3D lets contacts rest 5 mm apart
+   *   (B3_LINEAR_SLOP), so a shape of that size sinks into or hovers over what it touches by its own thickness.
+   * - `mass-ratio` (warning): two dynamic bodies joined by a joint whose masses differ by more than 10 to 1. An
+   *   iterative solver converges slowly across such a pair and the joint stretches; this threshold is the usual rule
+   *   of thumb for solvers of this kind, not a limit measured here.
+   * - `joint-frequency` (warning): a joint spring or stiffness above a quarter of the sub-step rate, where Box3D caps
+   *   a joint's stiffness (joint.c: 0.25 / h). A stiffness above it has no effect; a spring above it is under-sampled.
+   *   `jointStiffness: 'match-substeps'` sits exactly at the cap and is not reported.
+   * - `joint-lever` (warning): a joint frame more than 50 radii of gyration from its body's centre of mass. The
+   *   joint then acts on the body through a lever against almost no rotational inertia, and Box3D's solver can
+   *   diverge: in the fuzzers' random programs about one in sixty did with frames up to 300 radii away, none in 240
+   *   within 40 (docs/ROBUSTNESS.md, ND-5). Put the frame near the body, or join through a body that reaches there.
+   * - `fast-small-body` (note): a body that moves more than its own smallest half extent in one step without
+   *   `bullet`; it can pass through other moving bodies (static geometry always stops it).
+   *
+   * Joints are those made through createJoint() since the last reset. docs/ERRORS.md has the table.
+   */
+  diagnose(): DiagnosticFinding[] {
+    const out: DiagnosticFinding[] = [], n = this.native.bodyCount(), kinds = this.native.bodyKinds(), dt = this.loop.step, rate = this.subSteps / dt;
+    if (this.nonFiniteTick !== null) out.push({severity: 'error', rule: 'non-finite', subject: 'world', numbers: {tick: this.nonFiniteTick},
+      message: `A body has had a transform that is not finite since step ${this.nonFiniteTick}: the solver diverged. Restore a checkpoint from before that step or reset; the findings below say what makes this set-up unstable.`});
+    if (this.containedTick !== null) out.push({severity: 'error', rule: 'body-contained', subject: 'world', numbers: {count: this.containedCount, tick: this.containedTick},
+      message: `The solver diverged for a body ${this.containedCount === 1 ? 'once' : `${this.containedCount} times`}, first at step ${this.containedTick}, and the native bridge put it back at its pose of the step before, at rest, each time. The world is finite, but those bodies did not move as the set-up computes. Usually joints that contradict each other (two joints to the world on one body that cannot both hold) or a joint anchored far from its body; the findings below may name it. Restore a checkpoint from before that step or reset.`});
+    const pose: BodyPose = {position: [0, 0, 0], rotation: [0, 0, 0, 1], halfExtents: [0, 0, 0]};
+    for (let row = 0; row < n; row++) {
+      const body = this.native.bodyHandle(row), state = this.native.bodyState(body), p = state.position, far = Math.max(Math.abs(p[0]), Math.abs(p[1]), Math.abs(p[2]));
+      if (!Number.isFinite(far)) { out.push({severity: 'error', rule: 'non-finite', subject: `body row ${row}`, numbers: {}, message: `Body row ${row} has a position that is not finite.`}); continue; }
+      if (far > 16000) out.push({severity: 'warning', rule: 'far-from-origin', subject: `body row ${row}`, numbers: {distance: far, limit: 16000},
+        message: `Body row ${row} is ${far.toFixed(0)} m from the origin. Positions are single precision: beyond about 16 km they resolve a millimetre or worse and contacts jitter. Keep the action near the origin, or move the scene's origin.`});
+      const kind = kinds[row];
+      if (state.type === 'static' || (kind !== 'box' && kind !== 'sphere' && kind !== 'capsule')) continue;
+      this.getPose(body, pose);
+      // A sphere's row is scaled by its radius on all axes, a capsule's by radius, half length + radius, radius.
+      const thin = Math.min(pose.halfExtents[0], pose.halfExtents[1], pose.halfExtents[2]);
+      if (thin < 0.005) out.push({severity: 'warning', rule: 'tiny-shape', subject: `body row ${row}`, numbers: {halfExtent: thin, slop: 0.005},
+        message: `Body row ${row} (${kind}) is ${(2 * thin * 1000).toFixed(1)} mm thin. Box3D rests contacts up to 5 mm apart, which is this body's own thickness: it will sink in or hover. Model in metres with shapes of a centimetre or more, or scale the scene up.`});
+      const speed = Math.hypot(state.linearVelocity[0], state.linearVelocity[1], state.linearVelocity[2]);
+      if (state.type === 'dynamic' && speed * dt > thin && speed > 0) out.push({severity: 'note', rule: 'fast-small-body', subject: `body row ${row}`, numbers: {speed, step: dt, travel: speed * dt, halfExtent: thin},
+        message: `Body row ${row} travels ${(speed * dt).toFixed(3)} m per step, more than its smallest half extent of ${thin.toFixed(3)} m. Static geometry stops it; other moving bodies may not. Create it with bullet: true, or use a smaller step.`});
+    }
+    let index = 0;
+    for (const info of this.jointInfo.values()) {
+      const subject = `joint ${index++}`;
+      if (!this.native.jointAlive(info.joint)) continue;
+      const mass = (body: Body | null): number => { if (body === null || this.native.bodyIndex(body) === null) return 0; const s = this.native.bodyState(body); return s.type === 'dynamic' ? s.mass : 0; };
+      const ma = mass(info.a), mb = mass(info.b);
+      if (ma > 0 && mb > 0 && Math.max(ma, mb) / Math.min(ma, mb) > 10) out.push({severity: 'warning', rule: 'mass-ratio', subject, numbers: {massA: ma, massB: mb, ratio: Math.max(ma, mb) / Math.min(ma, mb), limit: 10},
+        message: `This joint connects bodies of ${ma.toPrecision(4)} kg and ${mb.toPrecision(4)} kg, a ratio of ${(Math.max(ma, mb) / Math.min(ma, mb)).toFixed(1)} to 1. Beyond about 10 to 1 the joint stretches under load. Bring the masses closer, raise subSteps, or raise the joint stiffness.`});
+      for (const [body, at, side] of [[info.a, info.anchorA, 'A'], [info.b, info.anchorB, 'B']] as const) {
+        if (body === null || this.native.bodyIndex(body) === null || this.native.bodyState(body).type !== 'dynamic') continue;
+        const data = this.native.bodyMassData(body);
+        // A body with locked rotation reports no rotational inertia: it cannot be turned by any lever.
+        if (!(data.mass > 0) || !(Math.min(data.inertia[0], data.inertia[1], data.inertia[2]) > 0)) continue;
+        const gyration = Math.sqrt(Math.min(data.inertia[0], data.inertia[1], data.inertia[2]) / data.mass), lever = Math.hypot(at[0] - data.center[0], at[1] - data.center[1], at[2] - data.center[2]);
+        if (lever > 50 * gyration) out.push({severity: 'warning', rule: 'joint-lever', subject, numbers: {lever, radiusOfGyration: gyration, ratio: lever / gyration, limit: 50},
+          message: `This joint's frame on body ${side} is ${lever.toFixed(2)} m from that body's centre of mass, ${(lever / gyration).toFixed(0)} times its radius of gyration (${gyration.toFixed(3)} m). Beyond about 50 the solver can diverge. Move the frame to the body, or connect through a body that reaches the joint.`});
+      }
+      // A relative margin, so that 'match-substeps' (0.25 * subSteps / step, computed the same way) is never reported.
+      const hertz = Math.max(info.spring, info.stiffness);
+      if (hertz > 0.25 * rate * (1 + 1e-9)) out.push({severity: 'warning', rule: 'joint-frequency', subject, numbers: {hertz: hertz, subStepRate: rate, limit: 0.25 * rate},
+        message: `This joint's spring or stiffness is ${hertz} Hz; the solver takes ${rate.toFixed(0)} sub-steps a second and Box3D caps a joint at a quarter of that, ${(0.25 * rate).toFixed(1)} Hz: a stiffness above it has no effect and a spring above it is under-sampled. Lower the frequency, or raise subSteps or the step rate.`});
+    }
+    return out;
   }
 
   /**
@@ -406,20 +1195,78 @@ export class PhysicsWorld {
    * session exactly, e.g. attached to a bug report.
    */
   startRecording(options: RecordingOptions = {}): void {
+    if (options === null || typeof options !== 'object') throw new EngineError('INVALID_PAYLOAD', `startRecording takes an options object or nothing; got ${showValue(options)}.`);
     const every = options.checkpointEvery ?? 60;
-    if (!Number.isInteger(every) || every < 0) throw new EngineError('INVALID_PAYLOAD', 'checkpointEvery must be a non-negative integer.');
-    this.resetArena(this.seed);
-    this.recording = {seed: this.seed, commands: [], every, checkpoints: []};
+    if (!Number.isInteger(every) || every < 0) throw new EngineError('INVALID_PAYLOAD', `checkpointEvery must be a non-negative integer; got ${showValue(every)}. Use 0 to record no hashes.`);
+    if (options.world !== undefined && (options.world === null || typeof options.world !== 'object')) throw new EngineError('INVALID_PAYLOAD', `world must be {ground?, gravity?}; got ${showValue(options.world)}.`);
+    const world = options.world ? {ground: options.world.ground ?? true, gravity: toVec3(options.world.gravity ?? [0, -9.81, 0]) as Vec3} : undefined;
+    // Checked before the world is reset, so a refused call changes nothing.
+    if (world) for (const g of world.gravity) if (typeof g !== 'number' || !Number.isFinite(Math.fround(g))) throw new EngineError('INVALID_PAYLOAD', `world.gravity must hold three finite float32 numbers; got ${showValue(g)}.`);
+    if (world) this.reset({seed: this.seed, ...world});
+    else this.resetArena(this.seed);
+    this.jointLog = [];
+    this.recording = {seed: this.seed, commands: [], every, checkpoints: [], world};
+    // The contactStiffness option goes into the log as a configure() call, so that a replay in a world created
+    // without the option is the same simulation.
+    const contact = this.contactDefaults();
+    if (contact) this.configure(contact);
+  }
+
+  /** The stiffness a joint created without its own gets (the jointStiffness option), or null for Box3D's default. */
+  jointDefaults(): {hertz: number; dampingRatio: number} | null {
+    const option = this.jointStiffnessOption;
+    if (option === undefined) return null;
+    return option === 'match-substeps' ? {hertz: 0.25 * this.subSteps / this.loop.step, dampingRatio: 2} : {hertz: option.hertz, dampingRatio: option.dampingRatio ?? 2};
+  }
+  /** The contact settings every reset applies (the contactStiffness option), or null for Box3D's. */
+  contactDefaults(): {contactHertz: number; contactDampingRatio: number; contactPushSpeed: number} | null {
+    const option = this.contactStiffnessOption;
+    if (option === undefined) return null;
+    if (option === 'match-substeps') return {contactHertz: 0.125 * this.subSteps / this.loop.step, contactDampingRatio: 10, contactPushSpeed: 3};
+    return {contactHertz: option.hertz ?? 30, contactDampingRatio: option.dampingRatio ?? 10, contactPushSpeed: option.pushSpeed ?? 3};
   }
 
   stopRecording(): ReplayLog {
     if (!this.recording) throw new EngineError('INVALID_STATE', 'startRecording() was not called.');
-    const log: ReplayLog = {version: 1, seed: this.recording.seed, step: this.loop.step, subSteps: this.subSteps, ticks: this.tickCount, commands: this.recording.commands, finalHash: this.exactHash(), checkpoints: this.recording.checkpoints};
+    const rec = this.recording, general = rec.world !== undefined || rec.commands.some(command => command.op === 'call');
+    const log: ReplayLog = {version: general ? 2 : 1, ...(rec.world ? {world: rec.world} : {}), seed: this.recording.seed, step: this.loop.step, subSteps: this.subSteps, ticks: this.tickCount, commands: this.recording.commands, finalHash: this.exactHash(), checkpoints: this.recording.checkpoints};
     this.recording = null;
     return log;
   }
 
   get isRecording(): boolean { return this.recording !== null; }
+
+  /**
+   * An exact checkpoint of the world: Box3D's complete state (contacts with their manifolds and warm-start impulses, the
+   * constraint graph, islands and sleep timers, joints and their impulses, the broad phase), the body table (handles, render
+   * rows, shape kinds, mass data you set), the step count and the fixed-step accumulator, in one self-checking file. Restore it
+   * with `restoreCheckpoint` into a world of the same build that was built the same way, here or in a fresh page: every later
+   * step is bit-identical to this world's. Not while recording. See docs/CHECKPOINTS.md in the repository.
+   */
+  checkpoint(): Uint8Array {
+    return writeCheckpoint('world', {tick: this.tickCount, native: this.native.checkpoint(), loop: this.loop.pending, droppedEvents: this.droppedEventCount});
+  }
+  /**
+   * Put back a checkpoint from `checkpoint()`. A checkpoint this world took since its last reset gives every body handle
+   * back the body it named then: a body destroyed since is alive again under its handle, one created since is gone. From
+   * elsewhere (a file, another world), body and joint handles you hold keep their meaning when this world was built the
+   * same way as the one the checkpoint came from (the same calls in the same order); bodies made or destroyed in between
+   * follow the checkpoint, so read them again with `bodyAt`. A damaged checkpoint, one of another format version or one that is
+   * not a world checkpoint is refused and changes nothing. User data stays.
+   */
+  restoreCheckpoint(bytes: Uint8Array): void {
+    this.stopRecordingIfActive('restoreCheckpoint');
+    const state = readCheckpoint(bytes, 'world') as StateObject;
+    if (!state || typeof state.tick !== 'number' || !Number.isSafeInteger(state.tick) || state.tick < 0 || !(state.native instanceof Uint8Array)) throw checkpointError('The world checkpoint is malformed.');
+    if (state.loop !== undefined && !(typeof state.loop === 'number' && Number.isFinite(state.loop) && state.loop >= 0)) throw checkpointError('The world checkpoint is malformed.');
+    this.native.restoreCheckpoint(state.native);
+    this.tickCount = state.tick;
+    this.loop.setPending(typeof state.loop === 'number' ? state.loop : 0);
+    if (typeof state.droppedEvents === 'number') this.droppedEventCount = state.droppedEvents;
+    this.rowsMoved = true;
+    this.nonFiniteTick = null;
+    this.clearContained();
+  }
 
   /** Re-run a ReplayLog in this world. Returns true when the result matches the recording bit-for-bit. */
   replay(log: ReplayLog): boolean { return this.replayDetailed(log).matches; }
@@ -429,10 +1276,12 @@ export class PhysicsWorld {
    * checkpoints. Use it to bisect a desync between two builds or machines.
    */
   replayDetailed(log: ReplayLog): ReplayReport {
-    if (log.version !== 1) throw new EngineError('UNSUPPORTED_BACKEND', `Replay log version ${String(log.version)} is not supported.`);
-    if (log.step !== this.loop.step || log.subSteps !== this.subSteps) throw new EngineError('INVALID_PAYLOAD', 'Replay needs the same step and subSteps as the recording.');
+    checkReplayLog(log);
+    if (log.step !== this.loop.step || log.subSteps !== this.subSteps) throw new EngineError('INVALID_PAYLOAD', `Replay needs the same step and subSteps as the recording: the log has step ${showValue(log.step)} and subSteps ${showValue(log.subSteps)}, this world ${this.loop.step} and ${this.subSteps}. Create the world with the log's values.`);
     this.stopRecordingIfActive('replay');
-    this.resetArena(log.seed);
+    if (log.world) this.reset({seed: log.seed, ground: log.world.ground, gravity: log.world.gravity});
+    else this.resetArena(log.seed);
+    this.jointLog = [];
     const checkpoints = log.checkpoints ?? [];
     let next = 0, compared = 0, lastGood = 0, divergence: {from: number; to: number} | null = null;
     this.replayCheck = tick => {
@@ -461,6 +1310,10 @@ export class PhysicsWorld {
         case 'destroyBody': this.destroyBody(this.bodyAt(command.row)); break;
         case 'applyImpulse': this.applyImpulse(this.bodyAt(command.row), command.impulse); break;
         case 'explode': this.explode(command.center, command.strength, command.radius); break;
+        case 'call': {
+          (this as unknown as Record<string, (...args: unknown[]) => unknown>)[command.method](...command.args.map(arg => this.decodeArg(arg)));
+          break;
+        }
       }
     }
     while (this.tickCount < log.ticks) this.step();
@@ -479,6 +1332,55 @@ export class PhysicsWorld {
     this.native.destroy();
     this.ownedPool?.destroy();
     this.ownedPool = null;
+  }
+}
+
+/** The most steps a replay log may ask for: 2^31 - 1, more than a year at 60 Hz. A log above it is refused, not run. */
+export const MAX_REPLAY_TICKS = 0x7fffffff;
+const REPLAY_OPS = ['spawnBox', 'destroyBody', 'applyImpulse', 'explode', 'call'];
+// A replay log is a file: it may come from a bug report or over the network. Its shape is checked completely before
+// the world is touched, so that a malformed log is refused with the field at fault instead of failing part-way, and so
+// that it cannot ask for unbounded work (a non-finite or absurd tick count would otherwise step forever).
+function checkReplayLog(log: ReplayLog): void {
+  const bad = (path: string, value: unknown, expected: string): never => { throw new EngineError('INVALID_PAYLOAD', `Replay log: ${path} must be ${expected}; got ${showValue(value)}.`, {path, value: showValue(value), expected}); };
+  const whole = (value: unknown, path: string, max: number): number => typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= max ? value : bad(path, value, `a whole number within [0, ${max}]`);
+  const triple = (value: unknown, path: string): void => { if (!Array.isArray(value) || value.length !== 3 || !value.every(n => typeof n === 'number' && Number.isFinite(n))) bad(path, value, 'three finite numbers'); };
+  if (log === null || typeof log !== 'object' || Array.isArray(log)) bad('the log', log, 'an object from stopRecording()');
+  if (log.version !== 1 && log.version !== 2) throw new EngineError('UNSUPPORTED_BACKEND', `Replay log: version must be 1 or 2, the versions this build reads; got ${showValue(log.version)}.`);
+  whole(log.seed, 'seed', 0xffffffff);
+  if (typeof log.step !== 'number' || !(log.step > 0) || !Number.isFinite(log.step)) bad('step', log.step, 'a positive number of seconds');
+  whole(log.subSteps, 'subSteps', 64);
+  const ticks = whole(log.ticks, 'ticks', MAX_REPLAY_TICKS);
+  if (typeof log.finalHash !== 'number') bad('finalHash', log.finalHash, 'a number');
+  if (log.world !== undefined) {
+    if (log.world === null || typeof log.world !== 'object') bad('world', log.world, '{ground, gravity}');
+    if (typeof log.world.ground !== 'boolean') bad('world.ground', log.world.ground, 'true or false');
+    triple(log.world.gravity, 'world.gravity');
+  }
+  if (!Array.isArray(log.commands)) bad('commands', log.commands, 'an array');
+  let previous = 0;
+  log.commands.forEach((command, index) => {
+    const at = `commands[${index}]`;
+    if (command === null || typeof command !== 'object') bad(at, command, 'a command object');
+    const t = whole(command.t, `${at}.t`, ticks);
+    if (t < previous) bad(`${at}.t`, t, `at least ${previous}, the tick of the command before it`);
+    previous = t;
+    if (!REPLAY_OPS.includes(command.op)) bad(`${at}.op`, command.op, `one of ${REPLAY_OPS.join(', ')}`);
+    if (command.op === 'spawnBox') { triple(command.position, `${at}.position`); triple(command.impulse, `${at}.impulse`); if (typeof command.halfSize !== 'number') bad(`${at}.halfSize`, command.halfSize, 'a number'); }
+    else if (command.op === 'destroyBody') whole(command.row, `${at}.row`, 65535);
+    else if (command.op === 'applyImpulse') { whole(command.row, `${at}.row`, 65535); triple(command.impulse, `${at}.impulse`); }
+    else if (command.op === 'explode') { triple(command.center, `${at}.center`); if (typeof command.strength !== 'number') bad(`${at}.strength`, command.strength, 'a number'); if (typeof command.radius !== 'number') bad(`${at}.radius`, command.radius, 'a number'); }
+    else {
+      if (typeof command.method !== 'string' || !REPLAYABLE.has(command.method)) throw new EngineError('INVALID_PAYLOAD', `Replay log: ${at}.method must be a call that can be replayed (${[...REPLAYABLE].join(', ')}); got ${showValue(command.method)}.`, {path: `${at}.method`, value: showValue(command.method)});
+      if (!Array.isArray(command.args)) bad(`${at}.args`, command.args, 'an array');
+    }
+  });
+  if (log.checkpoints !== undefined) {
+    if (!Array.isArray(log.checkpoints)) bad('checkpoints', log.checkpoints, 'an array of [tick, hash] pairs');
+    log.checkpoints.forEach((pair, index) => {
+      if (!Array.isArray(pair) || pair.length !== 2 || typeof pair[1] !== 'number') bad(`checkpoints[${index}]`, pair, 'a [tick, hash] pair');
+      whole(pair[0], `checkpoints[${index}][0]`, MAX_REPLAY_TICKS);
+    });
   }
 }
 
@@ -527,4 +1429,19 @@ function writeMatrix(m: Float32Array, o: number, x: number, y: number, z: number
   m[o + 4] = 2 * (xy - wz) * hy; m[o + 5] = (1 - 2 * (xx + zz)) * hy; m[o + 6] = 2 * (yz + wx) * hy; m[o + 7] = 0;
   m[o + 8] = 2 * (xz + wy) * hz; m[o + 9] = 2 * (yz - wx) * hz; m[o + 10] = (1 - 2 * (xx + yy)) * hz; m[o + 11] = 0;
   m[o + 12] = px; m[o + 13] = py; m[o + 14] = pz; m[o + 15] = 1;
+}
+
+function checkStiffness<T extends WorldOptions['jointStiffness'] | WorldOptions['contactStiffness']>(value: T, name: string): T {
+  if (value === undefined || value === 'match-substeps') return value;
+  const keys = name === 'jointStiffness' ? '{hertz, dampingRatio?}' : '{hertz?, dampingRatio?, pushSpeed?}';
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new EngineError('INVALID_PAYLOAD', `${name} must be 'match-substeps' or ${keys}; got ${showValue(value)}.`, {path: name, value: showValue(value), expected: `'match-substeps' or ${keys}`});
+  for (const [key, number] of Object.entries(value)) {
+    if (!['hertz', 'dampingRatio', 'pushSpeed'].includes(key) || (name === 'jointStiffness' && key === 'pushSpeed')) throw new EngineError('INVALID_PAYLOAD', `${name}.${key} is not a setting; ${name} takes ${keys}.`, {path: `${name}.${key}`, value: showValue(number), expected: keys});
+    // The same ranges the world takes for joint stiffness, springs and push-out speed (RIGID_LIMITS, docs/ERRORS.md).
+    const max = key === 'pushSpeed' ? RIGID_LIMITS.speed : RIGID_LIMITS.hertz;
+    if (typeof number !== 'number' || !Number.isFinite(number) || number < 0 || number > max || (key === 'hertz' && number === 0))
+      throw new EngineError('INVALID_PAYLOAD', `${name}.${key} must be a number ${key === 'hertz' ? 'above 0' : 'from 0'} up to ${max}; got ${showValue(number)}.`, {path: `${name}.${key}`, value: showValue(number), expected: `${key === 'hertz' ? '(0' : '[0'}, ${max}]`});
+  }
+  if (name === 'jointStiffness' && (value as {hertz?: unknown}).hertz === undefined) throw new EngineError('INVALID_PAYLOAD', 'jointStiffness.hertz is required.');
+  return value;
 }
