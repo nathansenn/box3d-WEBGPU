@@ -138,6 +138,24 @@ export type SoftSimulationFrame = {
   material?: MaterialFailureTelemetry | null;
 };
 
+/**
+ * Immutable numeric state for fixed-step recording. Reads preserve the frame's
+ * existing hash/energy sampling cadence and never build presentation streams.
+ * frameVersion identifies solver changes; surface/rope topology versions stay
+ * with their lazily built presentation frames.
+ */
+export interface SoftSimulationTelemetry {
+  readonly kind: SoftSimulationKind;
+  readonly label: string;
+  readonly nodeCount: number;
+  readonly constraintCount: number;
+  readonly brokenCount: number;
+  readonly energy: number;
+  readonly hash: number;
+  readonly frameVersion: number;
+  readonly material?: Readonly<MaterialFailureTelemetry> | null;
+}
+
 export interface SoftSimulation {
   readonly kind: Exclude<SoftSimulationKind, 'none'>;
   readonly label: string;
@@ -146,6 +164,7 @@ export interface SoftSimulation {
   explode(center: Vec3, strength: number, radius: number): void;
   launchProjectile(position: Vec3, velocity: Vec3, size: number): number;
   spawnRain(count: number, spread: number, height: number): number;
+  readTelemetry(): SoftSimulationTelemetry;
   buildFrame(debug: boolean): SoftSimulationFrame;
   currentHash(): number;
   destroy(): void;
@@ -645,6 +664,7 @@ class ClothSimulation implements SoftSimulation {
   private hashCountdown = TELEMETRY_INTERVAL_STEPS;
   private frameVersion = 1;
   private packedSurfaceFrameVersion = -1;
+  private telemetryResult: SoftSimulationTelemetry | null = null;
   private builtFrameVersion = -1;
   private builtFrameDebug = false;
   private readonly kernelModule: SoftKernelModule | null;
@@ -1563,6 +1583,20 @@ class ClothSimulation implements SoftSimulation {
     return surface;
   }
 
+  readTelemetry(): SoftSimulationTelemetry {
+    if (this.telemetryResult?.frameVersion === this.frameVersion) return this.telemetryResult;
+    return this.telemetryResult = Object.freeze({
+      kind: this.kind,
+      label: this.label,
+      nodeCount: this.count,
+      constraintCount: this.constraintCountValue,
+      brokenCount: this.brokenCountValue,
+      energy: this.currentEnergy(),
+      hash: this.hashValue,
+      frameVersion: this.frameVersion,
+    });
+  }
+
   buildFrame(debug: boolean): SoftSimulationFrame {
     if (this.builtFrameVersion === this.frameVersion && this.builtFrameDebug === debug) return this.frameResult;
     const matrices = this.instanceMatrices;
@@ -1711,6 +1745,7 @@ class RopeSimulation implements SoftSimulation {
   private hashValue = 0;
   private hashCountdown = TELEMETRY_INTERVAL_STEPS;
   private frameVersion = 1;
+  private telemetryResult: SoftSimulationTelemetry | null = null;
   private builtFrameVersion = -1;
   private builtFrameDebug = false;
   private readonly kernelModule: SoftKernelModule | null;
@@ -2311,6 +2346,20 @@ class RopeSimulation implements SoftSimulation {
     return allowed;
   }
 
+  readTelemetry(): SoftSimulationTelemetry {
+    if (this.telemetryResult?.frameVersion === this.frameVersion) return this.telemetryResult;
+    return this.telemetryResult = Object.freeze({
+      kind: this.kind,
+      label: this.label,
+      nodeCount: this.invMass.length,
+      constraintCount: this.ropeConstraintCount,
+      brokenCount: this.brokenCountValue,
+      energy: this.energyValue,
+      hash: this.hashValue,
+      frameVersion: this.frameVersion,
+    });
+  }
+
   buildFrame(debug: boolean): SoftSimulationFrame {
     if (this.builtFrameVersion === this.frameVersion && this.builtFrameDebug === debug) return this.frameResult;
     const maxCount = ROPE_INSTANCE_CAP;
@@ -2462,6 +2511,7 @@ class WaterSimulation implements SoftSimulation {
   private hashValue = 0;
   private hashCountdown = TELEMETRY_INTERVAL_STEPS;
   private frameVersion = 1;
+  private telemetryResult: SoftSimulationTelemetry | null = null;
   private builtFrameVersion = -1;
   private builtFrameDebug = false;
   private readonly kernelModule: SoftKernelModule | null;
@@ -3030,6 +3080,20 @@ class WaterSimulation implements SoftSimulation {
     return allowed;
   }
 
+  readTelemetry(): SoftSimulationTelemetry {
+    if (this.telemetryResult?.frameVersion === this.frameVersion) return this.telemetryResult;
+    return this.telemetryResult = Object.freeze({
+      kind: this.kind,
+      label: this.label,
+      nodeCount: this.count + this.droplets.length + this.floaters.length,
+      constraintCount: Math.max(0, (this.cols - 2) * (this.rows - 2) * 3),
+      brokenCount: 0,
+      energy: this.energyValue,
+      hash: this.hashValue,
+      frameVersion: this.frameVersion,
+    });
+  }
+
   buildFrame(debug: boolean): SoftSimulationFrame {
     if (this.builtFrameVersion === this.frameVersion && this.builtFrameDebug === debug) return this.frameResult;
     const maxCount = WATER_INSTANCE_CAP;
@@ -3128,6 +3192,18 @@ const EMPTY_FRAME: SoftSimulationFrame = {
   material: null,
 };
 
+const EMPTY_TELEMETRY: SoftSimulationTelemetry = Object.freeze({
+  kind: 'none',
+  label: EMPTY_FRAME.label,
+  nodeCount: 0,
+  constraintCount: 0,
+  brokenCount: 0,
+  energy: 0,
+  hash: 0,
+  frameVersion: 0,
+  material: null,
+});
+
 export class SoftSimulationSuite {
   private active: SoftSimulation | null = null;
   private lastScene: ScenePreset | null = null;
@@ -3200,6 +3276,9 @@ export class SoftSimulationSuite {
   dentStrikeTarget(target: CombinedMaterialTarget, strength = 1): number {
     if (this.active?.materialStrikeTarget) return this.active.materialStrikeTarget(target, strength);
     return this.active?.dentStrike?.(strength) ?? -1;
+  }
+  readTelemetry(): SoftSimulationTelemetry {
+    return this.active?.readTelemetry() ?? EMPTY_TELEMETRY;
   }
   buildFrame(debug = false): SoftSimulationFrame {
     const frame = this.active?.buildFrame(debug) ?? EMPTY_FRAME;

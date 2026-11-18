@@ -1,0 +1,41 @@
+{
+  "data": {
+    "camera": "reference",
+    "cameraPose": "{\"position\":[2.5000000000000004,5.549999999999999,10.400000000000002],\"target\":[0,3.6999999999999997,0],\"fov\":39}",
+    "deskBusy": "false",
+    "deskPanel": "test",
+    "drawCalls": "41",
+    "finish": "plate-machined",
+    "fps": "33",
+    "lighting": "softbox",
+    "phase": "ready",
+    "quality": "ultra",
+    "recipe": "plate-service",
+    "renderFrames": "2483",
+    "renderReady": "true",
+    "riverAnimate": "true",
+    "riverFlow": "1",
+    "riverFoam": "1",
+    "riverTime": "0.000",
+    "riverWave": "1",
+    "running": "false",
+    "sceneObjects": "138",
+    "setup": "setup-plate-reference",
+    "study": "plate",
+    "surroundings": "hall-concrete",
+    "theme": "atelier",
+    "triangles": "60535"
+  },
+  "scripts": [
+    "http://127.0.0.1:5174/assets/index-pWue7VT3.js"
+  ],
+  "title": "BOX3D — Engineering Studio",
+  "ui": "BOX3D\nEngineering Studio\n01\nCanopy\n02\nPlate press\n03\nSuspension bridge\nReference\nPresets\nLabs\nScene\nTest\nCompare\nPlate forming study\nSTUDY 02\nReference view\nSupport connections\nLoad & failure\nMaterial\nResponse\nReady to simulate\n0.00 s\nExperiment desk\nSet up\nSurface\nWorld\nTest\nLoad & failure\nRUN 2\nPrepared load case\nCustom load case\nShallow forming\nDeep draw\nYield inspection\nPunch through\nWeak sheet connections\nStrong sheet comparison\nFirst contact\nForming comparison\nSlow perforation\nFull actuator travel\nLoad program\nRamp to failure\nService load\nTarget load\n0.80\nnormalized\n0.00\n5.00\nMATERIAL & FAILURE\nMetal sheet\nMachined aluminum\nConnection strength\n1.00×\nFailure mode\nDuctile fracture\nIntegration\n120 Hz · 12 iterations\nCollision\nPunch + bed\nHow this study works\nRelease load\nSetup ready. Inspect the scene, then press Run simulation.\nDeflection\n0.000\nConnections lost\n0\nUndo look\nRun simulation\n0.00 s\n0 s\nLIVE HISTORY\n0.0 s recorded\nLive\n0.25×\n0.5×\n1.0×\n2.0×\nResponse history\nDeflection\nApplied load\nFailure events\n0\nRun a study to trace how failure develops.\nEvery event comes from the solver.\nWebGPU renderer · 33 fps · 41 draws\nComparative model · not calibrated\nExport evidence",
+  "url": "http://127.0.0.1:5174/?studio=plate&theme=atelier&finish=plate-machined&light=softbox&recipe=plate-service&camera=reference&quality=ultra&surroundings=hall-concrete&layout=reference&setup=setup-plate-reference",
+  "viewport": {
+    "height": 1058,
+    "width": 1487
+  },
+  "logs": [],
+  "capturedAt": "2026-09-08T21:43:24.470Z"
+}

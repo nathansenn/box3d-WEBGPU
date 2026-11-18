@@ -1,0 +1,1527 @@
+{
+  "schema": "box3d.engine-capture/1",
+  "capturedAt": "2026-09-09T23:55:58.413Z",
+  "originalRoot": "/Users/commander/box3d-WEBGPU",
+  "snapshotRoot": "source",
+  "assetsRoot": "/Users/commander/box3d-WEBGPU/public",
+  "scope": "Studio CPU reduced model; asset inventory is provenance only and is not loaded by the benchmark",
+  "source": {
+    "status": "measured",
+    "files": [
+      {
+        "path": "index.html",
+        "bytes": 643,
+        "sha256": "7f925c45019fa72434211e3c5331fa91317425e565a855700dbd1bb4dd894640"
+      },
+      {
+        "path": "package-lock.json",
+        "bytes": 34167,
+        "sha256": "68550e7f7171700a37a50303ba473d6cc0e744e1f9fb3ce7661f6c7a2a86fd6b"
+      },
+      {
+        "path": "package.json",
+        "bytes": 13032,
+        "sha256": "354dc950dc27f01fd5a096f0e848688b6a125c2334bec13066315bce9d4380bb"
+      },
+      {
+        "path": "src/aaa-improvements.ts",
+        "bytes": 34756,
+        "sha256": "ba590124bcd60473b1fa2d2c70992e4cc71e6b41f105b7c964c24b269f119d4b"
+      },
+      {
+        "path": "src/assets/ktx2.ts",
+        "bytes": 13580,
+        "sha256": "2baa4a360bbde5baeb4eb81062702ecc26d2063f11890e14ea5e0c8f5288fd64"
+      },
+      {
+        "path": "src/camera.ts",
+        "bytes": 4918,
+        "sha256": "ab6446f83d7dc4750f640ae217ea20a700b5ba166e108ecd9f91134e2805f1a4"
+      },
+      {
+        "path": "src/compression/turboquant.ts",
+        "bytes": 22888,
+        "sha256": "161d2d02298f822c19c19d2be8a689b8e29b4342e4847c16d12fa92febb53721"
+      },
+      {
+        "path": "src/effects.ts",
+        "bytes": 22782,
+        "sha256": "0c9dd181a706a3826b3bfe9650258ba31661e578597255e96a478d56de418f36"
+      },
+      {
+        "path": "src/engine/contracts.ts",
+        "bytes": 3717,
+        "sha256": "ce2d03c7fb780ab6d32fae0f9a496addae5c607ff9409e0393f6fdc4815cd2bb"
+      },
+      {
+        "path": "src/engine/index.ts",
+        "bytes": 587,
+        "sha256": "3192b02226fc0ee4f2a1be83d6edd454ed9741d536d465235169f946a2daecaf"
+      },
+      {
+        "path": "src/engine/linear-water.ts",
+        "bytes": 3613,
+        "sha256": "41ef5b3ec4bd647cdd11337862846d0c88b280b684942d85ae25e518e6bd6144"
+      },
+      {
+        "path": "src/engine/probe.ts",
+        "bytes": 7743,
+        "sha256": "2a7c276cd272ef5d10ddcb4b3e9bd70634a43d06e546fb97492607180bb7fba8"
+      },
+      {
+        "path": "src/engine/studio-client.ts",
+        "bytes": 14222,
+        "sha256": "24024f4cf0c1000b4363c2c324ab6996367984f88c98c607001cd60b67629453"
+      },
+      {
+        "path": "src/engine/studio-dispatcher.ts",
+        "bytes": 5107,
+        "sha256": "9189ecfc5e023ada3a6182dc97620ebfa3df7084424cd502b64530b6ee3a0750"
+      },
+      {
+        "path": "src/engine/studio-protocol.ts",
+        "bytes": 8817,
+        "sha256": "3405c7af4f193ee1d77059b8b7999c1d150c960a9b40890a036109b4ce1b9cb5"
+      },
+      {
+        "path": "src/engine/studio-runtime.ts",
+        "bytes": 10449,
+        "sha256": "08f115296bb64250de8505645c1b01a39b56c017549840a6d51d0530d921caa3"
+      },
+      {
+        "path": "src/engine/studio-sweep.ts",
+        "bytes": 8515,
+        "sha256": "6e96effad85e8ea75a42cc16e8b8eff8ac1015da2b1f60c227539ccbb72a1273"
+      },
+      {
+        "path": "src/engine/studio-worker.ts",
+        "bytes": 458,
+        "sha256": "a1fd65f55fc16a5ef22a9c6e1fb28eed4254be9abc89d310d50664d6ba89fa87"
+      },
+      {
+        "path": "src/engine/workbench-runtime.ts",
+        "bytes": 9065,
+        "sha256": "17b70a74c8cf32740f587706f559fb72043ec04a193d3d05e39c702a1a765a77"
+      },
+      {
+        "path": "src/entry.ts",
+        "bytes": 1490,
+        "sha256": "373e5753d2bd71902c658534fa80f7daefed23c90c37b4c3b518af8f9a172903"
+      },
+      {
+        "path": "src/frame-lines.ts",
+        "bytes": 2928,
+        "sha256": "5bf8fdf521d91aea300bc734aa57eec5f55c444f055c9a027ac3e34c0abcb323"
+      },
+      {
+        "path": "src/main.ts",
+        "bytes": 184347,
+        "sha256": "d8d091bd9d9040090fc956d1df48e3b8d946a798007cd06089dc4a88e5aa9b1e"
+      },
+      {
+        "path": "src/material-demos.ts",
+        "bytes": 63949,
+        "sha256": "9a18df856deb22d0b83c7092e60dced3e4ec31be4d6904a18b4c173be9c20aed"
+      },
+      {
+        "path": "src/math.ts",
+        "bytes": 8639,
+        "sha256": "0ac09cdb4d0aa1d8e7b5114ac2f538d1875fa08be46a3b1f35314ee78b5b4aee"
+      },
+      {
+        "path": "src/perf/frame-clock.ts",
+        "bytes": 2930,
+        "sha256": "4cf08e167419936f8da566c8b8989eb5168d38ae975ccd69a86ff4701c193c86"
+      },
+      {
+        "path": "src/perf/recording-ring.ts",
+        "bytes": 1271,
+        "sha256": "3e8abd8db5c7f68e0060143ff9ff38295b91f83c6555e3a9ce91d9e43a84f50c"
+      },
+      {
+        "path": "src/perf/runtime.ts",
+        "bytes": 3153,
+        "sha256": "52384ddf462e817463e82524f74e16a7b2250c667c9f3b0901c8e838b06d7907"
+      },
+      {
+        "path": "src/physics/fallback.ts",
+        "bytes": 66357,
+        "sha256": "abdd32c4444a73f6583cab948f38d95787d6b6fe926ffa1df7238b485a4c9ccd"
+      },
+      {
+        "path": "src/physics/wasm.ts",
+        "bytes": 7063,
+        "sha256": "abbd46cc034fae39ac6eb40ed55dc5c8059c4316fb25ae21035c1fe25850e327"
+      },
+      {
+        "path": "src/scenes.ts",
+        "bytes": 20994,
+        "sha256": "1d8918b06f5485cce6e78407ba71de7e8bf7adf62bc81b43d706daec99134826"
+      },
+      {
+        "path": "src/showcases.ts",
+        "bytes": 55170,
+        "sha256": "5cc5c63690694c42c5c4846f6d5fd1464e1397b217a7eeb3dde6a1f5b587fd6e"
+      },
+      {
+        "path": "src/soft/combined-material-simulation.ts",
+        "bytes": 27983,
+        "sha256": "b0f732ef3cf5472535c702c01328a8f50a3f474acad30834f6a86c7e677df9f2"
+      },
+      {
+        "path": "src/soft/kernels.ts",
+        "bytes": 14414,
+        "sha256": "ed0b8f33daef06f73743d87c86c70396e25a57d284abcd21b5cf2a564df03029"
+      },
+      {
+        "path": "src/soft/material-presets.ts",
+        "bytes": 16822,
+        "sha256": "6282f4f1500537b2e4999de6e9f21b2cfa379e5cbd940299117d9103d1b78a97"
+      },
+      {
+        "path": "src/soft/material-shell.ts",
+        "bytes": 15654,
+        "sha256": "07a74846b7c7a1814b9933ab2f8143612ebeb98985d432412c794205dd457cfc"
+      },
+      {
+        "path": "src/soft/material-simulation.ts",
+        "bytes": 161748,
+        "sha256": "b65a459216328119b3068f99c4ac1335cbef07d559de2ff62ecbd2f7f6174564"
+      },
+      {
+        "path": "src/soft/packed-surface.ts",
+        "bytes": 3677,
+        "sha256": "3e9539e340450868ad11e295e1d0017842394378b52b0d4dbf1676693f22705d"
+      },
+      {
+        "path": "src/soft/simulations.ts",
+        "bytes": 144542,
+        "sha256": "1eea88b3165d1fb817f27b81a362c1453049c36fd046f6f716b10e153019b3ea"
+      },
+      {
+        "path": "src/studio/bridge-approaches.ts",
+        "bytes": 5671,
+        "sha256": "f2e2171f5ec524fee7b3379652795a19d6488315279a013f7c27d4904d9e6cce"
+      },
+      {
+        "path": "src/studio/bridge-deck.ts",
+        "bytes": 2474,
+        "sha256": "5e5f0fa7d784f26ce65b3135d3109b375aa948c03cae7194107ae5051cdef90c"
+      },
+      {
+        "path": "src/studio/bridge-ecology.ts",
+        "bytes": 5218,
+        "sha256": "37405a1af290d0b755076054c04758160299dff4f9a0a868a6eeb69d49eff08d"
+      },
+      {
+        "path": "src/studio/bridge-framing.ts",
+        "bytes": 1591,
+        "sha256": "571585b26c917565a861367fa0da39205a0307814094b05951961d7a47053c4f"
+      },
+      {
+        "path": "src/studio/bridge-layout.ts",
+        "bytes": 1930,
+        "sha256": "5fad7399f0affa581d1c6b3751b8141b7671daeca50534c821655935eeeeae98"
+      },
+      {
+        "path": "src/studio/checkpoint-file.ts",
+        "bytes": 836,
+        "sha256": "e231b7ff9c394a78b733515a27ce69757b08ec3761f32c77130ca3144bad6b19"
+      },
+      {
+        "path": "src/studio/collection-state.ts",
+        "bytes": 1247,
+        "sha256": "0382a1fcb79c4237507dab8e9c47be626417587aabaa32fd190455ce320b7628"
+      },
+      {
+        "path": "src/studio/collection.css",
+        "bytes": 15056,
+        "sha256": "0ddcba7edf01a2263f32a9c414c06156fcdf32c462c1772a8adbb859b8440b7d"
+      },
+      {
+        "path": "src/studio/lighting.ts",
+        "bytes": 4555,
+        "sha256": "f8de477b2ed175a97c505c6df3e32e7db7ce6b8846735cadf5b3f5c9422244ac"
+      },
+      {
+        "path": "src/studio/main.ts",
+        "bytes": 60035,
+        "sha256": "52c4c0ffaa8e12f93b51489c52dd6cd8b8d75b5795d766ab427310f1aa3582a0"
+      },
+      {
+        "path": "src/studio/material-labs/catalog.ts",
+        "bytes": 15001,
+        "sha256": "67894a5f320d9997e30d87e41cf145d70bf08b21e259d0759332192dd5ecb244"
+      },
+      {
+        "path": "src/studio/material-labs/main.ts",
+        "bytes": 19839,
+        "sha256": "5450dc7873d049f16d110733979aaed381a80c578d578915fccf8fb33cce1d12"
+      },
+      {
+        "path": "src/studio/material-labs/models.ts",
+        "bytes": 21619,
+        "sha256": "fad4ebfe7f1098caae2bb4ca099a6ad50c67ba05159e61a568af71505cd9fae9"
+      },
+      {
+        "path": "src/studio/material-labs/style.css",
+        "bytes": 16922,
+        "sha256": "204bfc05b38cdedab6b795b8b117153b0ef7b4f106470b509496c70aa5eebada"
+      },
+      {
+        "path": "src/studio/material-labs/world.ts",
+        "bytes": 32603,
+        "sha256": "cb94848f97527745876a8d36dd89ce3c1fc8ef7200fd6aa23ca1a63d002019e3"
+      },
+      {
+        "path": "src/studio/materials.ts",
+        "bytes": 13299,
+        "sha256": "c920e4f51e9cea2c55927c3433012eb754252b34c11a8970e38db41e0e6d3936"
+      },
+      {
+        "path": "src/studio/packed-physics.ts",
+        "bytes": 35017,
+        "sha256": "254f1431357fef5ad93db5eb03558029bd37874fe2a92edb68038c356d8b9980"
+      },
+      {
+        "path": "src/studio/physics.ts",
+        "bytes": 33699,
+        "sha256": "6667ab5eece152ccb5f77eb034e8592b0c763212c626adc708abf9af5b8bec64"
+      },
+      {
+        "path": "src/studio/presentation-state.ts",
+        "bytes": 1678,
+        "sha256": "d0ffa2169b1cf7bb10b4ddcda5301fcd9f2095ad5b0fe7bfda8c44abf2f7f475"
+      },
+      {
+        "path": "src/studio/preset-browser.ts",
+        "bytes": 18174,
+        "sha256": "4cc7baec0ce101f0b450bec387b5981c7776f121aa46ac7b3ac723f89cfa3174"
+      },
+      {
+        "path": "src/studio/presets.ts",
+        "bytes": 33344,
+        "sha256": "f93d92b13e217146f5aa51f178f2d7c898762892ba3cc7751d11166ef754fe28"
+      },
+      {
+        "path": "src/studio/press-settings.ts",
+        "bytes": 11796,
+        "sha256": "5030b820b96fd2e2d81e74b1951e64df19d987cf02c1a80efcad6c2213c98550"
+      },
+      {
+        "path": "src/studio/press-tooling.ts",
+        "bytes": 4756,
+        "sha256": "3e0d3444ff09a72a46fca108b1361c7958bf3fa4ad759074b817b1423facdacb"
+      },
+      {
+        "path": "src/studio/press-workbench.css",
+        "bytes": 8657,
+        "sha256": "d009a8cc762c36b3dffced9e07f27714bb04c042d6cfc3ec6d959e7e923eebc3"
+      },
+      {
+        "path": "src/studio/press-workbench.ts",
+        "bytes": 11963,
+        "sha256": "73623a7b41a37ed113ca16189e4398e8b2b19b77e6fde8c81d2c1639687fb506"
+      },
+      {
+        "path": "src/studio/reference-scene.ts",
+        "bytes": 6633,
+        "sha256": "ff81496325d12677d5c823df698515b805b008ad6714ffa3647d6b2e24128c53"
+      },
+      {
+        "path": "src/studio/reference-workspace.css",
+        "bytes": 5607,
+        "sha256": "4014e738a582d55e1395685acf6824d6a7d3738726a7a771bdea84ea9f5e8e63"
+      },
+      {
+        "path": "src/studio/river-settings.ts",
+        "bytes": 2616,
+        "sha256": "7d355be8bbe8d11acc893ae8b180e7644dba2ca2afe7ad86464ef78c804c7a1b"
+      },
+      {
+        "path": "src/studio/river-water.ts",
+        "bytes": 5530,
+        "sha256": "2e9eb7ace892bef791075b0f2c43039fa4a7266fc618c0c318277ac41e73bd88"
+      },
+      {
+        "path": "src/studio/scene-desk.css",
+        "bytes": 14169,
+        "sha256": "119a9d5bb3cbbf405168b6e864f9a189cacaae42f4efd6deecf7638246afdc17"
+      },
+      {
+        "path": "src/studio/scene-desk.ts",
+        "bytes": 19029,
+        "sha256": "ae6aa20a537a0f447d67ff546b6e55fe97d6ac8dc5a4cdb5d9aced1d68569d97"
+      },
+      {
+        "path": "src/studio/solver-storage.ts",
+        "bytes": 7920,
+        "sha256": "72c54419bd58f140ee1ce1273e61704a86730f80fa4d34d5c20203f5ac1b5fda"
+      },
+      {
+        "path": "src/studio/studio.css",
+        "bytes": 43884,
+        "sha256": "7d2b0795125afddf92fba480d6df268a5a17621b99915ae59d0231bd33874cca"
+      },
+      {
+        "path": "src/studio/study-navigation.css",
+        "bytes": 771,
+        "sha256": "2e1765d98824479fab8982dbc1d4b18c15b17866f34d72be83a623ceebb3e180"
+      },
+      {
+        "path": "src/studio/study-navigation.ts",
+        "bytes": 1927,
+        "sha256": "f077dd3e9d42f4202e6f64a2f4a5a2e4228f9b1fd8bfb7272930fa7e2a7ff65a"
+      },
+      {
+        "path": "src/studio/surface-topology.ts",
+        "bytes": 2897,
+        "sha256": "231f8b9f2fb80f454dc1cb39c203cfeff6649c48c84af32bdac2ee991dedf89e"
+      },
+      {
+        "path": "src/studio/world.ts",
+        "bytes": 68298,
+        "sha256": "8bc157968be059dee2bd982753d8894d64efc656b19b7a5cd78ed20294a7af9b"
+      },
+      {
+        "path": "src/types.ts",
+        "bytes": 14192,
+        "sha256": "b52de1dfe79b02cb139e6d2fe7504cfbd634b039f535c808a7320cc29b59dc2b"
+      },
+      {
+        "path": "src/ui/engineering-inspection.ts",
+        "bytes": 31215,
+        "sha256": "772162e11ad205067580f395b5bd6971fd8dcf85e33f06c0598b4860e15223c7"
+      },
+      {
+        "path": "src/ui/engineering-workspaces.css",
+        "bytes": 55125,
+        "sha256": "27e919af6abb07ddfe4d3eb0204fa55b985e02dd412e2d848d21d9e328d1832a"
+      },
+      {
+        "path": "src/ui/engineering-workspaces.ts",
+        "bytes": 156621,
+        "sha256": "144e843ed330744d4bbefd73615178df7bcff06386fa8d38fff630321224db49"
+      },
+      {
+        "path": "src/ui/first-run-guide.css",
+        "bytes": 3050,
+        "sha256": "91908184cafe604d6951a64f63bb116e677a03e3e911c4b047204cf60d4c03b6"
+      },
+      {
+        "path": "src/ui/first-run-guide.ts",
+        "bytes": 5756,
+        "sha256": "2b4cc1198412a0729627dcf93358ddc75393f2aaef1e0e718d781d9e4a72d05d"
+      },
+      {
+        "path": "src/ui/material-lab-desktop.css",
+        "bytes": 24552,
+        "sha256": "8ff65bb3301ddbb37019ac04101551f24a4629d7dfe23bf63d0e021d663400bb"
+      },
+      {
+        "path": "src/ui/material-lab-desktop.ts",
+        "bytes": 56872,
+        "sha256": "c34253239662e9b5204456d842b02147cc58c934f8691e09cf016c144badbf47"
+      },
+      {
+        "path": "src/ui/material-lab-mobile.css",
+        "bytes": 20719,
+        "sha256": "1dfa48a49a53b0d25be47490adb268e9af58a92216b22a221c5d3593222ea979"
+      },
+      {
+        "path": "src/ui/material-lab-mobile.ts",
+        "bytes": 44367,
+        "sha256": "c1f72d6e3d6c18f2da15188601e021f7cb4582c70fa3ff34e114db3bd6d658e9"
+      },
+      {
+        "path": "src/ui/physics-correlation.css",
+        "bytes": 19536,
+        "sha256": "480d888a6adc8916f82b2519a143ff10ae13cb4672b662d747f4a177684ca630"
+      },
+      {
+        "path": "src/ui/physics-correlation.ts",
+        "bytes": 84504,
+        "sha256": "60b0d507e0a7511a413148f0b94310033be0a7bd618f13cd0a4b05cb5f49942b"
+      },
+      {
+        "path": "src/ui/physics-field-modal.css",
+        "bytes": 24993,
+        "sha256": "f91ff5094dac880ac0706b1186b751b9d406bb20d4ae64eae0d1d1cdb93f2c80"
+      },
+      {
+        "path": "src/ui/physics-field-modal.ts",
+        "bytes": 52485,
+        "sha256": "d10df0f5a424f1dd926292386d4c43e83c26af781d33f3093a86397ead7728fd"
+      },
+      {
+        "path": "src/ui/physics-structural.css",
+        "bytes": 29405,
+        "sha256": "0e468fe9a8e598c357acdfaf03c7e140c6ff82f71c720009c07b50477809262a"
+      },
+      {
+        "path": "src/ui/physics-structural.ts",
+        "bytes": 83806,
+        "sha256": "05956524b2fe782d9ea315b4877cd8c0874f36d14c643ca90918b9db968790a0"
+      },
+      {
+        "path": "src/vite-env.d.ts",
+        "bytes": 153,
+        "sha256": "45c930ddca72754645dec0d5161b905424d08518bf6ad632e2d0a78198ded872"
+      },
+      {
+        "path": "src/webgpu-minimal.d.ts",
+        "bytes": 11353,
+        "sha256": "f788fb1cdfec03e3b7fa444f7a0db897be26d1ff93f7258b2cc4c5bace913d79"
+      },
+      {
+        "path": "src/webgpu/gpu-timing.ts",
+        "bytes": 12185,
+        "sha256": "98fb0e56f698a8675bd14657c22960a1a31270232fbd0770dd28adf831191c8c"
+      },
+      {
+        "path": "src/webgpu/instance-partition.ts",
+        "bytes": 8933,
+        "sha256": "247261d0e00023ec4c4dc03ff0b5673ad60193f3b3de8370cb30e381791722cc"
+      },
+      {
+        "path": "src/webgpu/linear-water.ts",
+        "bytes": 12725,
+        "sha256": "437fc66c0af291a017f8263f5138ae04556729f5875fea4c192e914703343a18"
+      },
+      {
+        "path": "src/webgpu/renderer.ts",
+        "bytes": 153466,
+        "sha256": "e58237397faa0559166017f66c5f1a47cb5ec93ba5ada0f249c002be46e538c6"
+      },
+      {
+        "path": "src/webgpu/resident-water-surface.ts",
+        "bytes": 3461,
+        "sha256": "5d1269bb313bfaf8edbd58a091fc70b56811d9cf1a63d51cbd04d4fdb14d7d8e"
+      },
+      {
+        "path": "src/webgpu/shadow-cache.ts",
+        "bytes": 1064,
+        "sha256": "5373ab9aef4e5ec4f25998c2982bc0e4eee59d198744aa1aba0042c03d059927"
+      },
+      {
+        "path": "src/webgpu/startup-budget.ts",
+        "bytes": 2603,
+        "sha256": "028fa85a0f6fdd163b8642c474a7e85cd6bdc4aec34a81cb5bf5154d7e6ddf2f"
+      },
+      {
+        "path": "src/webgpu/water-telemetry.ts",
+        "bytes": 7773,
+        "sha256": "0035ab7d29663dddbe8d4d2814a63af9a7af6f47e0b1a7f70e7738fd1c64dd90"
+      },
+      {
+        "path": "src/workbench/engineering-analysis.ts",
+        "bytes": 63028,
+        "sha256": "8081f81e04bce6c757b07783dc7b6cdef5065c9c18b837b3f1905a2aaa3add6a"
+      },
+      {
+        "path": "src/workbench/engineering-evidence.ts",
+        "bytes": 85345,
+        "sha256": "0b46020c02e733a501f62642a3ac9b3cd8aa39414831a8fc74110715a766340c"
+      },
+      {
+        "path": "src/workbench/engineering-model.ts",
+        "bytes": 100113,
+        "sha256": "8c7e3cd2c1920491c71eb1da087646f69a4c05ec24c746c6d2e2e06193214608"
+      },
+      {
+        "path": "src/workbench/engineering-session.ts",
+        "bytes": 39593,
+        "sha256": "8eca3815ab5eee82b0be1edc73cc03a65e962b043b4f51d4cfe4da4c70aa686b"
+      },
+      {
+        "path": "src/workbench/lesson-quality.ts",
+        "bytes": 10027,
+        "sha256": "60bcb5f856805377f6a39a7f50811f09d02c9ccfba09e606447e249069dacc50"
+      },
+      {
+        "path": "src/workbench/registry.ts",
+        "bytes": 52088,
+        "sha256": "bcf0380c07ea7392669f9223cc36c0a41c616f5202ffe98707fe172817ac9884"
+      },
+      {
+        "path": "src/workbench/schema.ts",
+        "bytes": 36347,
+        "sha256": "be6b63f425577b9bc3bff0a6671d3841612345c5c4676d16a7d0104834b25537"
+      },
+      {
+        "path": "tsconfig.benchmark.json",
+        "bytes": 417,
+        "sha256": "4d8d0bc9c8c8eda6388caec9e9d99511d74f7c2f661fb455118c419fd2580fa8"
+      },
+      {
+        "path": "tsconfig.json",
+        "bytes": 287,
+        "sha256": "dc900931a1087d6a1f4618aea5fe0eddd50c4a81022139bf793028a62b974a51"
+      },
+      {
+        "path": "tsconfig.test.json",
+        "bytes": 437,
+        "sha256": "5872ad69422f806734ded402ea68491476fdc2ccc0040519890ac18fae5e4bf7"
+      },
+      {
+        "path": "vite.config.ts",
+        "bytes": 329,
+        "sha256": "450fbeb8429907bc719c6983b546489c284bee167debc3ee5ff4d0b1938f6d42"
+      },
+      {
+        "path": "wasm/box3d_web.c",
+        "bytes": 49108,
+        "sha256": "943a3b406e1a5dffe1c2f7eae2c6fb5dd082347cc6ebb913e36e5fa101e18e29"
+      },
+      {
+        "path": "wasm/CMakeLists.txt",
+        "bytes": 3002,
+        "sha256": "c70a9f6e10e66e6cba4855fe219ae6c64c615aa418fb2f186acd12e8380e2ba9"
+      },
+      {
+        "path": "wasm/soft_kernels.c",
+        "bytes": 17741,
+        "sha256": "af5b1bcaea9d4781379a436cb73147297ec3ec29f0482a8511c38709bb2a69f1"
+      }
+    ],
+    "bytes": 2957227,
+    "sha256": "bdb4110d3a8b038590c996df4536c24e210d1359321e5a264f5fb6b172b61b35"
+  },
+  "artifacts": {
+    "status": "measured",
+    "kind": "typescript-source-inputs",
+    "files": [
+      {
+        "path": "src/aaa-improvements.ts",
+        "bytes": 34756,
+        "sha256": "ba590124bcd60473b1fa2d2c70992e4cc71e6b41f105b7c964c24b269f119d4b"
+      },
+      {
+        "path": "src/assets/ktx2.ts",
+        "bytes": 13580,
+        "sha256": "2baa4a360bbde5baeb4eb81062702ecc26d2063f11890e14ea5e0c8f5288fd64"
+      },
+      {
+        "path": "src/camera.ts",
+        "bytes": 4918,
+        "sha256": "ab6446f83d7dc4750f640ae217ea20a700b5ba166e108ecd9f91134e2805f1a4"
+      },
+      {
+        "path": "src/compression/turboquant.ts",
+        "bytes": 22888,
+        "sha256": "161d2d02298f822c19c19d2be8a689b8e29b4342e4847c16d12fa92febb53721"
+      },
+      {
+        "path": "src/effects.ts",
+        "bytes": 22782,
+        "sha256": "0c9dd181a706a3826b3bfe9650258ba31661e578597255e96a478d56de418f36"
+      },
+      {
+        "path": "src/engine/contracts.ts",
+        "bytes": 3717,
+        "sha256": "ce2d03c7fb780ab6d32fae0f9a496addae5c607ff9409e0393f6fdc4815cd2bb"
+      },
+      {
+        "path": "src/engine/index.ts",
+        "bytes": 587,
+        "sha256": "3192b02226fc0ee4f2a1be83d6edd454ed9741d536d465235169f946a2daecaf"
+      },
+      {
+        "path": "src/engine/linear-water.ts",
+        "bytes": 3613,
+        "sha256": "41ef5b3ec4bd647cdd11337862846d0c88b280b684942d85ae25e518e6bd6144"
+      },
+      {
+        "path": "src/engine/probe.ts",
+        "bytes": 7743,
+        "sha256": "2a7c276cd272ef5d10ddcb4b3e9bd70634a43d06e546fb97492607180bb7fba8"
+      },
+      {
+        "path": "src/engine/studio-client.ts",
+        "bytes": 14222,
+        "sha256": "24024f4cf0c1000b4363c2c324ab6996367984f88c98c607001cd60b67629453"
+      },
+      {
+        "path": "src/engine/studio-dispatcher.ts",
+        "bytes": 5107,
+        "sha256": "9189ecfc5e023ada3a6182dc97620ebfa3df7084424cd502b64530b6ee3a0750"
+      },
+      {
+        "path": "src/engine/studio-protocol.ts",
+        "bytes": 8817,
+        "sha256": "3405c7af4f193ee1d77059b8b7999c1d150c960a9b40890a036109b4ce1b9cb5"
+      },
+      {
+        "path": "src/engine/studio-runtime.ts",
+        "bytes": 10449,
+        "sha256": "08f115296bb64250de8505645c1b01a39b56c017549840a6d51d0530d921caa3"
+      },
+      {
+        "path": "src/engine/studio-sweep.ts",
+        "bytes": 8515,
+        "sha256": "6e96effad85e8ea75a42cc16e8b8eff8ac1015da2b1f60c227539ccbb72a1273"
+      },
+      {
+        "path": "src/engine/studio-worker.ts",
+        "bytes": 458,
+        "sha256": "a1fd65f55fc16a5ef22a9c6e1fb28eed4254be9abc89d310d50664d6ba89fa87"
+      },
+      {
+        "path": "src/engine/workbench-runtime.ts",
+        "bytes": 9065,
+        "sha256": "17b70a74c8cf32740f587706f559fb72043ec04a193d3d05e39c702a1a765a77"
+      },
+      {
+        "path": "src/entry.ts",
+        "bytes": 1490,
+        "sha256": "373e5753d2bd71902c658534fa80f7daefed23c90c37b4c3b518af8f9a172903"
+      },
+      {
+        "path": "src/frame-lines.ts",
+        "bytes": 2928,
+        "sha256": "5bf8fdf521d91aea300bc734aa57eec5f55c444f055c9a027ac3e34c0abcb323"
+      },
+      {
+        "path": "src/main.ts",
+        "bytes": 184347,
+        "sha256": "d8d091bd9d9040090fc956d1df48e3b8d946a798007cd06089dc4a88e5aa9b1e"
+      },
+      {
+        "path": "src/material-demos.ts",
+        "bytes": 63949,
+        "sha256": "9a18df856deb22d0b83c7092e60dced3e4ec31be4d6904a18b4c173be9c20aed"
+      },
+      {
+        "path": "src/math.ts",
+        "bytes": 8639,
+        "sha256": "0ac09cdb4d0aa1d8e7b5114ac2f538d1875fa08be46a3b1f35314ee78b5b4aee"
+      },
+      {
+        "path": "src/perf/frame-clock.ts",
+        "bytes": 2930,
+        "sha256": "4cf08e167419936f8da566c8b8989eb5168d38ae975ccd69a86ff4701c193c86"
+      },
+      {
+        "path": "src/perf/recording-ring.ts",
+        "bytes": 1271,
+        "sha256": "3e8abd8db5c7f68e0060143ff9ff38295b91f83c6555e3a9ce91d9e43a84f50c"
+      },
+      {
+        "path": "src/perf/runtime.ts",
+        "bytes": 3153,
+        "sha256": "52384ddf462e817463e82524f74e16a7b2250c667c9f3b0901c8e838b06d7907"
+      },
+      {
+        "path": "src/physics/fallback.ts",
+        "bytes": 66357,
+        "sha256": "abdd32c4444a73f6583cab948f38d95787d6b6fe926ffa1df7238b485a4c9ccd"
+      },
+      {
+        "path": "src/physics/wasm.ts",
+        "bytes": 7063,
+        "sha256": "abbd46cc034fae39ac6eb40ed55dc5c8059c4316fb25ae21035c1fe25850e327"
+      },
+      {
+        "path": "src/scenes.ts",
+        "bytes": 20994,
+        "sha256": "1d8918b06f5485cce6e78407ba71de7e8bf7adf62bc81b43d706daec99134826"
+      },
+      {
+        "path": "src/showcases.ts",
+        "bytes": 55170,
+        "sha256": "5cc5c63690694c42c5c4846f6d5fd1464e1397b217a7eeb3dde6a1f5b587fd6e"
+      },
+      {
+        "path": "src/soft/combined-material-simulation.ts",
+        "bytes": 27983,
+        "sha256": "b0f732ef3cf5472535c702c01328a8f50a3f474acad30834f6a86c7e677df9f2"
+      },
+      {
+        "path": "src/soft/kernels.ts",
+        "bytes": 14414,
+        "sha256": "ed0b8f33daef06f73743d87c86c70396e25a57d284abcd21b5cf2a564df03029"
+      },
+      {
+        "path": "src/soft/material-presets.ts",
+        "bytes": 16822,
+        "sha256": "6282f4f1500537b2e4999de6e9f21b2cfa379e5cbd940299117d9103d1b78a97"
+      },
+      {
+        "path": "src/soft/material-shell.ts",
+        "bytes": 15654,
+        "sha256": "07a74846b7c7a1814b9933ab2f8143612ebeb98985d432412c794205dd457cfc"
+      },
+      {
+        "path": "src/soft/material-simulation.ts",
+        "bytes": 161748,
+        "sha256": "b65a459216328119b3068f99c4ac1335cbef07d559de2ff62ecbd2f7f6174564"
+      },
+      {
+        "path": "src/soft/packed-surface.ts",
+        "bytes": 3677,
+        "sha256": "3e9539e340450868ad11e295e1d0017842394378b52b0d4dbf1676693f22705d"
+      },
+      {
+        "path": "src/soft/simulations.ts",
+        "bytes": 144542,
+        "sha256": "1eea88b3165d1fb817f27b81a362c1453049c36fd046f6f716b10e153019b3ea"
+      },
+      {
+        "path": "src/studio/bridge-approaches.ts",
+        "bytes": 5671,
+        "sha256": "f2e2171f5ec524fee7b3379652795a19d6488315279a013f7c27d4904d9e6cce"
+      },
+      {
+        "path": "src/studio/bridge-deck.ts",
+        "bytes": 2474,
+        "sha256": "5e5f0fa7d784f26ce65b3135d3109b375aa948c03cae7194107ae5051cdef90c"
+      },
+      {
+        "path": "src/studio/bridge-ecology.ts",
+        "bytes": 5218,
+        "sha256": "37405a1af290d0b755076054c04758160299dff4f9a0a868a6eeb69d49eff08d"
+      },
+      {
+        "path": "src/studio/bridge-framing.ts",
+        "bytes": 1591,
+        "sha256": "571585b26c917565a861367fa0da39205a0307814094b05951961d7a47053c4f"
+      },
+      {
+        "path": "src/studio/bridge-layout.ts",
+        "bytes": 1930,
+        "sha256": "5fad7399f0affa581d1c6b3751b8141b7671daeca50534c821655935eeeeae98"
+      },
+      {
+        "path": "src/studio/checkpoint-file.ts",
+        "bytes": 836,
+        "sha256": "e231b7ff9c394a78b733515a27ce69757b08ec3761f32c77130ca3144bad6b19"
+      },
+      {
+        "path": "src/studio/collection-state.ts",
+        "bytes": 1247,
+        "sha256": "0382a1fcb79c4237507dab8e9c47be626417587aabaa32fd190455ce320b7628"
+      },
+      {
+        "path": "src/studio/lighting.ts",
+        "bytes": 4555,
+        "sha256": "f8de477b2ed175a97c505c6df3e32e7db7ce6b8846735cadf5b3f5c9422244ac"
+      },
+      {
+        "path": "src/studio/main.ts",
+        "bytes": 60035,
+        "sha256": "52c4c0ffaa8e12f93b51489c52dd6cd8b8d75b5795d766ab427310f1aa3582a0"
+      },
+      {
+        "path": "src/studio/material-labs/catalog.ts",
+        "bytes": 15001,
+        "sha256": "67894a5f320d9997e30d87e41cf145d70bf08b21e259d0759332192dd5ecb244"
+      },
+      {
+        "path": "src/studio/material-labs/main.ts",
+        "bytes": 19839,
+        "sha256": "5450dc7873d049f16d110733979aaed381a80c578d578915fccf8fb33cce1d12"
+      },
+      {
+        "path": "src/studio/material-labs/models.ts",
+        "bytes": 21619,
+        "sha256": "fad4ebfe7f1098caae2bb4ca099a6ad50c67ba05159e61a568af71505cd9fae9"
+      },
+      {
+        "path": "src/studio/material-labs/world.ts",
+        "bytes": 32603,
+        "sha256": "cb94848f97527745876a8d36dd89ce3c1fc8ef7200fd6aa23ca1a63d002019e3"
+      },
+      {
+        "path": "src/studio/materials.ts",
+        "bytes": 13299,
+        "sha256": "c920e4f51e9cea2c55927c3433012eb754252b34c11a8970e38db41e0e6d3936"
+      },
+      {
+        "path": "src/studio/packed-physics.ts",
+        "bytes": 35017,
+        "sha256": "254f1431357fef5ad93db5eb03558029bd37874fe2a92edb68038c356d8b9980"
+      },
+      {
+        "path": "src/studio/physics.ts",
+        "bytes": 33699,
+        "sha256": "6667ab5eece152ccb5f77eb034e8592b0c763212c626adc708abf9af5b8bec64"
+      },
+      {
+        "path": "src/studio/presentation-state.ts",
+        "bytes": 1678,
+        "sha256": "d0ffa2169b1cf7bb10b4ddcda5301fcd9f2095ad5b0fe7bfda8c44abf2f7f475"
+      },
+      {
+        "path": "src/studio/preset-browser.ts",
+        "bytes": 18174,
+        "sha256": "4cc7baec0ce101f0b450bec387b5981c7776f121aa46ac7b3ac723f89cfa3174"
+      },
+      {
+        "path": "src/studio/presets.ts",
+        "bytes": 33344,
+        "sha256": "f93d92b13e217146f5aa51f178f2d7c898762892ba3cc7751d11166ef754fe28"
+      },
+      {
+        "path": "src/studio/press-settings.ts",
+        "bytes": 11796,
+        "sha256": "5030b820b96fd2e2d81e74b1951e64df19d987cf02c1a80efcad6c2213c98550"
+      },
+      {
+        "path": "src/studio/press-tooling.ts",
+        "bytes": 4756,
+        "sha256": "3e0d3444ff09a72a46fca108b1361c7958bf3fa4ad759074b817b1423facdacb"
+      },
+      {
+        "path": "src/studio/press-workbench.ts",
+        "bytes": 11963,
+        "sha256": "73623a7b41a37ed113ca16189e4398e8b2b19b77e6fde8c81d2c1639687fb506"
+      },
+      {
+        "path": "src/studio/reference-scene.ts",
+        "bytes": 6633,
+        "sha256": "ff81496325d12677d5c823df698515b805b008ad6714ffa3647d6b2e24128c53"
+      },
+      {
+        "path": "src/studio/river-settings.ts",
+        "bytes": 2616,
+        "sha256": "7d355be8bbe8d11acc893ae8b180e7644dba2ca2afe7ad86464ef78c804c7a1b"
+      },
+      {
+        "path": "src/studio/river-water.ts",
+        "bytes": 5530,
+        "sha256": "2e9eb7ace892bef791075b0f2c43039fa4a7266fc618c0c318277ac41e73bd88"
+      },
+      {
+        "path": "src/studio/scene-desk.ts",
+        "bytes": 19029,
+        "sha256": "ae6aa20a537a0f447d67ff546b6e55fe97d6ac8dc5a4cdb5d9aced1d68569d97"
+      },
+      {
+        "path": "src/studio/solver-storage.ts",
+        "bytes": 7920,
+        "sha256": "72c54419bd58f140ee1ce1273e61704a86730f80fa4d34d5c20203f5ac1b5fda"
+      },
+      {
+        "path": "src/studio/study-navigation.ts",
+        "bytes": 1927,
+        "sha256": "f077dd3e9d42f4202e6f64a2f4a5a2e4228f9b1fd8bfb7272930fa7e2a7ff65a"
+      },
+      {
+        "path": "src/studio/surface-topology.ts",
+        "bytes": 2897,
+        "sha256": "231f8b9f2fb80f454dc1cb39c203cfeff6649c48c84af32bdac2ee991dedf89e"
+      },
+      {
+        "path": "src/studio/world.ts",
+        "bytes": 68298,
+        "sha256": "8bc157968be059dee2bd982753d8894d64efc656b19b7a5cd78ed20294a7af9b"
+      },
+      {
+        "path": "src/types.ts",
+        "bytes": 14192,
+        "sha256": "b52de1dfe79b02cb139e6d2fe7504cfbd634b039f535c808a7320cc29b59dc2b"
+      },
+      {
+        "path": "src/ui/engineering-inspection.ts",
+        "bytes": 31215,
+        "sha256": "772162e11ad205067580f395b5bd6971fd8dcf85e33f06c0598b4860e15223c7"
+      },
+      {
+        "path": "src/ui/engineering-workspaces.ts",
+        "bytes": 156621,
+        "sha256": "144e843ed330744d4bbefd73615178df7bcff06386fa8d38fff630321224db49"
+      },
+      {
+        "path": "src/ui/first-run-guide.ts",
+        "bytes": 5756,
+        "sha256": "2b4cc1198412a0729627dcf93358ddc75393f2aaef1e0e718d781d9e4a72d05d"
+      },
+      {
+        "path": "src/ui/material-lab-desktop.ts",
+        "bytes": 56872,
+        "sha256": "c34253239662e9b5204456d842b02147cc58c934f8691e09cf016c144badbf47"
+      },
+      {
+        "path": "src/ui/material-lab-mobile.ts",
+        "bytes": 44367,
+        "sha256": "c1f72d6e3d6c18f2da15188601e021f7cb4582c70fa3ff34e114db3bd6d658e9"
+      },
+      {
+        "path": "src/ui/physics-correlation.ts",
+        "bytes": 84504,
+        "sha256": "60b0d507e0a7511a413148f0b94310033be0a7bd618f13cd0a4b05cb5f49942b"
+      },
+      {
+        "path": "src/ui/physics-field-modal.ts",
+        "bytes": 52485,
+        "sha256": "d10df0f5a424f1dd926292386d4c43e83c26af781d33f3093a86397ead7728fd"
+      },
+      {
+        "path": "src/ui/physics-structural.ts",
+        "bytes": 83806,
+        "sha256": "05956524b2fe782d9ea315b4877cd8c0874f36d14c643ca90918b9db968790a0"
+      },
+      {
+        "path": "src/vite-env.d.ts",
+        "bytes": 153,
+        "sha256": "45c930ddca72754645dec0d5161b905424d08518bf6ad632e2d0a78198ded872"
+      },
+      {
+        "path": "src/webgpu-minimal.d.ts",
+        "bytes": 11353,
+        "sha256": "f788fb1cdfec03e3b7fa444f7a0db897be26d1ff93f7258b2cc4c5bace913d79"
+      },
+      {
+        "path": "src/webgpu/gpu-timing.ts",
+        "bytes": 12185,
+        "sha256": "98fb0e56f698a8675bd14657c22960a1a31270232fbd0770dd28adf831191c8c"
+      },
+      {
+        "path": "src/webgpu/instance-partition.ts",
+        "bytes": 8933,
+        "sha256": "247261d0e00023ec4c4dc03ff0b5673ad60193f3b3de8370cb30e381791722cc"
+      },
+      {
+        "path": "src/webgpu/linear-water.ts",
+        "bytes": 12725,
+        "sha256": "437fc66c0af291a017f8263f5138ae04556729f5875fea4c192e914703343a18"
+      },
+      {
+        "path": "src/webgpu/renderer.ts",
+        "bytes": 153466,
+        "sha256": "e58237397faa0559166017f66c5f1a47cb5ec93ba5ada0f249c002be46e538c6"
+      },
+      {
+        "path": "src/webgpu/resident-water-surface.ts",
+        "bytes": 3461,
+        "sha256": "5d1269bb313bfaf8edbd58a091fc70b56811d9cf1a63d51cbd04d4fdb14d7d8e"
+      },
+      {
+        "path": "src/webgpu/shadow-cache.ts",
+        "bytes": 1064,
+        "sha256": "5373ab9aef4e5ec4f25998c2982bc0e4eee59d198744aa1aba0042c03d059927"
+      },
+      {
+        "path": "src/webgpu/startup-budget.ts",
+        "bytes": 2603,
+        "sha256": "028fa85a0f6fdd163b8642c474a7e85cd6bdc4aec34a81cb5bf5154d7e6ddf2f"
+      },
+      {
+        "path": "src/webgpu/water-telemetry.ts",
+        "bytes": 7773,
+        "sha256": "0035ab7d29663dddbe8d4d2814a63af9a7af6f47e0b1a7f70e7738fd1c64dd90"
+      },
+      {
+        "path": "src/workbench/engineering-analysis.ts",
+        "bytes": 63028,
+        "sha256": "8081f81e04bce6c757b07783dc7b6cdef5065c9c18b837b3f1905a2aaa3add6a"
+      },
+      {
+        "path": "src/workbench/engineering-evidence.ts",
+        "bytes": 85345,
+        "sha256": "0b46020c02e733a501f62642a3ac9b3cd8aa39414831a8fc74110715a766340c"
+      },
+      {
+        "path": "src/workbench/engineering-model.ts",
+        "bytes": 100113,
+        "sha256": "8c7e3cd2c1920491c71eb1da087646f69a4c05ec24c746c6d2e2e06193214608"
+      },
+      {
+        "path": "src/workbench/engineering-session.ts",
+        "bytes": 39593,
+        "sha256": "8eca3815ab5eee82b0be1edc73cc03a65e962b043b4f51d4cfe4da4c70aa686b"
+      },
+      {
+        "path": "src/workbench/lesson-quality.ts",
+        "bytes": 10027,
+        "sha256": "60bcb5f856805377f6a39a7f50811f09d02c9ccfba09e606447e249069dacc50"
+      },
+      {
+        "path": "src/workbench/registry.ts",
+        "bytes": 52088,
+        "sha256": "bcf0380c07ea7392669f9223cc36c0a41c616f5202ffe98707fe172817ac9884"
+      },
+      {
+        "path": "src/workbench/schema.ts",
+        "bytes": 36347,
+        "sha256": "be6b63f425577b9bc3bff0a6671d3841612345c5c4676d16a7d0104834b25537"
+      }
+    ],
+    "bytes": 2555618,
+    "sha256": "0b413f23c22bd839e1b8117ed288a5636478cc7f8f079bf3620a56f7cb22ef1f",
+    "build": {
+      "status": "unavailable",
+      "reason": "Node strips types in memory; no bundled JS, WASM, or browser artifact was executed"
+    }
+  },
+  "assets": {
+    "status": "measured",
+    "files": [
+      {
+        "path": "box3d/.gitkeep",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "box3d/BOX3D_LICENSE.txt",
+        "bytes": 1067,
+        "sha256": "da5e31a26bf3cfd5ba5c96d6823e480128c81e76c107ef9d3ee5d94789184b90"
+      },
+      {
+        "path": "box3d/box3d.js",
+        "bytes": 14209,
+        "sha256": "8ec00439683b8da258916ebe90f0cea6a6d0672641fda571936b6012fd3cec3b"
+      },
+      {
+        "path": "box3d/box3d.wasm",
+        "bytes": 400546,
+        "sha256": "089ba180666b2fcd3a7ca0b92f4d715fd0a25e91974e35c198b5b7e83620e552"
+      },
+      {
+        "path": "box3d/BUILD_PROVENANCE.json",
+        "bytes": 1352,
+        "sha256": "417097416d7712ff6c4f1943cb02214fadd831baef184b09ef3d47de55dedf5a"
+      },
+      {
+        "path": "concepts/material-lab-desktop.png",
+        "bytes": 2021553,
+        "sha256": "efe3675052b21379147ce1774221f38dddae4fbf3be62096b4e5a52e09bb1c0e"
+      },
+      {
+        "path": "concepts/material-lab-mobile.png",
+        "bytes": 1733941,
+        "sha256": "c84038c238b4a209a93a8c6679e3d8ab93144ae2b0b2f10e772610345b624edf"
+      },
+      {
+        "path": "concepts/physics-workbench-correlation-v2.png",
+        "bytes": 1838533,
+        "sha256": "0af81171fc2950bd66e198b779061233df7dfde543107db9b62a0c2adf7729dd"
+      },
+      {
+        "path": "concepts/physics-workbench-field-modal-v2.png",
+        "bytes": 1723392,
+        "sha256": "d5762b2af3246efa507698fce45d092873be3750b032e0e8b8ac9b2386ed57d5"
+      },
+      {
+        "path": "concepts/physics-workbench-structural-v2.png",
+        "bytes": 1692150,
+        "sha256": "b8c39282b9469f1f810822298b790d1985e3c4fc5d23616fa21838a98e028674"
+      },
+      {
+        "path": "soft-kernels-scalar.wasm",
+        "bytes": 3926,
+        "sha256": "99893fdaf3c94214ef952cd1e0d592242f2b06618480741c00630495854286b6"
+      },
+      {
+        "path": "soft-kernels-simd.wasm",
+        "bytes": 6216,
+        "sha256": "8744df67b629cca4f15e9ff375723d9b6b2d5411df664c42642ec461c2e10c31"
+      },
+      {
+        "path": "studio/materials/brass-basecolor.webp",
+        "bytes": 509944,
+        "sha256": "09400d12cc3b6b5f1afa31c22791e1f52261891d4b2b5d8d636c9e5b0ea91179"
+      },
+      {
+        "path": "studio/materials/brass-normal.webp",
+        "bytes": 631850,
+        "sha256": "5806756ebba24d0925d0809f3e9909582b5243fc83cc76314c995ef2bda3d52f"
+      },
+      {
+        "path": "studio/materials/brass-roughness.webp",
+        "bytes": 227486,
+        "sha256": "4ec3c2e80fecb825d7e1a8c596ca895e46d8034864ef69ed6e7893645b1b5225"
+      },
+      {
+        "path": "studio/materials/bronze-basecolor.jpg",
+        "bytes": 6014877,
+        "sha256": "a679352bd1fc44412030e6448383d53b22afefcc9db367b44731416aac9709a3"
+      },
+      {
+        "path": "studio/materials/bronze-roughness.jpg",
+        "bytes": 4182864,
+        "sha256": "daf950d99070abb3e33ad680cc28c0fe50abf9233af6771006fe645379464f02"
+      },
+      {
+        "path": "studio/materials/cast-concrete.png",
+        "bytes": 3109547,
+        "sha256": "159cb60bb9d150528af34ddc159512b09ecf267e90e6723848b3a6a6a7cc9f7c"
+      },
+      {
+        "path": "studio/materials/cloudrest-basecolor.webp",
+        "bytes": 473664,
+        "sha256": "b8e12e23c519598c1dc3c386d40c1af854900226de1ee0c5de39586ad2f296b3"
+      },
+      {
+        "path": "studio/materials/cloudrest-normal.webp",
+        "bytes": 565460,
+        "sha256": "7c100edf3c5c5385bf9d55514c6b654b4cdbcd22459658372414fa4f35dff378"
+      },
+      {
+        "path": "studio/materials/cloudrest-roughness.webp",
+        "bytes": 183700,
+        "sha256": "a9898e34ec460dca708d19fd4bcbb9160d015012ce70d6f9592ead8f5beece07"
+      },
+      {
+        "path": "studio/materials/copper-basecolor.jpg",
+        "bytes": 7796107,
+        "sha256": "b443ffe00d32795eeaeee12e4fc88193b0e2f3adf40d0d025dbf907755803b36"
+      },
+      {
+        "path": "studio/materials/copper-roughness.jpg",
+        "bytes": 5253769,
+        "sha256": "df54c54257bd1546f7e0e2216b37daf20fc3b23b7f77361066f5761ee6396c7e"
+      },
+      {
+        "path": "studio/materials/copper-sheet-basecolor.webp",
+        "bytes": 1913564,
+        "sha256": "378f8c7bf7dcbf40fc621d6231f988c8d8b151d8995d4785598c40943b52793b"
+      },
+      {
+        "path": "studio/materials/copper-sheet-normal.webp",
+        "bytes": 679754,
+        "sha256": "4ec7648728cff250affd85a74651136d5e3e91d5d5daf1fa7d0569c49d62ac95"
+      },
+      {
+        "path": "studio/materials/copper-sheet-roughness.webp",
+        "bytes": 246494,
+        "sha256": "690a30df5713ea76046a512eced0044a5f4c2fa2627be85428d83f4d011e9daa"
+      },
+      {
+        "path": "studio/materials/forest-floor.png",
+        "bytes": 3907851,
+        "sha256": "f55ec4ace0736104dfe08319f922007f578e246326b3ff34ce8656dfe69e44f5"
+      },
+      {
+        "path": "studio/materials/forged-basecolor.webp",
+        "bytes": 261338,
+        "sha256": "f5b4260e3afac0aa188f9cc4ca5cba5cee936997387a9b89e45257546a7cbfd5"
+      },
+      {
+        "path": "studio/materials/forged-normal.webp",
+        "bytes": 456980,
+        "sha256": "e7193b30aadba8b8de2cbcfcecb3015678ee9280116eba6ef65f81410d0afe49"
+      },
+      {
+        "path": "studio/materials/forged-roughness.webp",
+        "bytes": 129428,
+        "sha256": "0f1946b0272a6d961ab110d2cab238b9130b6e47d4901d42dde191eafd89de19"
+      },
+      {
+        "path": "studio/materials/granite-rock.png",
+        "bytes": 3740427,
+        "sha256": "afc8b48c0d33a7df3fbf45dad99ea5da4d56450d38ac4098cd0d1ca164f76d01"
+      },
+      {
+        "path": "studio/materials/iron-basecolor.webp",
+        "bytes": 1983804,
+        "sha256": "d39232b4b74c85d32776377c26cd34231b8d43a8da3c7aa3695ae2a031b0caa7"
+      },
+      {
+        "path": "studio/materials/iron-normal.webp",
+        "bytes": 846020,
+        "sha256": "8458c41e5edf38badf75673ecbe9445cc3b341b6563cbd4dba5c8495bbcc975c"
+      },
+      {
+        "path": "studio/materials/iron-roughness.webp",
+        "bytes": 281674,
+        "sha256": "efe47e20396b06296045dcacac3d0c80f8fd190d3582a7dcd56f9ecc0b2e441e"
+      },
+      {
+        "path": "studio/materials/ivory-weave.png",
+        "bytes": 2965892,
+        "sha256": "9e37b3e2843830c9952a18f9620f9c02bcb0252a558054fb3c50e2e0916b7361"
+      },
+      {
+        "path": "studio/materials/leather-basecolor.webp",
+        "bytes": 1366786,
+        "sha256": "eaee7a1d6dfe713a83d2e560f2191b4646cdaf156bbaf06806a48324ad5038af"
+      },
+      {
+        "path": "studio/materials/leather-normal.webp",
+        "bytes": 666774,
+        "sha256": "3e273900c59de2a0814a12c737b38fedc451349d4de85cb45ab44e06d2b747ec"
+      },
+      {
+        "path": "studio/materials/leather-roughness.webp",
+        "bytes": 101906,
+        "sha256": "ee321b021f2f8e9ca2b48ef7e06576e1f2735775f675a2be894157ef2749afd3"
+      },
+      {
+        "path": "studio/materials/linen-basecolor.webp",
+        "bytes": 902984,
+        "sha256": "c8942f54025f352e5b10859a4abbd3533aec6b14250fa5d0417e3ed7c476c01a"
+      },
+      {
+        "path": "studio/materials/linen-normal.webp",
+        "bytes": 667400,
+        "sha256": "e00be78f358d9c8aa36e0a166b4d71ee8a557a92b6e62795f911d03b34f77831"
+      },
+      {
+        "path": "studio/materials/linen-roughness.webp",
+        "bytes": 74898,
+        "sha256": "1d24906788b3f4295c46322a3a0e824a410051159fd8efa0a0aa3560ac96e925"
+      },
+      {
+        "path": "studio/materials/machined-metal.png",
+        "bytes": 1959641,
+        "sha256": "fd88bd91f8dbe3144ed6164880cb2030cda5cd57a092dacd8908eaff74e33dc0"
+      },
+      {
+        "path": "studio/materials/navy-basecolor.jpg",
+        "bytes": 5146521,
+        "sha256": "b71966d9e6fb0d019142eacdd53e99a7d7cc56184e3b2eb1e5bda7ac33a2c87e"
+      },
+      {
+        "path": "studio/materials/navy-roughness.jpg",
+        "bytes": 2232520,
+        "sha256": "b57e365fa7bdef6c9e67da09350d650bf01ea45f50f02e041e170f04d52f27b7"
+      },
+      {
+        "path": "studio/materials/oak-foliage.png",
+        "bytes": 2173455,
+        "sha256": "8ce5d1a1692a671a6c3c6c8c8f3a3417711a0bf94b9d397a6c6d3dbfc13abc2c"
+      },
+      {
+        "path": "studio/materials/provenance.json",
+        "bytes": 1516,
+        "sha256": "01a931b4ba53f2415365e0b0afed0d16247abbe84ac17e9da063f4d1fd988359"
+      },
+      {
+        "path": "studio/materials/riverbank-earth.png",
+        "bytes": 3721531,
+        "sha256": "a0ea7103c80e97f6cd3f4c4826a771ac105ebe556a28b2da34fbe53570d60e8a"
+      },
+      {
+        "path": "studio/materials/timber-basecolor.webp",
+        "bytes": 1770394,
+        "sha256": "6fc0d65648338e0de0b42f0dcfc38ada2cdcf868249418727318cfb478496eda"
+      },
+      {
+        "path": "studio/materials/timber-normal.webp",
+        "bytes": 806560,
+        "sha256": "47f2d13aca9a24c5c4bf38aa5e3fe991b41d859c85a2fd3ed484632fdac5b7f6"
+      },
+      {
+        "path": "studio/materials/timber-roughness.webp",
+        "bytes": 182244,
+        "sha256": "12e7d2c1fb6ff2660d464b05eb84db560adeb10113dd0a34b037556f4a822adf"
+      },
+      {
+        "path": "studio/materials/weathered-oak.png",
+        "bytes": 3406903,
+        "sha256": "f02d72e7750d2539fd9daa8552f682dfb5ded9fc226668254fdc9540a4a3e657"
+      },
+      {
+        "path": "studio/models/polyhaven-island-tree-02-browser-lod.glb",
+        "bytes": 6726964,
+        "sha256": "c44d3dab05838f0efaf2294d000d1c484b7b325c541935a0245e1dc536064fb6"
+      },
+      {
+        "path": "studio/models/polyhaven-island-tree-02-mid-lod.glb",
+        "bytes": 1603716,
+        "sha256": "3b3ed3a356c79f04b0d272852da24e249dfcf99edf10ced7d0a3bca0fd2b0da0"
+      },
+      {
+        "path": "studio/models/polyhaven-island-tree-02-woodland-lod.glb",
+        "bytes": 321864,
+        "sha256": "91b8ac5ce5fe0c53a8dd0503eaec0a803b7b7c3919b58031fde151edb6e80684"
+      },
+      {
+        "path": "studio/models/polyhaven-island-tree-02.LICENSE.txt",
+        "bytes": 392,
+        "sha256": "63996b9f26e3999bef76bb39460940d992b7d011df1249e958c356db88f7ca5c"
+      },
+      {
+        "path": "studio/references/bridge-v2-detail.png",
+        "bytes": 3742039,
+        "sha256": "5be5b5dff1bb08b3474fe8c289a53e332dd423464f9344a09f1bcb96530f532f"
+      },
+      {
+        "path": "studio/references/bridge-v2-hero.png",
+        "bytes": 3590949,
+        "sha256": "c90503270f06bed40e97100e4450831a4de2ad49eaf3fb56087903ee3a025c86"
+      },
+      {
+        "path": "studio/references/bridge-v3-approach.png",
+        "bytes": 3480997,
+        "sha256": "a2e50c4feae5c28b1ec3828eab8e299a74539533f79df16ff6d450d1b1e4d20a"
+      },
+      {
+        "path": "studio/references/bridge-v3-hero.png",
+        "bytes": 3681458,
+        "sha256": "a7bab4cd6ae65362fa90f331b59272b6d9b9a8aa92745fdfc5f0fd3f6ab57cb3"
+      },
+      {
+        "path": "studio/references/bridge.png",
+        "bytes": 1967248,
+        "sha256": "c0b9eb4c8bc5cfd4866ee928a70a7ec86644a063ac9ec4235e02b2b8f52099b8"
+      },
+      {
+        "path": "studio/references/canopy.png",
+        "bytes": 1814642,
+        "sha256": "ef890f70db3b32767b8eef563b07b4ed3f7591ded98abd83393345584997d586"
+      },
+      {
+        "path": "studio/references/material-labs/concrete.png",
+        "bytes": 1980007,
+        "sha256": "9ceb15f6c644797c48608e025be4c0372461f995b011d09da09d2eac38baa8a1"
+      },
+      {
+        "path": "studio/references/material-labs/glass.png",
+        "bytes": 2031996,
+        "sha256": "5ebb368ce8a40fb03ac52b83050989b2c3a25868d0efd843fdc0b4164263dcef"
+      },
+      {
+        "path": "studio/references/material-labs/granular.png",
+        "bytes": 2218824,
+        "sha256": "075d4b5e0c925cc6e9a2454c8d615faf5ac0994559bd28b102a8ae66269f91c9"
+      },
+      {
+        "path": "studio/references/material-labs/hall-panorama.png",
+        "bytes": 2321245,
+        "sha256": "7caca63e58dc4a645d2848ad2d5d520f45f7d4cb8ca71ee43434ec6b68c1d30c"
+      },
+      {
+        "path": "studio/references/material-labs/liquid.png",
+        "bytes": 2339196,
+        "sha256": "c8c48f8237593837f445974c4448921a319317ec4ccff5bcbf450e4b751e73c8"
+      },
+      {
+        "path": "studio/references/material-labs/rubber.png",
+        "bytes": 1857825,
+        "sha256": "2db4714a44f5bede3df3a73ce16dcd9dc565e439614872020e61aa9506d3f559"
+      },
+      {
+        "path": "studio/references/plate.png",
+        "bytes": 1575668,
+        "sha256": "63547d1a27495a234707472793faf9d3cf192b9203d09ec51f7d6576f4e2b3e6"
+      },
+      {
+        "path": "textures/material-noise-bc4.ktx2",
+        "bytes": 44160,
+        "sha256": "f68275433411c66ee6f1e3ccb6c63b2572d391871501a0c7243faf3d6f3de7f9"
+      },
+      {
+        "path": "textures/material-noise-r8.ktx2",
+        "bytes": 87840,
+        "sha256": "01f3c5d49333d2f0136f8611593298a4d0c3bd60f98e5f9ba4a71398b2a1abcc"
+      },
+      {
+        "path": "textures/poliigon-materials-albedo-astc.ktx2",
+        "bytes": 603024,
+        "sha256": "878b78308bde84e4c75f7533105bf2c46ab44183a071523c365ddd666a7659eb"
+      },
+      {
+        "path": "textures/poliigon-materials-albedo-rgba8.ktx2",
+        "bytes": 5419176,
+        "sha256": "3a650143cf414921663681990140397a258deb3ba197f38dbe143619e0355e29"
+      },
+      {
+        "path": "textures/poliigon-materials-surface-astc.ktx2",
+        "bytes": 603024,
+        "sha256": "314ef866c168187cbf10e0cc8c7cac4751331aaab754a84ed73ff7d3aa74bb59"
+      },
+      {
+        "path": "textures/poliigon-materials-surface-rgba8.ktx2",
+        "bytes": 5419176,
+        "sha256": "a317190aeb7f0b51b8399415082d6face200daa6344695db7f880634bdecceaf"
+      }
+    ],
+    "bytes": 134412842,
+    "sha256": "af212a9010fed93753ef7f4c2de7f0d9d74ae8b3fe43f5dc03385cb09fc4961b"
+  },
+  "git": {
+    "status": "measured",
+    "head": "dfedd9fe9983200f492d686488d27b6a4b11c650"
+  },
+  "environment": {
+    "runtime": {
+      "status": "measured",
+      "name": "node",
+      "version": "v26.0.0",
+      "versions": {
+        "node": "26.0.0",
+        "acorn": "8.16.0",
+        "ada": "3.4.4",
+        "amaro": "1.1.8",
+        "ares": "1.34.6",
+        "brotli": "1.2.0",
+        "cldr": "48.0",
+        "icu": "78.3",
+        "lief": "0.17.0",
+        "llhttp": "9.4.1",
+        "merve": "1.2.2",
+        "modules": "147",
+        "napi": "10",
+        "nbytes": "0.1.4",
+        "ncrypto": "0.0.1",
+        "nghttp2": "1.69.0",
+        "nghttp3": "",
+        "ngtcp2": "",
+        "openssl": "3.6.3",
+        "simdjson": "4.6.3",
+        "simdutf": "7.7.0",
+        "sqlite": "3.53.0",
+        "tz": "2026a",
+        "undici": "8.0.2",
+        "unicode": "17.0",
+        "uv": "1.52.1",
+        "uvwasi": "0.0.23",
+        "v8": "14.6.202.33-node.19",
+        "zlib": "1.2.12",
+        "zstd": "1.5.7"
+      },
+      "executableSha256": "08dad0581f00a0cabf4d49ec92ca1f25fdfd01c2c18fa8e92b35f04d4c24c164",
+      "execArgv": [],
+      "nodeOptionsSha256": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "nodeOptionsPresent": false,
+      "platform": "darwin",
+      "arch": "arm64",
+      "typescript": "node-native-type-stripping"
+    },
+    "hardware": {
+      "status": "measured",
+      "osType": "Darwin",
+      "osRelease": "27.0.0",
+      "arch": "arm64",
+      "logicalCpus": 32,
+      "cpuModels": [
+        "Apple M3 Ultra"
+      ],
+      "totalMemoryBytes": 103079215104,
+      "physicalGpu": {
+        "status": "unavailable",
+        "reason": "No GPU queried by this CPU-only process"
+      },
+      "thermalState": {
+        "status": "unavailable",
+        "reason": "No thermal sensor collected"
+      },
+      "powerMode": {
+        "status": "unavailable",
+        "reason": "No power mode collected"
+      }
+    },
+    "browser": {
+      "status": "unavailable",
+      "reason": "No browser launched"
+    },
+    "gpu": {
+      "status": "unavailable",
+      "reason": "No GPU device, timestamps, or frame measurements"
+    },
+    "renderer": {
+      "status": "unavailable",
+      "reason": "No renderer executed"
+    }
+  },
+  "identity": {
+    "sourceSha256": "bdb4110d3a8b038590c996df4536c24e210d1359321e5a264f5fb6b172b61b35",
+    "artifactSha256": "0b413f23c22bd839e1b8117ed288a5636478cc7f8f079bf3620a56f7cb22ef1f",
+    "assetSha256": "af212a9010fed93753ef7f4c2de7f0d9d74ae8b3fe43f5dc03385cb09fc4961b",
+    "runtimeSha256": "f85a96162d317f5945579b9a31d233677346d5e0bf5ac1021e9d819d45fff84f",
+    "hardwareSha256": "4df66782d05031f8da2b6bd190b1b8514c3013c95b795cc607aec681a28fd254"
+  },
+  "contentSha256": "5a5feff9df95c9376d74aeb3c2e5fc629b2fb68a16690495d76da4a908c46033"
+}

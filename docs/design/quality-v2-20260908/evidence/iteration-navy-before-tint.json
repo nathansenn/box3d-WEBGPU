@@ -1,0 +1,23 @@
+{
+  "name": "verified-canopy-navy-detail",
+  "at": "2026-09-08T07:50:48.936Z",
+  "broken": "0",
+  "camera": "detail",
+  "deflection": "0.000",
+  "draws": "32",
+  "events": "0",
+  "finish": "canopy-navy",
+  "fps": "136",
+  "frames": "25618",
+  "height": 1058,
+  "horizontalOverflow": false,
+  "lighting": "daylight",
+  "objects": "554",
+  "productionEntry": "index-UfGnfBzt.js",
+  "ready": "true",
+  "study": "canopy",
+  "time": "0.00 s",
+  "triangles": "75943",
+  "url": "http://127.0.0.1:5174/?studio=canopy&theme=precision&finish=canopy-navy&light=daylight&recipe=canopy-tear&camera=detail&quality=ultra",
+  "width": 1487
+}

@@ -1,0 +1,12 @@
+Poly Haven Island Tree 02
+https://polyhaven.com/a/island_tree_02
+
+Authors:
+- Rob Tuytel — scanning, processing
+- Rico Cilliers — cleanup, processing
+
+License: CC0 1.0 Universal
+https://creativecommons.org/publicdomain/zero/1.0/
+
+The browser GLB in this directory is a geometry-reduced, WebP-encoded derivative
+prepared for the Material Forge Three.js runtime. The derivative remains CC0.

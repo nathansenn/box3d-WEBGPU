@@ -1,0 +1,46 @@
+{
+  "recordedAt": "2026-09-09T23:52:52.845Z",
+  "provider": "Railway",
+  "publicUrl": "https://box3d-web-production.up.railway.app",
+  "deploymentId": "c47f3f70-f0b8-4539-9329-c51755958b5d",
+  "imageDigest": "sha256:0cad6ace71753e2955015c69dae389b589a6c50a6ce31b64fd4df926043a9f76",
+  "response": {
+    "customDomainCreate": {
+      "id": "690e7c21-1c13-45eb-bbff-53bf0a6e8db5",
+      "domain": "box3d.apxlabs.parts",
+      "createdAt": "2026-09-09T23:50:43.404Z",
+      "updatedAt": "2026-09-09T23:50:43.404Z",
+      "serviceId": "92f5a1b9-de73-4b6d-b704-5f8816e918ce",
+      "environmentId": "53a876e5-d3f0-4469-a32a-583b123498da",
+      "projectId": "959bb053-cb19-4d0c-9294-d4cc743f10a1",
+      "targetPort": 8080,
+      "syncStatus": "CREATING",
+      "status": {
+        "dnsRecords": [
+          {
+            "hostlabel": "box3d",
+            "fqdn": "box3d.apxlabs.parts",
+            "recordType": "DNS_RECORD_TYPE_CNAME",
+            "requiredValue": "04ooyq9a.up.railway.app",
+            "currentValue": "",
+            "status": "DNS_RECORD_STATUS_REQUIRES_UPDATE",
+            "zone": "apxlabs.parts",
+            "purpose": "DNS_RECORD_PURPOSE_TRAFFIC_ROUTE"
+          }
+        ],
+        "cdnProvider": null,
+        "certificates": [],
+        "certificateStatus": "CERTIFICATE_STATUS_TYPE_VALIDATING_OWNERSHIP",
+        "certificateStatusDetailed": null,
+        "certificateErrorMessage": null,
+        "certificateErrorType": null,
+        "certificateRetryable": null,
+        "verificationToken": "railway-verify=0910c87ad7fc329cac5515a868cd09eca09f858943de6031a72f7526d373bcd8",
+        "verificationDnsHost": "_railway-verify.box3d",
+        "verified": false
+      }
+    }
+  },
+  "githubMutations": [],
+  "dnsOwner": "01a08799-565d-75b3-81e0-a32b8c30ea32"
+}

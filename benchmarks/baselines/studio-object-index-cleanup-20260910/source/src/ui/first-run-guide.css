@@ -1,0 +1,155 @@
+/* Corner first-run card. Does not trap pointer or focus — the rest of the UI stays live. */
+
+.frg {
+  --frg-bg: #0c1012;
+  --frg-text: #f7f8f6;
+  --frg-line: #6a7376;
+  --frg-orange: #ff7900;
+  --frg-cyan: #29c8ff;
+  --frg-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  position: fixed;
+  z-index: 40;
+  left: max(12px, env(safe-area-inset-left, 0px));
+  bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  width: min(340px, calc(100% - 24px));
+  pointer-events: none;
+  font: 14px/1.4 var(--frg-sans);
+  color: var(--frg-text);
+  color-scheme: dark;
+  isolation: isolate;
+}
+
+.frg *,
+.frg *::before,
+.frg *::after { box-sizing: border-box; }
+
+.frg-card {
+  pointer-events: auto;
+  display: grid;
+  gap: 12px;
+  padding: 14px 14px 12px;
+  border: 1px solid var(--frg-line);
+  border-radius: 10px;
+  background: var(--frg-bg);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+}
+
+.frg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.frg-title {
+  margin: 0;
+  font: 700 16px/1.2 var(--frg-sans);
+  letter-spacing: 0.01em;
+  color: var(--frg-text);
+}
+
+.frg-dismiss,
+.frg-btn {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  min-height: 44px;
+  border-radius: 6px;
+}
+
+.frg-dismiss:focus-visible,
+.frg-btn:focus-visible {
+  outline: 2px solid var(--frg-orange);
+  outline-offset: 2px;
+}
+
+.frg-dismiss {
+  flex: 0 0 auto;
+  border: 1px solid var(--frg-line);
+  padding: 0 12px;
+  background: transparent;
+  color: var(--frg-text);
+  font-weight: 700;
+}
+
+.frg-dismiss:hover {
+  border-color: var(--frg-text);
+  background: #1a2022;
+}
+
+.frg-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: frg-step;
+  display: grid;
+  gap: 8px;
+}
+
+.frg-steps li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  color: var(--frg-text);
+  font-weight: 600;
+}
+
+.frg-steps li::before {
+  counter-increment: frg-step;
+  content: counter(frg-step);
+  color: var(--frg-orange);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+}
+
+.frg-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.frg-btn {
+  border: 1px solid var(--frg-line);
+  padding: 0 8px;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+}
+
+.frg-btn-primary {
+  border-color: var(--frg-orange);
+  background: var(--frg-orange);
+  color: #140800;
+}
+
+.frg-btn-primary:hover { filter: brightness(1.08); }
+
+.frg-btn-accent {
+  border-color: var(--frg-cyan);
+  background: #08222c;
+  color: var(--frg-cyan);
+}
+
+.frg-btn-accent:hover { background: #0c3140; }
+
+.frg-btn-ghost {
+  background: #171c1e;
+  color: var(--frg-text);
+}
+
+.frg-btn-ghost:hover { background: #23292c; }
+
+@media (max-width: 420px) {
+  .frg {
+    left: max(8px, env(safe-area-inset-left, 0px));
+    right: max(8px, env(safe-area-inset-right, 0px));
+    width: auto;
+  }
+
+  .frg-actions { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frg-btn-primary:hover { filter: none; }
+}

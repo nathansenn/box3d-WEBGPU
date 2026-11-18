@@ -1,0 +1,106 @@
+{
+  "at": "2026-09-09T23:51:40.536885+00:00",
+  "base": "https://box3d-web-production.up.railway.app",
+  "checks": [
+    {
+      "path": "index.html",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "cacheControl": "public, max-age=0, must-revalidate",
+      "bytes": 671,
+      "sha256": "2e1c609831033dabef3e386521911a62ec0888db6f1a6cdff02b5fb535b8b2e8",
+      "frozenMatch": true
+    },
+    {
+      "path": "release-info.json",
+      "status": 200,
+      "contentType": "application/json",
+      "cacheControl": "public, max-age=0, must-revalidate",
+      "bytes": 599,
+      "sha256": "6741567b44c29232103b5cfa9b5a9489a83039d07b5e8701f02ff0555a54abf7",
+      "frozenMatch": true
+    },
+    {
+      "path": "assets/index-DaNDYoQL.js",
+      "status": 200,
+      "contentType": "text/javascript; charset=utf-8",
+      "cacheControl": "public, max-age=0, must-revalidate",
+      "bytes": 3630,
+      "sha256": "9fe1468736b6dbab11fdfa98f5d4dbf38417e8dea7843d3da07497d411ff274d",
+      "frozenMatch": true
+    },
+    {
+      "path": "assets/main-hCPXY_Js.js",
+      "status": 200,
+      "contentType": "text/javascript; charset=utf-8",
+      "cacheControl": "public, max-age=0, must-revalidate",
+      "bytes": 69172,
+      "sha256": "63db8160a19cf1768cd63acdf545eb2314c417b73a097cb6758564b4f702aa6b",
+      "frozenMatch": true
+    },
+    {
+      "path": "assets/main-DAz6IQYJ.js",
+      "status": 200,
+      "contentType": "text/javascript; charset=utf-8",
+      "cacheControl": "public, max-age=0, must-revalidate",
+      "bytes": 255725,
+      "sha256": "f92599a2fade2ae8589e8eaa7d98e673fd07cab4b7a284a3a9669c3df261ebb9",
+      "frozenMatch": true
+    },
+    {
+      "path": "assets/studio-worker-CiVNd5Bm.js",
+      "status": 200,
+      "contentType": "text/javascript; charset=utf-8",
+      "cacheControl": "public, max-age=0, must-revalidate",
+      "bytes": 38630,
+      "sha256": "80fd3ffeef713fa62e350bcaf3fe1a22f1c71c5b0436f24c583f978d4e837b58",
+      "frozenMatch": true
+    },
+    {
+      "path": "assets/main-CdO9fxmE.css",
+      "status": 200,
+      "contentType": "text/css; charset=utf-8",
+      "cacheControl": "public, max-age=0, must-revalidate",
+      "bytes": 16963,
+      "sha256": "c5b24e2a8129e8090cc7422f74421cae91d1dfb4bf4c2a92fed88519c0e1bede",
+      "frozenMatch": true
+    },
+    {
+      "path": "studio/references/material-labs/hall-panorama.png",
+      "status": 200,
+      "contentType": "image/png",
+      "bytes": 2321245,
+      "lengthMatch": true
+    },
+    {
+      "path": "studio/references/material-labs/glass.png",
+      "status": 200,
+      "contentType": "image/png",
+      "bytes": 2031996,
+      "lengthMatch": true
+    },
+    {
+      "path": "studio/models/polyhaven-island-tree-02-woodland-lod.glb",
+      "status": 200,
+      "contentType": "model/gltf-binary",
+      "bytes": 321864,
+      "lengthMatch": true
+    },
+    {
+      "path": ".git/config",
+      "status": 404,
+      "correctlyAbsent": true
+    },
+    {
+      "path": "Dockerfile",
+      "status": 404,
+      "correctlyAbsent": true
+    },
+    {
+      "path": "missing-worker.js",
+      "status": 404,
+      "correctlyAbsent": true
+    }
+  ],
+  "pass": true
+}

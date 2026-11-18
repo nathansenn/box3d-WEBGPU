@@ -1,0 +1,29 @@
+{
+  "deskBox": {
+    "bottom": 677,
+    "height": 486.5,
+    "left": 839,
+    "right": 1257,
+    "top": 190.5,
+    "width": 418,
+    "x": 839,
+    "y": 190.5
+  },
+  "focus": "05Load 5.00Collapsed6.200−",
+  "focusBox": {
+    "bottom": 611,
+    "height": 34,
+    "left": 856,
+    "right": 1240,
+    "top": 577,
+    "width": 384,
+    "x": 856,
+    "y": 577
+  },
+  "scriptAssets": [
+    "http://127.0.0.1:5186/assets/index-BIYayMXJ.js"
+  ],
+  "scrollWidth": 1280,
+  "status": "5 of 5 complete · 30 s per case",
+  "width": 1280
+}

@@ -1,0 +1,76 @@
+{
+  "schema": "box3d.math-speed-outcomes/1",
+  "at": "2026-09-11T02:37:36.356959+00:00",
+  "auditSourceHash": "d6884c8458ab7677de6355eb540b8082038a326242d9cebaaf679f33bcef27b0",
+  "summary": "M009 is implemented and enabled for fresh Studio UI runs. Its compensated three-component norm preserves 1,884 sampled physical checkpoints across 38 Node scenarios plus mass/load edits, and 240 browser checkpoint samples. Controlled CPU throughput is 1.387\u00d7 for the default press, 1.397\u00d7 for the aluminum-draw preset, 1.469\u00d7 for canopy and 1.359\u00d7 for bridge; all controls and legacy performance gates pass. These are physics-step measurements, not browser FPS. Forty-two production tests, TypeScript and native WebGPU run/replay/pause/reset checks pass. M001 and the combined M003/M004/M020 trial were rejected and retained; M018, M064 and M097 now have a qualified analytical working-tool query and normal-response foundation: 4,800 mesh distance samples and 3,680 complete sweeps pass, with full Studio integration still open. Controlled query throughput is 1.363 times the preceding analytical candidate across 2,395 common-resolved oblique cases, with all tool, unchanged-control and p95 gates passing; this is a standalone query measurement. The other 92 entries remain proposals. The original engine roadmap status is unchanged.",
+  "items": {
+    "M001": {
+      "status": "candidate rejected; original strain arithmetic retained",
+      "evidence": [
+        "benchmarks/experiments/math-speed-audit-20260911/restoration.json",
+        "benchmarks/experiments/math-speed-audit-20260911/strain-timing/result.json"
+      ]
+    },
+    "M009": {
+      "status": "implemented; bounded CPU, numerical and browser checks passed",
+      "evidence": [
+        "docs/STUDIO_NORM3.md",
+        "benchmarks/experiments/studio-norm3-integration-20260911-03/timing/review.json",
+        "benchmarks/experiments/studio-norm3-integration-20260911-03/application-review.json"
+      ]
+    },
+    "M003": {
+      "status": "combined contact-reuse trial rejected; individual proposal remains open",
+      "evidence": [
+        "benchmarks/experiments/studio-contact-weights-20260911/review.json"
+      ]
+    },
+    "M004": {
+      "status": "combined contact-reuse trial rejected; individual proposal remains open",
+      "evidence": [
+        "benchmarks/experiments/studio-contact-weights-20260911/review.json"
+      ]
+    },
+    "M020": {
+      "status": "combined contact-reuse trial rejected; individual proposal remains open",
+      "evidence": [
+        "benchmarks/experiments/studio-contact-weights-20260911/review.json"
+      ]
+    },
+    "M018": {
+      "status": "partial; all-tool continuous sphere queries qualified; Studio integration open",
+      "evidence": [
+        "docs/PRESS_CONTACT.md",
+        "benchmarks/experiments/press-contact-20260911-07/mesh-result.json",
+        "benchmarks/experiments/press-contact-20260911-07/result.json",
+        "benchmarks/experiments/press-contact-20260911-07/timing/review.json"
+      ],
+      "source": {
+        "path": "src/engine/press-contact.ts",
+        "anchor": "  sweep("
+      }
+    },
+    "M064": {
+      "status": "partial; analytical normals and guided-ram correction tested; Studio integration open",
+      "evidence": [
+        "docs/PRESS_CONTACT.md",
+        "tests/engine/press-contact.test.mjs"
+      ],
+      "source": {
+        "path": "src/engine/press-contact.ts",
+        "anchor": "export function pressNormalCorrection("
+      }
+    },
+    "M097": {
+      "status": "partial; independent press geometry and sphere-cast oracle qualified; full simulation audit open",
+      "evidence": [
+        "benchmarks/experiments/press-contact-20260911-07/geometry-decision.json",
+        "docs/PRESS_CONTACT.md"
+      ],
+      "source": {
+        "path": "tests/engine/press-contact.test.mjs",
+        "anchor": "test('normal correction includes"
+      }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "at": "2026-09-10T00:00:48.875Z",
+  "provider": "Browserless",
+  "owner": "01a07e7b-23c9-72e1-a62e-b780ac76623f",
+  "study": "plate",
+  "base": "https://box3d-web-production.up.railway.app/",
+  "publicDeploymentOnly": true,
+  "privateTransport": false,
+  "errors": [],
+  "workers": [
+    "https://box3d-web-production.up.railway.app/assets/studio-worker-CiVNd5Bm.js"
+  ],
+  "result": {
+    "title": "BOX3D — Engineering Studio",
+    "url": "https://box3d-web-production.up.railway.app/?studio=plate&theme=atelier&finish=plate-machined&light=softbox&recipe=plate-fracture&camera=hero&quality=balanced&surroundings=hall-concrete&layout=reference&metal=mild-steel&thickness=2&tool=round&toolSize=1&toolAngle=0&pressure=80&strike=50&stroke=130&hold=2",
+    "ready": "true",
+    "renderer": "WebGL 2 renderer · worker",
+    "simulationMode": "worker",
+    "phase": "Ready to simulate",
+    "studies": 8,
+    "experiments": 0,
+    "canvas": [
+      {
+        "width": 837,
+        "height": 505
+      },
+      {
+        "width": 300,
+        "height": 150
+      }
+    ],
+    "overflow": false,
+    "legacyLinks": 0
+  },
+  "cleanup": "Shared helper returned after closing the remote context and browser",
+  "pass": true
+}

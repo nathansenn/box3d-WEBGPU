@@ -1,0 +1,663 @@
+[
+  {
+    "name": "01-hero-workspace",
+    "broken": "0",
+    "deflection": "0.000",
+    "horizontalOverflow": false,
+    "renderer": "WebGL 2 renderer",
+    "scripts": [
+      "./assets/index-DBcNSnY5.js"
+    ],
+    "size": [
+      1280,
+      720
+    ],
+    "state": {
+      "camera": "river-hero",
+      "cameraPose": "{\"position\":[-41,8.120000000000001,23.799999999999994],\"target\":[-13,7.000000000000002,0],\"fov\":55}",
+      "deskPanel": "test",
+      "drawCalls": "111",
+      "finish": "bridge-weathered",
+      "fps": "5",
+      "lighting": "woodland-daylight",
+      "phase": "ready",
+      "quality": "ultra",
+      "recipe": "bridge-service",
+      "renderFrames": "1065",
+      "renderReady": "true",
+      "riverAnimate": "false",
+      "riverFlow": "1",
+      "riverFoam": "1",
+      "riverTime": "0.000",
+      "riverWave": "1",
+      "running": "false",
+      "sceneObjects": "64704",
+      "setup": "custom",
+      "study": "bridge",
+      "surroundings": "valley-stream",
+      "theme": "observatory",
+      "triangles": "16422263"
+    },
+    "url": "http://127.0.0.1:5184/?studio=bridge&theme=observatory&finish=bridge-weathered&light=woodland-daylight&recipe=bridge-service&camera=river-hero&quality=ultra&surroundings=valley-stream&layout=reference&water=academy&flow=1&wave=1&foam=1&flowMotion=0",
+    "capture": "captures/01-hero-workspace.jpg",
+    "captureSha256": "608bab4f25f75694bf58a3772d5c8034c9b4c46dcbcb93c4bb298f41dbfe4698",
+    "imageSize": [
+      1280,
+      720
+    ]
+  },
+  {
+    "name": "02-hero-focus",
+    "broken": "0",
+    "deflection": "0.000",
+    "horizontalOverflow": false,
+    "renderer": "WebGL 2 renderer",
+    "scripts": [
+      "./assets/index-DBcNSnY5.js"
+    ],
+    "size": [
+      1280,
+      720
+    ],
+    "state": {
+      "camera": "river-hero",
+      "cameraPose": "{\"position\":[-33,7.800000000000002,16.999999999999996],\"target\":[-13,7.000000000000002,0],\"fov\":55}",
+      "deskPanel": "test",
+      "drawCalls": "111",
+      "finish": "bridge-weathered",
+      "fps": "22",
+      "lighting": "woodland-daylight",
+      "phase": "ready",
+      "quality": "ultra",
+      "recipe": "bridge-service",
+      "renderFrames": "1226",
+      "renderReady": "true",
+      "riverAnimate": "false",
+      "riverFlow": "1",
+      "riverFoam": "1",
+      "riverTime": "0.000",
+      "riverWave": "1",
+      "running": "false",
+      "sceneObjects": "64704",
+      "setup": "custom",
+      "study": "bridge",
+      "surroundings": "valley-stream",
+      "theme": "observatory",
+      "triangles": "16422263"
+    },
+    "url": "http://127.0.0.1:5184/?studio=bridge&theme=observatory&finish=bridge-weathered&light=woodland-daylight&recipe=bridge-service&camera=river-hero&quality=ultra&surroundings=valley-stream&layout=reference&water=academy&flow=1&wave=1&foam=1&flowMotion=0",
+    "capture": "captures/02-hero-focus.jpg",
+    "captureSha256": "dcec05919ffa7d836343574df82816a17fcb0f2500bd4cc7bd0eed4f56c527ac",
+    "imageSize": [
+      1280,
+      720
+    ]
+  },
+  {
+    "name": "03-approach-workspace",
+    "broken": "0",
+    "deflection": "0.000",
+    "horizontalOverflow": false,
+    "renderer": "WebGL 2 renderer",
+    "scripts": [
+      "./assets/index-DBcNSnY5.js"
+    ],
+    "size": [
+      1280,
+      720
+    ],
+    "state": {
+      "camera": "approach",
+      "cameraPose": "{\"position\":[-46.0999999999999,7.6099999999999985,9.349999999999971],\"target\":[-12,6.4,0],\"fov\":51}",
+      "deskPanel": "test",
+      "drawCalls": "111",
+      "finish": "bridge-weathered",
+      "fps": "14",
+      "lighting": "woodland-daylight",
+      "phase": "ready",
+      "quality": "ultra",
+      "recipe": "bridge-service",
+      "renderFrames": "1298",
+      "renderReady": "true",
+      "riverAnimate": "false",
+      "riverFlow": "1",
+      "riverFoam": "1",
+      "riverTime": "0.000",
+      "riverWave": "1",
+      "running": "false",
+      "sceneObjects": "64704",
+      "setup": "custom",
+      "study": "bridge",
+      "surroundings": "valley-stream",
+      "theme": "observatory",
+      "triangles": "16422263"
+    },
+    "url": "http://127.0.0.1:5184/?studio=bridge&theme=observatory&finish=bridge-weathered&light=woodland-daylight&recipe=bridge-service&camera=approach&quality=ultra&surroundings=valley-stream&layout=reference&water=academy&flow=1&wave=1&foam=1&flowMotion=0",
+    "capture": "captures/03-approach-workspace.jpg",
+    "captureSha256": "83653e5a1da388cbbe427a1d8e910b0154e8b035e772526a367117a56326b87d",
+    "imageSize": [
+      1280,
+      720
+    ]
+  },
+  {
+    "name": "04-approach-focus",
+    "broken": "0",
+    "deflection": "0.000",
+    "horizontalOverflow": false,
+    "renderer": "WebGL 2 renderer",
+    "scripts": [
+      "./assets/index-DBcNSnY5.js"
+    ],
+    "size": [
+      1280,
+      720
+    ],
+    "state": {
+      "camera": "approach",
+      "cameraPose": "{\"position\":[-43,7.500000000000002,8.5],\"target\":[-12,6.4,0],\"fov\":51}",
+      "deskPanel": "test",
+      "drawCalls": "111",
+      "finish": "bridge-weathered",
+      "fps": "9",
+      "lighting": "woodland-daylight",
+      "phase": "ready",
+      "quality": "ultra",
+      "recipe": "bridge-service",
+      "renderFrames": "1426",
+      "renderReady": "true",
+      "riverAnimate": "false",
+      "riverFlow": "1",
+      "riverFoam": "1",
+      "riverTime": "0.000",
+      "riverWave": "1",
+      "running": "false",
+      "sceneObjects": "64704",
+      "setup": "custom",
+      "study": "bridge",
+      "surroundings": "valley-stream",
+      "theme": "observatory",
+      "triangles": "16422263"
+    },
+    "url": "http://127.0.0.1:5184/?studio=bridge&theme=observatory&finish=bridge-weathered&light=woodland-daylight&recipe=bridge-service&camera=approach&quality=ultra&surroundings=valley-stream&layout=reference&water=academy&flow=1&wave=1&foam=1&flowMotion=0",
+    "capture": "captures/04-approach-focus.jpg",
+    "captureSha256": "14d6990d67193d7b27c273d32e3ca90b6025096da5b9853f1405eade15e0b4b2",
+    "imageSize": [
+      1280,
+      720
+    ]
+  },
+  {
+    "name": "05-reverse",
+    "broken": "0",
+    "deflection": "0.000",
+    "horizontalOverflow": false,
+    "renderer": "WebGL 2 renderer",
+    "scripts": [
+      "./assets/index-DBcNSnY5.js"
+    ],
+    "size": [
+      1280,
+      720
+    ],
+    "state": {
+      "camera": "reverse",
+      "cameraPose": "{\"position\":[16.000000000000004,31.999999999999993,-48],\"target\":[0,6,0],\"fov\":48}",
+      "deskPanel": "test",
+      "drawCalls": "111",
+      "finish": "bridge-weathered",
+      "fps": "22",
+      "lighting": "woodland-daylight",
+      "phase": "ready",
+      "quality": "ultra",
+      "recipe": "bridge-service",
+      "renderFrames": "1483",
+      "renderReady": "true",
+      "riverAnimate": "false",
+      "riverFlow": "1",
+      "riverFoam": "1",
+      "riverTime": "0.000",
+      "riverWave": "1",
+      "running": "false",
+      "sceneObjects": "64704",
+      "setup": "custom",
+      "study": "bridge",
+      "surroundings": "valley-stream",
+      "theme": "observatory",
+      "triangles": "16422263"
+    },
+    "url": "http://127.0.0.1:5184/?studio=bridge&theme=observatory&finish=bridge-weathered&light=woodland-daylight&recipe=bridge-service&camera=reverse&quality=ultra&surroundings=valley-stream&layout=reference&water=academy&flow=1&wave=1&foam=1&flowMotion=0",
+    "capture": "captures/05-reverse.jpg",
+    "captureSha256": "cba6442728cab2cee008b6ae334b51ce8fc39d7c0b10302a7228ab9e929645cd",
+    "imageSize": [
+      1280,
+      720
+    ]
+  },
+  {
+    "name": "06-bearing",
+    "broken": "0",
+    "deflection": "0.000",
+    "horizontalOverflow": false,
+    "renderer": "WebGL 2 renderer",
+    "scripts": [
+      "./assets/index-DBcNSnY5.js"
+    ],
+    "size": [
+      1280,
+      720
+    ],
+    "state": {
+      "camera": "bearing",
+      "cameraPose": "{\"position\":[-27,5.4,9.500000000000002],\"target\":[-20,3.200000000000001,0],\"fov\":48}",
+      "deskPanel": "test",
+      "drawCalls": "111",
+      "finish": "bridge-weathered",
+      "fps": "2",
+      "lighting": "woodland-daylight",
+      "phase": "ready",
+      "quality": "ultra",
+      "recipe": "bridge-service",
+      "renderFrames": "1637",
+      "renderReady": "true",
+      "riverAnimate": "false",
+      "riverFlow": "1",
+      "riverFoam": "1",
+      "riverTime": "0.000",
+      "riverWave": "1",
+      "running": "false",
+      "sceneObjects": "64704",
+      "setup": "custom",
+      "study": "bridge",
+      "surroundings": "valley-stream",
+      "theme": "observatory",
+      "triangles": "16422263"
+    },
+    "url": "http://127.0.0.1:5184/?studio=bridge&theme=observatory&finish=bridge-weathered&light=woodland-daylight&recipe=bridge-service&camera=bearing&quality=ultra&surroundings=valley-stream&layout=reference&water=academy&flow=1&wave=1&foam=1&flowMotion=0",
+    "capture": "captures/06-bearing.jpg",
+    "captureSha256": "82cb635b9b9522dc52ac13ccb9377841e96cc591c44ca0b80b55c5fb4dd09b26",
+    "imageSize": [
+      1280,
+      720
+    ]
+  },
+  {
+    "name": "07-collapse",
+    "broken": "27",
+    "deflection": "6.200",
+    "horizontalOverflow": false,
+    "renderer": "WebGL 2 renderer",
+    "scripts": [
+      "./assets/index-DBcNSnY5.js"
+    ],
+    "size": [
+      1280,
+      720
+    ],
+    "state": {
+      "camera": "river-hero",
+      "cameraPose": "{\"position\":[-41,8.120000000000001,23.799999999999994],\"target\":[-13,7.000000000000002,0],\"fov\":55}",
+      "deskBusy": "false",
+      "deskPanel": "test",
+      "drawCalls": "111",
+      "finish": "bridge-weathered",
+      "fps": "5",
+      "lighting": "woodland-daylight",
+      "phase": "collapsed",
+      "quality": "ultra",
+      "recipe": "custom",
+      "renderFrames": "2123",
+      "renderReady": "true",
+      "riverAnimate": "false",
+      "riverFlow": "1",
+      "riverFoam": "1",
+      "riverTime": "0.000",
+      "riverWave": "1",
+      "running": "false",
+      "sceneObjects": "64704",
+      "setup": "custom",
+      "study": "bridge",
+      "surroundings": "valley-stream",
+      "theme": "observatory",
+      "triangles": "16422263"
+    },
+    "url": "http://127.0.0.1:5184/?studio=bridge&theme=observatory&finish=bridge-weathered&light=woodland-daylight&recipe=bridge-collapse&camera=river-hero&quality=ultra&surroundings=valley-stream&layout=reference&water=academy&flow=1&wave=1&foam=1&flowMotion=0&custom=1&target=4&strength=1&wind=0.25&speed=2",
+    "capture": "captures/07-collapse.jpg",
+    "captureSha256": "3a894b9db6e226049791085b691635c9d74e179732476cbe57430fbccc74bfd1",
+    "imageSize": [
+      1280,
+      720
+    ]
+  },
+  {
+    "name": "12-replay-start",
+    "broken": "0",
+    "deflection": "0.000",
+    "horizontalOverflow": false,
+    "renderer": "WebGL 2 renderer",
+    "scripts": [
+      "./assets/index-DBcNSnY5.js"
+    ],
+    "size": [
+      1280,
+      720
+    ],
+    "state": {
+      "camera": "river-hero",
+      "cameraPose": "{\"position\":[-41,8.120000000000001,23.799999999999994],\"target\":[-13,7.000000000000002,0],\"fov\":55}",
+      "deskBusy": "false",
+      "deskPanel": "test",
+      "drawCalls": "111",
+      "finish": "bridge-weathered",
+      "fps": "6",
+      "lighting": "woodland-daylight",
+      "phase": "ready",
+      "quality": "ultra",
+      "recipe": "custom",
+      "renderFrames": "2127",
+      "renderReady": "true",
+      "riverAnimate": "false",
+      "riverFlow": "1",
+      "riverFoam": "1",
+      "riverTime": "0.000",
+      "riverWave": "1",
+      "running": "false",
+      "sceneObjects": "64704",
+      "setup": "custom",
+      "study": "bridge",
+      "surroundings": "valley-stream",
+      "theme": "observatory",
+      "triangles": "16422263"
+    },
+    "url": "http://127.0.0.1:5184/?studio=bridge&theme=observatory&finish=bridge-weathered&light=woodland-daylight&recipe=bridge-collapse&camera=river-hero&quality=ultra&surroundings=valley-stream&layout=reference&water=academy&flow=1&wave=1&foam=1&flowMotion=0&custom=1&target=4&strength=1&wind=0.25&speed=2",
+    "capture": "captures/12-replay-start.jpg",
+    "captureSha256": "57d264d84b634e6bf9e654a779d55e952e0ba2a0a8c6252f28c6f59cb5e1a7ee",
+    "imageSize": [
+      1280,
+      720
+    ]
+  },
+  {
+    "name": "08-reference-compare",
+    "broken": "0",
+    "deflection": "0.000",
+    "horizontalOverflow": false,
+    "renderer": "WebGL 2 renderer",
+    "scripts": [
+      "./assets/index-DBcNSnY5.js"
+    ],
+    "size": [
+      1280,
+      720
+    ],
+    "state": {
+      "camera": "approach",
+      "cameraPose": "{\"position\":[-46.0999999999999,7.6099999999999985,9.349999999999971],\"target\":[-12,6.4,0],\"fov\":51}",
+      "deskBusy": "false",
+      "deskPanel": "test",
+      "drawCalls": "111",
+      "finish": "bridge-weathered",
+      "fps": "15",
+      "lighting": "woodland-daylight",
+      "phase": "ready",
+      "quality": "ultra",
+      "recipe": "custom",
+      "renderFrames": "2225",
+      "renderReady": "true",
+      "riverAnimate": "false",
+      "riverFlow": "1",
+      "riverFoam": "1",
+      "riverTime": "0.000",
+      "riverWave": "1",
+      "running": "false",
+      "sceneObjects": "64704",
+      "setup": "custom",
+      "study": "bridge",
+      "surroundings": "valley-stream",
+      "theme": "observatory",
+      "triangles": "16422263"
+    },
+    "url": "http://127.0.0.1:5184/?studio=bridge&theme=observatory&finish=bridge-weathered&light=woodland-daylight&recipe=bridge-collapse&camera=approach&quality=ultra&surroundings=valley-stream&layout=reference&water=academy&flow=1&wave=1&foam=1&flowMotion=0&custom=1&target=4&strength=1&wind=0.25&speed=2",
+    "capture": "captures/08-reference-compare.jpg",
+    "captureSha256": "cd056d93dec98d12879c3bf9856285de98a1379b9bc5b389e4bd5d93114dc947",
+    "imageSize": [
+      1280,
+      720
+    ]
+  },
+  {
+    "name": "09-phone-approach",
+    "broken": "0",
+    "deflection": "0.000",
+    "horizontalOverflow": false,
+    "renderer": "WebGL 2 renderer",
+    "scripts": [
+      "./assets/index-DBcNSnY5.js"
+    ],
+    "size": [
+      390,
+      844
+    ],
+    "state": {
+      "camera": "approach",
+      "cameraPose": "{\"position\":[-50.25,11.840000000000007,4.699999999999998],\"target\":[-15.000000000000005,6.200000000000004,0],\"fov\":59}",
+      "deskPanel": "test",
+      "drawCalls": "111",
+      "finish": "bridge-weathered",
+      "fps": "31",
+      "lighting": "woodland-daylight",
+      "phase": "ready",
+      "quality": "ultra",
+      "recipe": "bridge-service",
+      "renderFrames": "3158",
+      "renderReady": "true",
+      "riverAnimate": "true",
+      "riverFlow": "1",
+      "riverFoam": "1",
+      "riverTime": "125.901",
+      "riverWave": "1",
+      "running": "false",
+      "sceneObjects": "64704",
+      "setup": "setup-bridge-woodland-road",
+      "study": "bridge",
+      "surroundings": "valley-stream",
+      "theme": "observatory",
+      "triangles": "16422263"
+    },
+    "url": "http://127.0.0.1:5184/?studio=bridge&theme=observatory&finish=bridge-weathered&light=woodland-daylight&recipe=bridge-service&camera=approach&quality=ultra&surroundings=valley-stream&layout=reference&water=academy&flow=1&wave=1&foam=1&flowMotion=1&setup=setup-bridge-woodland-road",
+    "capture": "captures/09-phone-approach.png",
+    "captureSha256": "c9a3b2360079e720ca80916933852ec245f91f9f033bec25dd6262bfd6919f42",
+    "imageSize": [
+      390,
+      844
+    ]
+  },
+  {
+    "name": "10-phone-scene",
+    "broken": "0",
+    "deflection": "0.000",
+    "horizontalOverflow": false,
+    "renderer": "WebGL 2 renderer",
+    "scripts": [
+      "./assets/index-DBcNSnY5.js"
+    ],
+    "size": [
+      390,
+      844
+    ],
+    "state": {
+      "camera": "approach",
+      "cameraPose": "{\"position\":[-50.25,11.840000000000007,4.699999999999998],\"target\":[-15.000000000000005,6.200000000000004,0],\"fov\":59}",
+      "deskPanel": "test",
+      "drawCalls": "111",
+      "finish": "bridge-weathered",
+      "fps": "31",
+      "lighting": "woodland-daylight",
+      "phase": "ready",
+      "quality": "ultra",
+      "recipe": "bridge-service",
+      "renderFrames": "3136",
+      "renderReady": "true",
+      "riverAnimate": "true",
+      "riverFlow": "1",
+      "riverFoam": "1",
+      "riverTime": "125.234",
+      "riverWave": "1",
+      "running": "false",
+      "sceneObjects": "64704",
+      "setup": "setup-bridge-woodland-road",
+      "study": "bridge",
+      "surroundings": "valley-stream",
+      "theme": "observatory",
+      "triangles": "16422263"
+    },
+    "url": "http://127.0.0.1:5184/?studio=bridge&theme=observatory&finish=bridge-weathered&light=woodland-daylight&recipe=bridge-service&camera=approach&quality=ultra&surroundings=valley-stream&layout=reference&water=academy&flow=1&wave=1&foam=1&flowMotion=1&setup=setup-bridge-woodland-road",
+    "capture": "captures/10-phone-scene.png",
+    "captureSha256": "6b93fd943d9a64e6109ef5075f82f87216da6996a37a0fef329c501a2964f51f",
+    "imageSize": [
+      390,
+      844
+    ]
+  },
+  {
+    "name": "11-phone-hero",
+    "broken": "0",
+    "deflection": "0.000",
+    "horizontalOverflow": false,
+    "renderer": "WebGL 2 renderer",
+    "scripts": [
+      "./assets/index-DBcNSnY5.js"
+    ],
+    "size": [
+      390,
+      844
+    ],
+    "state": {
+      "camera": "river-hero",
+      "cameraPose": "{\"position\":[0,50.37500000000001,83.425],\"target\":[0,6,0],\"fov\":55}",
+      "deskPanel": "environment",
+      "drawCalls": "111",
+      "finish": "bridge-weathered",
+      "fps": "26",
+      "lighting": "woodland-daylight",
+      "phase": "ready",
+      "quality": "ultra",
+      "recipe": "bridge-service",
+      "renderFrames": "3497",
+      "renderReady": "true",
+      "riverAnimate": "true",
+      "riverFlow": "1",
+      "riverFoam": "1",
+      "riverTime": "139.122",
+      "riverWave": "1",
+      "running": "false",
+      "sceneObjects": "64704",
+      "setup": "custom",
+      "study": "bridge",
+      "surroundings": "valley-stream",
+      "theme": "observatory",
+      "triangles": "16422263"
+    },
+    "url": "http://127.0.0.1:5184/?studio=bridge&theme=observatory&finish=bridge-weathered&light=woodland-daylight&recipe=bridge-service&camera=river-hero&quality=ultra&surroundings=valley-stream&layout=reference&water=academy&flow=1&wave=1&foam=1&flowMotion=1",
+    "capture": "captures/11-phone-hero.png",
+    "captureSha256": "9ea4fd86762fa91664e941e779542158ab4d78275f78e875ab0f80dbe4e88af9",
+    "imageSize": [
+      390,
+      844
+    ]
+  },
+  {
+    "name": "13-canopy-smoke",
+    "broken": "0",
+    "deflection": "0.000",
+    "horizontalOverflow": false,
+    "renderer": "WebGL 2 renderer",
+    "scripts": [
+      "./assets/index-DBcNSnY5.js"
+    ],
+    "size": [
+      1280,
+      720
+    ],
+    "state": {
+      "camera": "hero",
+      "cameraPose": "{\"position\":[12.899999999999991,12.799999999999995,14.599999999999987],\"target\":[0,3.1,0],\"fov\":43}",
+      "deskPanel": "test",
+      "drawCalls": "32",
+      "finish": "canopy-linen",
+      "fps": "46",
+      "lighting": "daylight",
+      "phase": "ready",
+      "quality": "ultra",
+      "recipe": "canopy-tear",
+      "renderFrames": "4177",
+      "renderReady": "true",
+      "riverAnimate": "true",
+      "riverFlow": "1",
+      "riverFoam": "1",
+      "riverTime": "0.000",
+      "riverWave": "1",
+      "running": "false",
+      "sceneObjects": "554",
+      "setup": "custom",
+      "study": "canopy",
+      "surroundings": "hall-concrete",
+      "theme": "precision",
+      "triangles": "77863"
+    },
+    "url": "http://127.0.0.1:5184/?studio=canopy&theme=precision&finish=canopy-linen&light=daylight&recipe=canopy-tear&camera=hero&quality=ultra&surroundings=hall-concrete&layout=reference",
+    "capture": "captures/13-canopy-smoke.jpg",
+    "captureSha256": "1e697a5d3e7ca904e340443e2a814cf8f5038d641ae1d0bdb00260766c99ee93",
+    "imageSize": [
+      1280,
+      720
+    ]
+  },
+  {
+    "name": "14-plate-smoke",
+    "broken": "0",
+    "deflection": "0.000",
+    "horizontalOverflow": false,
+    "renderer": "WebGL 2 renderer",
+    "scripts": [
+      "./assets/index-DBcNSnY5.js"
+    ],
+    "size": [
+      1280,
+      720
+    ],
+    "state": {
+      "camera": "hero",
+      "cameraPose": "{\"position\":[3.9,6.200000000000001,12.7],\"target\":[0,3.5,0],\"fov\":38}",
+      "deskPanel": "test",
+      "drawCalls": "41",
+      "finish": "plate-machined",
+      "fps": "41",
+      "lighting": "softbox",
+      "phase": "ready",
+      "quality": "ultra",
+      "recipe": "plate-fracture",
+      "renderFrames": "4635",
+      "renderReady": "true",
+      "riverAnimate": "true",
+      "riverFlow": "1",
+      "riverFoam": "1",
+      "riverTime": "0.000",
+      "riverWave": "1",
+      "running": "false",
+      "sceneObjects": "138",
+      "setup": "custom",
+      "study": "plate",
+      "surroundings": "hall-concrete",
+      "theme": "atelier",
+      "triangles": "60535"
+    },
+    "url": "http://127.0.0.1:5184/?studio=plate&theme=atelier&finish=plate-machined&light=softbox&recipe=plate-fracture&camera=hero&quality=ultra&surroundings=hall-concrete&layout=reference",
+    "capture": "captures/14-plate-smoke.jpg",
+    "captureSha256": "60143c1e8881f186be4b5e5c773c6c830bf39cbda68f0ae184b68163ca2470d6",
+    "imageSize": [
+      1280,
+      720
+    ]
+  }
+]

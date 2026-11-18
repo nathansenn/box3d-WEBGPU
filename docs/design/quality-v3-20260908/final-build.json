@@ -1,0 +1,29 @@
+{
+  "verifiedAt": "2026-09-08T16:14:54.696084+00:00",
+  "source": {
+    "src/studio/collection-state.ts": "0382a1fcb79c4237507dab8e9c47be626417587aabaa32fd190455ce320b7628",
+    "src/studio/collection.css": "0ddcba7edf01a2263f32a9c414c06156fcdf32c462c1772a8adbb859b8440b7d",
+    "src/studio/lighting.ts": "cb1b4b9bd603caf4daf4a8f56b9bc240400e459a6752366175567ad068ec13ff",
+    "src/studio/main.ts": "9f8a4df9a18391c7dbe6be779d072c1f9fd8343ecb1b4488e73758b75abc3e02",
+    "src/studio/materials.ts": "da3d4259f914252109cf9806838e26f07b45cd9cf5cd25b2a3ea9cc5acdcf42e",
+    "src/studio/physics.ts": "fbc8326cb7f2f734351b2fc4d68a112340756311d28db92b794133acb934e0f0",
+    "src/studio/preset-browser.ts": "9bcaa30e8cb0aa7f3fcc34a5d7faa461c64125923551f7d77f8a5d38ea49e8ea",
+    "src/studio/presets.ts": "d37851733f102fcbab119d7fac648c9aedf8d07bf7b65085240b0e9188a297d7",
+    "src/studio/studio.css": "fb029493cd1677018a3e4a21ce5c0fa6f3526887aee1a9777e35a2275670a01e",
+    "src/studio/world.ts": "599595a1f3a9c73bc86567626d63f5ae3ea40ec41c43de415072c6419687ef74"
+  },
+  "built": {
+    "dist/assets/index-B-hnpRUR.css": "a8901f37eaa5c11e9b547016328ed43cb66f7ed466d5d3507f0b70560e6586b3",
+    "dist/assets/index-CW0Crxft.js": "9e9adec8cc586f6f85fca749317f0d5022ef78e9206be08ff9e4aee2b9293f48",
+    "dist/assets/main-Bv-uxQ50.js": "ac203a62c1759a58388cf458be700e114c6139585b4fc8378e1c52d5d0b0bf3b",
+    "dist/assets/main-Bwqo8j-g.css": "9d072801725a784666eb3f44ff1c97108f70cd470fd77518de1098588ff87858",
+    "dist/assets/main-CYwnxM9b.css": "f4a2cc53a71b3ef88024f745cf80779703880e6742b3aecddde259bacae0a780",
+    "dist/assets/main-L3oIVxrI.js": "ac7d07f0d923aa4083ffdca222adf1f17c6f4fe62fae5b09e67d6150acab63f1",
+    "dist/assets/style-DzWAs8Pe.css": "36bd4309ef888306fa05d1d75f43744c2a2ba469615068fbbb8605327ecb204a",
+    "dist/assets/turboquant-DEooNtgG.js": "be4423a33e469ea9e905b65aedb2c8c10ff2cdb8a717527c48e7f145a7529c66"
+  },
+  "entry": [
+    "./assets/index-CW0Crxft.js"
+  ],
+  "physicsSha256": "fbc8326cb7f2f734351b2fc4d68a112340756311d28db92b794133acb934e0f0"
+}

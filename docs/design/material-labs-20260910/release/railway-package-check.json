@@ -1,0 +1,29 @@
+{
+  "at": "2026-09-09T23:42:03.420845+00:00",
+  "provider": "Railway as explicitly directed via domain owner",
+  "frozenFilesChecked": 88,
+  "frozenAppUnchanged": true,
+  "shellSyntax": "passed",
+  "configuration": {
+    "$schema": "https://railway.com/railway.schema.json",
+    "build": {
+      "builder": "DOCKERFILE",
+      "dockerfilePath": "Dockerfile"
+    },
+    "deploy": {
+      "healthcheckPath": "/health",
+      "healthcheckTimeout": 60,
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 3,
+      "numReplicas": 1
+    }
+  },
+  "singleReplica": true,
+  "port": 8080,
+  "localBind": "127.0.0.1",
+  "railwayBind": "dedicated container IPv4, no wildcard listener",
+  "uploadScope": "frozen public product files and six deployment configuration files; .git excluded",
+  "githubMutationCount": 0,
+  "freeGiB": 51.4984,
+  "remainingReservationsGiB": 1.47
+}

@@ -1,0 +1,32 @@
+[
+  {
+    "id": "steel-punch",
+    "broken": 530,
+    "deflection": 1.5299999999999996,
+    "cycle": "Complete"
+  },
+  {
+    "id": "cone-pierce",
+    "broken": 233,
+    "deflection": 1.5299999999999998,
+    "cycle": "Complete"
+  },
+  {
+    "id": "square-tear",
+    "broken": 537,
+    "deflection": 1.5299999999999998,
+    "cycle": "Complete"
+  },
+  {
+    "id": "ring-cut",
+    "broken": 463,
+    "deflection": 1.5299999999999998,
+    "cycle": "Complete"
+  },
+  {
+    "id": "four-dimples",
+    "broken": 492,
+    "deflection": 1.5299999999999998,
+    "cycle": "Complete"
+  }
+]

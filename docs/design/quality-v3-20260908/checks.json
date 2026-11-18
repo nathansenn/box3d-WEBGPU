@@ -1,0 +1,25 @@
+{
+  "physics": {
+    "command": "npm run test:studio",
+    "checksPassed": 26,
+    "exitCode": 0
+  },
+  "presets": {
+    "command": "npm run test:studio:presets",
+    "checksPassed": 44,
+    "exitCode": 0,
+    "log": "preset-tests.log"
+  },
+  "typecheck": {
+    "command": "npx tsc --noEmit",
+    "exitCode": 0,
+    "log": "typecheck.log"
+  },
+  "build": {
+    "command": "npm run build",
+    "exitCode": 0,
+    "log": "build.log",
+    "warning": "Bundled chunks exceed 500 kB. No suppression added."
+  },
+  "physicsSha256": "fbc8326cb7f2f734351b2fc4d68a112340756311d28db92b794133acb934e0f0"
+}

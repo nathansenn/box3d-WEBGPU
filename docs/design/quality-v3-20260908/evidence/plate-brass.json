@@ -1,0 +1,34 @@
+{
+  "url": "http://127.0.0.1:5174/?studio=plate&theme=atelier&finish=plate-alloy-brass&light=softbox&recipe=plate-forming&camera=hero&quality=ultra&surroundings=hall-foundry&setup=setup-plate-brass",
+  "broken": "0",
+  "clock": "0.00 s",
+  "controls": {
+    "camera-preset": "hero",
+    "load": "1.5",
+    "speed": "0.5",
+    "strength": "1.8",
+    "surroundings": "hall-foundry"
+  },
+  "deflection": "0.000",
+  "scrollWidth": 1026,
+  "state": {
+    "camera": "hero",
+    "drawCalls": "41",
+    "finish": "plate-alloy-brass",
+    "fps": "2",
+    "lighting": "softbox",
+    "phase": "ready",
+    "quality": "ultra",
+    "recipe": "plate-forming",
+    "renderFrames": "153",
+    "renderReady": "true",
+    "running": "false",
+    "sceneObjects": "138",
+    "setup": "setup-plate-brass",
+    "study": "plate",
+    "surroundings": "hall-foundry",
+    "theme": "atelier",
+    "triangles": "60535"
+  },
+  "width": 1026
+}

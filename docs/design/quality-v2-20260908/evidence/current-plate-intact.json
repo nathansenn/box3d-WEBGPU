@@ -1,0 +1,29 @@
+{
+  "name": "current-plate-intact",
+  "at": "2026-09-08T08:25:14.358Z",
+  "broken": "0",
+  "camera": "hero",
+  "canvas": {
+    "height": 668,
+    "width": 992
+  },
+  "deflection": "0.000",
+  "draws": "41",
+  "events": "0",
+  "finish": "plate-machined",
+  "fps": "86",
+  "frames": "18811",
+  "height": 1058,
+  "history": "LIVE HISTORY",
+  "horizontalOverflow": false,
+  "lighting": "softbox",
+  "objects": "138",
+  "productionEntry": "index-DipR682Y.js",
+  "quality": "ultra",
+  "ready": "true",
+  "study": "plate",
+  "time": "0.00 s",
+  "triangles": "60535",
+  "url": "http://127.0.0.1:5174/?studio=plate&theme=atelier&finish=plate-machined&light=softbox&recipe=plate-fracture&camera=hero&quality=ultra",
+  "width": 1487
+}

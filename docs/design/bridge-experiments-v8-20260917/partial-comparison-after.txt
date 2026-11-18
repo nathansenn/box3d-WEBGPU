@@ -1,0 +1,16 @@
+Compare with
+Choose a reference
+Strength 0.40×
+Strength 0.70× · partial
+Strength 1.00×
+Strength 1.40×
+Strength 2.00×
+Pin this case
+Strength 0.70× vs Strength 0.40×
+Both cases at 10.0 s
+Measurement	Selected	Reference	Difference
+Deck drop	6.200	6.200	0.000
+Sideways	1.546	6.749	−5.203
+Lost links	31	54	−23
+
+Selected − reference, calculated before rounding. Displacement in model units; lost links in connections.

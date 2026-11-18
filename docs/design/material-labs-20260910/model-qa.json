@@ -1,0 +1,491 @@
+{
+  "timestamp": "2026-09-09T22:51:16.836Z",
+  "fixedStep": 0.008333333333333333,
+  "scope": "Comparative numerical models; CPU timings exclude rendering.",
+  "hashes": {
+    "src/studio/material-labs/catalog.ts": "67894a5f320d9997e30d87e41cf145d70bf08b21e259d0759332192dd5ecb244",
+    "src/studio/material-labs/models.ts": "fad4ebfe7f1098caae2bb4ca099a6ad50c67ba05159e61a568af71505cd9fae9"
+  },
+  "programs": [
+    {
+      "study": "liquid",
+      "experiment": "water-release",
+      "simulatedSeconds": 17.999999999999627,
+      "cpuMs": 206.33,
+      "phase": "Flowing",
+      "metrics": [
+        0.26473985469579625,
+        0.09209302949243997,
+        3.0433714285714313
+      ]
+    },
+    {
+      "study": "liquid",
+      "experiment": "oil-release",
+      "simulatedSeconds": 17.99999999999962,
+      "cpuMs": 188.55,
+      "phase": "Settling",
+      "metrics": [
+        0.2597735379851923,
+        0.002228719963284072,
+        3.0433714285714317
+      ]
+    },
+    {
+      "study": "liquid",
+      "experiment": "honey-creep",
+      "simulatedSeconds": 17.99999999999962,
+      "cpuMs": 177.93,
+      "phase": "Flowing",
+      "metrics": [
+        0.36240953440312973,
+        0.05371909717786625,
+        3.0433714285714304
+      ]
+    },
+    {
+      "study": "liquid",
+      "experiment": "deep-reservoir",
+      "simulatedSeconds": 17.99999999999963,
+      "cpuMs": 200.38,
+      "phase": "Settling",
+      "metrics": [
+        0.3124828733173314,
+        0.016270770032703986,
+        3.5345142857142835
+      ]
+    },
+    {
+      "study": "liquid",
+      "experiment": "slow-gate",
+      "simulatedSeconds": 17.99999999999963,
+      "cpuMs": 196.5,
+      "phase": "Flowing",
+      "metrics": [
+        0.2615361062447201,
+        0.026264840397833163,
+        3.0433714285714237
+      ]
+    },
+    {
+      "study": "liquid",
+      "experiment": "reflected-wave",
+      "simulatedSeconds": 17.99999999999962,
+      "cpuMs": 175.72,
+      "phase": "Settling",
+      "metrics": [
+        0.3908532329806576,
+        0.0037582864178439495,
+        4.582356402792805
+      ]
+    },
+    {
+      "study": "liquid",
+      "experiment": "blue-tracer",
+      "simulatedSeconds": 17.999999999999623,
+      "cpuMs": 192.41,
+      "phase": "Settling",
+      "metrics": [
+        0.25919456336495195,
+        0.00014045593722720573,
+        3.0433714285714277
+      ]
+    },
+    {
+      "study": "liquid",
+      "experiment": "slurry-front",
+      "simulatedSeconds": 17.999999999999623,
+      "cpuMs": 190.84,
+      "phase": "Settling",
+      "metrics": [
+        0.3128907638894946,
+        0.009270217211689755,
+        3.621942857142857
+      ]
+    },
+    {
+      "study": "glass",
+      "experiment": "radial-impact",
+      "simulatedSeconds": 11.99999999999996,
+      "cpuMs": 139.91,
+      "phase": "Fractured · releasing",
+      "metrics": [
+        539.5500000000001,
+        100,
+        752.4357532331245
+      ]
+    },
+    {
+      "study": "glass",
+      "experiment": "tempered-dice",
+      "simulatedSeconds": 11.99999999999996,
+      "cpuMs": 361.38,
+      "phase": "Fractured · releasing",
+      "metrics": [
+        1589.2200000000003,
+        100,
+        808.671931515852
+      ]
+    },
+    {
+      "study": "glass",
+      "experiment": "laminated-retention",
+      "simulatedSeconds": 11.99999999999996,
+      "cpuMs": 77.55,
+      "phase": "Fractured · retained",
+      "metrics": [
+        1177.2,
+        100,
+        1.240889225757365e-15
+      ]
+    },
+    {
+      "study": "glass",
+      "experiment": "thick-panel",
+      "simulatedSeconds": 11.99999999999996,
+      "cpuMs": 27.69,
+      "phase": "Impact absorbed",
+      "metrics": [
+        98.10000000000001,
+        0,
+        2.5637510777526407e-10
+      ]
+    },
+    {
+      "study": "glass",
+      "experiment": "edge-strike",
+      "simulatedSeconds": 11.99999999999996,
+      "cpuMs": 135.95,
+      "phase": "Fractured · releasing",
+      "metrics": [
+        539.5500000000001,
+        100,
+        718.7980083295129
+      ]
+    },
+    {
+      "study": "glass",
+      "experiment": "frosted-fracture",
+      "simulatedSeconds": 11.99999999999996,
+      "cpuMs": 131.09,
+      "phase": "Fractured · releasing",
+      "metrics": [
+        701.4150000000001,
+        100,
+        867.3545812436836
+      ]
+    },
+    {
+      "study": "glass",
+      "experiment": "wired-retention",
+      "simulatedSeconds": 11.99999999999996,
+      "cpuMs": 71.47,
+      "phase": "Fractured · retained",
+      "metrics": [
+        863.2800000000002,
+        100,
+        9.184501451513725e-16
+      ]
+    },
+    {
+      "study": "glass",
+      "experiment": "acrylic-comparison",
+      "simulatedSeconds": 11.99999999999996,
+      "cpuMs": 25.05,
+      "phase": "Impact absorbed",
+      "metrics": [
+        147.15,
+        0,
+        1.1047066039715503e-9
+      ]
+    },
+    {
+      "study": "concrete",
+      "experiment": "cube-crush",
+      "simulatedSeconds": 15.999999999999732,
+      "cpuMs": 439.79,
+      "phase": "Crushing · spalling",
+      "metrics": [
+        35,
+        42.58064516129032,
+        8.393300203685081
+      ]
+    },
+    {
+      "study": "concrete",
+      "experiment": "reinforced-core",
+      "simulatedSeconds": 15.999999999999732,
+      "cpuMs": 408.6,
+      "phase": "Crushing · spalling",
+      "metrics": [
+        48,
+        50.483870967741936,
+        10.484264502583738
+      ]
+    },
+    {
+      "study": "concrete",
+      "experiment": "high-strength",
+      "simulatedSeconds": 15.999999999999732,
+      "cpuMs": 419.3,
+      "phase": "Crushing · spalling",
+      "metrics": [
+        50,
+        44.83870967741935,
+        15.404653780372717
+      ]
+    },
+    {
+      "study": "concrete",
+      "experiment": "lightweight-crush",
+      "simulatedSeconds": 15.999999999999732,
+      "cpuMs": 380.17,
+      "phase": "Crushing · spalling",
+      "metrics": [
+        40,
+        54.19354838709678,
+        4.592632977478491
+      ]
+    },
+    {
+      "study": "concrete",
+      "experiment": "aged-spall",
+      "simulatedSeconds": 15.999999999999732,
+      "cpuMs": 386.64,
+      "phase": "Crushing · spalling",
+      "metrics": [
+        35,
+        54.35483870967742,
+        3.732295657423901
+      ]
+    },
+    {
+      "study": "concrete",
+      "experiment": "fiber-bridging",
+      "simulatedSeconds": 15.999999999999732,
+      "cpuMs": 402.61,
+      "phase": "Crushing · spalling",
+      "metrics": [
+        45,
+        50,
+        11.18465946762223
+      ]
+    },
+    {
+      "study": "concrete",
+      "experiment": "low-strain",
+      "simulatedSeconds": 15.999999999999732,
+      "cpuMs": 477.34,
+      "phase": "Compressing",
+      "metrics": [
+        3,
+        0,
+        6.378973905246553
+      ]
+    },
+    {
+      "study": "concrete",
+      "experiment": "ceramic-crush",
+      "simulatedSeconds": 15.999999999999732,
+      "cpuMs": 426.68,
+      "phase": "Crushing · spalling",
+      "metrics": [
+        55.00000000000001,
+        42.096774193548384,
+        19.754966920653025
+      ]
+    },
+    {
+      "study": "rubber",
+      "experiment": "silicone-cycle",
+      "simulatedSeconds": 17.99999999999962,
+      "cpuMs": 0.66,
+      "phase": "Recovered",
+      "metrics": [
+        0,
+        100,
+        0
+      ]
+    },
+    {
+      "study": "rubber",
+      "experiment": "rubber-rebound",
+      "simulatedSeconds": 17.99999999999962,
+      "cpuMs": 0.09,
+      "phase": "Recovered",
+      "metrics": [
+        0,
+        100,
+        0
+      ]
+    },
+    {
+      "study": "rubber",
+      "experiment": "foam-collapse",
+      "simulatedSeconds": 17.99999999999962,
+      "cpuMs": 0.74,
+      "phase": "Recovered",
+      "metrics": [
+        13.687181046363916,
+        90.69271688847253,
+        13.68717586244771
+      ]
+    },
+    {
+      "study": "rubber",
+      "experiment": "slow-creep",
+      "simulatedSeconds": 23.99999999999928,
+      "cpuMs": 0.12,
+      "phase": "Recovered",
+      "metrics": [
+        5.687598963228474,
+        96.85760157281626,
+        5.6874397190546375
+      ]
+    },
+    {
+      "study": "rubber",
+      "experiment": "firm-urethane",
+      "simulatedSeconds": 17.99999999999962,
+      "cpuMs": 0.07,
+      "phase": "Recovered",
+      "metrics": [
+        0,
+        100,
+        0
+      ]
+    },
+    {
+      "study": "rubber",
+      "experiment": "soft-gel",
+      "simulatedSeconds": 17.99999999999962,
+      "cpuMs": 0.05,
+      "phase": "Recovered",
+      "metrics": [
+        3.0972036756268664e-7,
+        99.99999999210213,
+        0
+      ]
+    },
+    {
+      "study": "rubber",
+      "experiment": "neoprene-hold",
+      "simulatedSeconds": 17.99999999999962,
+      "cpuMs": 0.05,
+      "phase": "Recovered",
+      "metrics": [
+        0,
+        100,
+        0
+      ]
+    },
+    {
+      "study": "rubber",
+      "experiment": "epdm-comparison",
+      "simulatedSeconds": 17.99999999999962,
+      "cpuMs": 0.04,
+      "phase": "Recovered",
+      "metrics": [
+        0,
+        100,
+        0
+      ]
+    },
+    {
+      "study": "granular",
+      "experiment": "sand-avalanche",
+      "simulatedSeconds": 13.999999999999845,
+      "cpuMs": 918.93,
+      "phase": "Settled",
+      "metrics": [
+        2.5061603307724,
+        0.271668405532837,
+        1056
+      ]
+    },
+    {
+      "study": "granular",
+      "experiment": "bead-runout",
+      "simulatedSeconds": 13.999999999999845,
+      "cpuMs": 849.32,
+      "phase": "Settled",
+      "metrics": [
+        3.820840549468994,
+        0.19158527374267587,
+        1056
+      ]
+    },
+    {
+      "study": "granular",
+      "experiment": "coarse-gravel",
+      "simulatedSeconds": 13.999999999999845,
+      "cpuMs": 268.66,
+      "phase": "Settled",
+      "metrics": [
+        2.2387798833847046,
+        0.3000534772872925,
+        360
+      ]
+    },
+    {
+      "study": "granular",
+      "experiment": "angular-pile",
+      "simulatedSeconds": 13.999999999999845,
+      "cpuMs": 900.71,
+      "phase": "Avalanching",
+      "metrics": [
+        2.275206518173218,
+        0.31323787689208993,
+        1056
+      ]
+    },
+    {
+      "study": "granular",
+      "experiment": "slow-sluice",
+      "simulatedSeconds": 13.999999999999845,
+      "cpuMs": 906.43,
+      "phase": "Settled",
+      "metrics": [
+        2.425143074989319,
+        0.2681187105178834,
+        1056
+      ]
+    },
+    {
+      "study": "granular",
+      "experiment": "polymer-pellets",
+      "simulatedSeconds": 13.999999999999845,
+      "cpuMs": 906.53,
+      "phase": "Settled",
+      "metrics": [
+        2.588536682128906,
+        0.14923890590667732,
+        1056
+      ]
+    },
+    {
+      "study": "granular",
+      "experiment": "steel-shot",
+      "simulatedSeconds": 13.999999999999845,
+      "cpuMs": 880.58,
+      "phase": "Settled",
+      "metrics": [
+        3.352102470397949,
+        0.2522769284248353,
+        1056
+      ]
+    },
+    {
+      "study": "granular",
+      "experiment": "damped-pile",
+      "simulatedSeconds": 13.999999999999845,
+      "cpuMs": 893.15,
+      "phase": "Avalanching",
+      "metrics": [
+        2.135487449169159,
+        0.34088578939437875,
+        1056
+      ]
+    }
+  ]
+}

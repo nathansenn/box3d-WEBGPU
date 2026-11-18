@@ -1,0 +1,7 @@
+{
+  "tool": "image_gen.imagegen",
+  "source": "/Users/commander/.codex/generated_images/01a07e7b-23c9-72e1-a62e-b780ac76623f/exec-ee15f378-7d2e-4b73-8a3c-a00fdeb47012.png",
+  "asset": "public/studio/references/material-labs/hall-panorama.png",
+  "sha256": "7caca63e58dc4a645d2848ad2d5d520f45f7d4cb8ca71ee43434ec6b68c1d30c",
+  "usage": "Generated LDR environment panorama; visual lighting and backdrop only, not measurement data."
+}

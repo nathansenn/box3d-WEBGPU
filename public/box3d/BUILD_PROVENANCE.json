@@ -12,7 +12,7 @@
   },
   "bridge": {
     "source": "wasm/box3d_web.c",
-    "sha256": "943a3b406e1a5dffe1c2f7eae2c6fb5dd082347cc6ebb913e36e5fa101e18e29",
+    "sha256": "4af722adcf8f4c4afda8054e98aa6d21a1132e04fbe70ce39197b54c152f80d7",
     "lazyReplayHash": true,
     "sleepingWorldTransformCache": true,
     "independentColorRevision": true,
@@ -29,19 +29,150 @@
   },
   "artifacts": {
     "box3d.js": {
-      "bytes": 14209,
-      "sha256": "8ec00439683b8da258916ebe90f0cea6a6d0672641fda571936b6012fd3cec3b"
+      "bytes": 18281,
+      "sha256": "4d333c433879de72e6b4b28ecccc7fabacf18544b07a15e30a40d7ad5af83b5d"
     },
     "box3d.wasm": {
-      "bytes": 400546,
-      "sha256": "089ba180666b2fcd3a7ca0b92f4d715fd0a25e91974e35c198b5b7e83620e552"
+      "bytes": 460156,
+      "sha256": "c477056688657904f779c20d4c2a98bfded0642ce69188ba4be910264c17d390"
     }
   },
   "validation": {
+    "status": "pass",
     "catalogScenes": 800,
-    "deterministicPasses": 2,
-    "invalidTimestepGuard": true,
-    "finalSleepTransformCapture": true,
-    "settledTransformRevisionStable": true
+    "catalogExactComparisons": 20800,
+    "independentWorlds": 16,
+    "interleavedExactComparisons": 1920,
+    "bodyCapacities": [
+      4096,
+      16384,
+      65536
+    ],
+    "engineTests": 186,
+    "queryFaultArtifactTests": 10,
+    "queryOracleAuditTests": 5,
+    "spatialQueryInputs": 5888,
+    "spatialQueryHits": 15292,
+    "exactBatchSerialResults": true,
+    "renderer": "physical Metal: 10 lifecycle cases, exact full stream and copied-stream pixels; zero uncaptured errors",
+    "nativePublicSoak": "pass",
+    "doubleBuild": "identical JS/WASM in two independent build directories",
+    "evidence": [
+      "benchmarks/results/engine-100x/runs/native-queries-geometry-20260910-04/result.json",
+      "benchmarks/results/engine-100x/runs/native-queries-worlds-20260910-02/result.json",
+      "benchmarks/results/engine-100x/native-queries-renderer-metal-direct-20260910-02.json"
+    ],
+    "scope": "Spatial-query functionality, ownership and bounded storage; existing native state and lifecycle regressions. No query throughput, FPS, whole-engine 100x, contact-event or release claim."
+  },
+  "nativeWorlds": {
+    "apiVersion": 1,
+    "maxContexts": 16,
+    "separateCompatibilityWorld": true,
+    "bodyCapacityPerWorld": 65536,
+    "generationBits": 27,
+    "slotBits": 5,
+    "generationExhaustion": "retire slot without wrapping",
+    "execution": "single-threaded, independently interleavable contexts",
+    "initialBodyCapacityPerWorld": 4096,
+    "bodyCapacityTiers": [
+      4096,
+      16384,
+      65536
+    ],
+    "compatibilityWorldBodyCapacity": 4096,
+    "bridgeBufferAllocationFailure": "reported without mutation",
+    "bodyLifecycle": {
+      "handleBits": 64,
+      "slotBits": 17,
+      "generationBits": 47,
+      "generationExhaustion": "retire slot without wrapping",
+      "denseRows": "swap-remove with repaired slot/dynamic lookups",
+      "bridgeBytesPerReservedBody": 136,
+      "referenceOwnership": "per-world marker without retaining disposed backend"
+    },
+    "spatialQueries": {
+      "maxBatch": 128,
+      "maxHitsPerQuery": 256,
+      "maxBridgeBufferBytes": 1847296,
+      "allocation": "lazy and transactional",
+      "revisionExhaustion": "retire without wrapping",
+      "kinds": [
+        "ray",
+        "sphere-cast",
+        "box-cast",
+        "sphere-overlap",
+        "box-overlap",
+        "aabb-candidates"
+      ],
+      "results": "owned copies with world-scoped stable body references",
+      "contactEvents": false,
+      "impulseStreams": false,
+      "independentShapeReferences": false
+    }
+  },
+  "build": {
+    "configuration": "Release",
+    "simd": true,
+    "pthreads": false,
+    "memoryGrowth": true,
+    "cmakeSha256": "79b7d1b209174b6651f9789e305bb2c4bd85eeb1e77d02810fc83f55c6e8023f",
+    "abortingMalloc": false
+  },
+  "threaded": {
+    "source": "wasm/box3d_threads.c",
+    "bridge": "wasm/box3d_web.c compiled unchanged; b3CreateWorld and b3World_Step renamed per source",
+    "sources": {
+      "threadsSha256": "5785c8eb105440000ad2520149a6ebf6f6317dca3d4b5724011972861c57f2cb",
+      "bridgeSha256": "4af722adcf8f4c4afda8054e98aa6d21a1132e04fbe70ce39197b54c152f80d7",
+      "cmakeSha256": "79b7d1b209174b6651f9789e305bb2c4bd85eeb1e77d02810fc83f55c6e8023f"
+    },
+    "artifacts": {
+      "box3d-mt.js": {
+        "bytes": 33569,
+        "sha256": "6ab89071a86681adb60cc227d310a882a493d22ce98b070b76a36eba61e0aa99"
+      },
+      "box3d-mt.wasm": {
+        "bytes": 470198,
+        "sha256": "da3f927a74ca4b676a6101bacd1b546cf1ed193e780c45c510769704b871ede8"
+      }
+    },
+    "build": {
+      "configuration": "Release",
+      "simd": true,
+      "pthreads": true,
+      "sharedMemory": true,
+      "memoryGrowth": true,
+      "environment": "web,worker,node",
+      "poolSize": "Module['b3wPoolSize'], preloaded",
+      "poolSizeStrict": 2,
+      "maxWorkers": 32,
+      "emscripten": "4.0.23"
+    },
+    "execution": "one shared scheduler; worlds step one at a time on the calling thread, widening past an awake-body threshold",
+    "validation": {
+      "status": "pass",
+      "catalogScenes": 800,
+      "exactComparisons": 3322,
+      "workerCounts": [
+        1,
+        2,
+        4,
+        8
+      ],
+      "engagementChecks": 8292,
+      "adaptivePolicyChecks": 480,
+      "adaptiveThresholdCrossings": {
+        "up": 2,
+        "down": 1
+      },
+      "interleavedWorlds": 4,
+      "noPoolModule": "exact state on one worker",
+      "catalogDigest": "5ca95b82535a6c5f",
+      "oracle": "the shipped single-threaded artifact recorded under artifacts",
+      "evidence": [
+        "benchmarks/results/engine-100x/runs/threaded-engine-20261001-01/determinism.json"
+      ],
+      "scope": "Exact equality of the pthread artifact with the single-threaded artifact (matrix and colour streams, replay hash) at every tested worker count, across mid-run worker-count changes, awake-body threshold crossings, interleaved native worlds and a module without a worker pool. No speedup, FPS, whole-engine 100x, browser-stability or release claim; speedups are measured separately in docs/THREADED_ENGINE.md."
+    }
   }
 }

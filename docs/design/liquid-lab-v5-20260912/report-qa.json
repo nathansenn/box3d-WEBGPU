@@ -1,0 +1,23 @@
+{
+  "at": "2026-09-12T14:01:47.025Z",
+  "v4Rows": 363,
+  "cases": 3,
+  "limitResults": [
+    {
+      "peak": 319.07673366234286,
+      "exceeded": false
+    },
+    {
+      "peak": 330.937489650637,
+      "exceeded": true
+    },
+    {
+      "peak": 352.39698624718136,
+      "exceeded": true
+    }
+  ],
+  "bounds": {
+    "importBytes": 4194304,
+    "notebookChars": 2500000
+  }
+}

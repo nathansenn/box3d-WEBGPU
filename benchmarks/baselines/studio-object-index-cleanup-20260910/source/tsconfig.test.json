@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "noEmit": false,
+    "rewriteRelativeImportExtensions": true,
+    "outDir": ".test-build",
+    "rootDir": "."
+  },
+  "include": [
+    "src/vite-env.d.ts",
+    "src/math.ts",
+    "src/types.ts",
+    "src/scenes.ts",
+    "src/showcases.ts",
+    "src/effects.ts",
+    "src/physics/fallback.ts",
+    "tests/**/*.ts"
+  ]
+}

@@ -1,0 +1,54 @@
+<!doctype html>
+<!--
+  Physics on a worker thread, rendered with three.js on the main thread.
+  From packages/box3d-kit: npm run build, then serve the package root on localhost only,
+  e.g. `python3 -m http.server 8080 --bind 127.0.0.1`, and open
+  http://127.0.0.1:8080/examples/worker/. Click to throw a box.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>box3d-kit · worker</title>
+  <style>html, body { margin: 0; height: 100%; background: #0b1020; overflow: hidden }</style>
+  <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js" } }</script>
+</head>
+<body>
+<script type="module">
+  import * as THREE from 'three';
+  import {connectWorld} from '../../dist/worker.js';
+  import {createBodyMesh, syncInstancedMesh} from '../../dist/three.js';
+
+  const world = await connectWorld(new Worker(new URL('./physics.worker.js', import.meta.url), {type: 'module'}), {seed: 42});
+  for (let i = 0; i < 60; i++) await world.spawnBox({position: [(i % 6) - 2.5, 0.5 + Math.floor(i / 6) * 1.05, 0], halfSize: 0.48});
+
+  const renderer = new THREE.WebGLRenderer({antialias: true});
+  renderer.setSize(innerWidth, innerHeight);
+  document.body.append(renderer.domElement);
+  const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 500);
+  camera.position.set(9, 7, 14);
+  camera.lookAt(0, 3, 0);
+  scene.add(new THREE.HemisphereLight(0xdde8ff, 0x202030, 1.2));
+  const mesh = createBodyMesh(THREE, world);
+  scene.add(mesh);
+
+  addEventListener('pointerdown', event => {
+    if (!innerWidth || !innerHeight) return; // minimized or zero-size viewport: no meaningful ray
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(event.clientX / innerWidth * 2 - 1, -(event.clientY / innerHeight) * 2 + 1), camera);
+    const o = camera.position, d = ray.ray.direction.clone().multiplyScalar(60);
+    world.spawnBox({position: [o.x, o.y, o.z], halfSize: 0.35, impulse: [d.x, d.y, d.z]});
+  });
+
+  // One physics request in flight at a time; rendering never waits on it.
+  let last = performance.now(), busy = false;
+  renderer.setAnimationLoop(now => {
+    const dt = (now - last) / 1000;
+    last = now;
+    if (!busy) { busy = true; world.update(dt).finally(() => { busy = false; }); }
+    syncInstancedMesh(world, mesh);
+    renderer.render(scene, camera);
+  });
+</script>
+</body>
+</html>

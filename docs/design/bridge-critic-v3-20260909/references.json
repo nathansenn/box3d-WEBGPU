@@ -1,0 +1,30 @@
+{
+  "version": 3,
+  "mode": "built-in image_gen",
+  "critic": "Independent visual review agent",
+  "references": [
+    {
+      "file": "bridge-hero.png",
+      "sha256": "a7bab4cd6ae65362fa90f331b59272b6d9b9a8aa92745fdfc5f0fd3f6ab57cb3",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "bytes": 3681458,
+      "authority": "Corrected visual concept; not structural certification or live simulation geometry"
+    },
+    {
+      "file": "bridge-approach.png",
+      "sha256": "a2e50c4feae5c28b1ec3828eab8e299a74539533f79df16ff6d450d1b1e4d20a",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "bytes": 3480997,
+      "authority": "Corrected visual concept; not structural certification or live simulation geometry"
+    }
+  ],
+  "originalsPreserved": true,
+  "liveSceneChanged": false,
+  "workspaceBytes": 7180767
+}

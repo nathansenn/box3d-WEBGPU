@@ -1,0 +1,65 @@
+{
+  "chart": {
+    "bottom": 936,
+    "height": 91,
+    "left": 100,
+    "right": 1219,
+    "top": 845,
+    "width": 1119,
+    "x": 100,
+    "y": 845
+  },
+  "data": {
+    "camera": "reference",
+    "cameraPose": "{\"position\":[-31.75,6.299999999999998,13.599999999999998],\"target\":[-16,8,0],\"fov\":57.3}",
+    "deskPanel": "test",
+    "drawCalls": "70",
+    "finish": "bridge-weathered",
+    "fps": "29",
+    "lighting": "reference-daylight",
+    "phase": "ready",
+    "quality": "ultra",
+    "recipe": "bridge-service",
+    "renderFrames": "1536",
+    "renderReady": "true",
+    "riverAnimate": "true",
+    "riverFlow": "1",
+    "riverFoam": "1",
+    "riverTime": "53.957",
+    "riverWave": "1",
+    "running": "false",
+    "sceneObjects": "41722",
+    "setup": "setup-bridge-reference",
+    "study": "bridge",
+    "surroundings": "valley-stream",
+    "theme": "observatory",
+    "triangles": "3091667"
+  },
+  "panel": {
+    "bottom": 952,
+    "height": 150,
+    "left": 84,
+    "right": 1465,
+    "top": 802,
+    "width": 1381,
+    "x": 84,
+    "y": 802
+  },
+  "url": "http://127.0.0.1:5173/?studio=bridge&theme=observatory&finish=bridge-weathered&light=reference-daylight&recipe=bridge-service&camera=reference&quality=ultra&surroundings=valley-stream&layout=reference&water=academy&flow=1&wave=1&foam=1&flowMotion=1&setup=setup-bridge-reference",
+  "viewport": {
+    "height": 1058,
+    "width": 1487
+  },
+  "logs": [],
+  "gallery": {
+    "studiesVerified": [
+      "bridge",
+      "canopy",
+      "plate"
+    ],
+    "allImagesLoaded": true,
+    "phoneWidth": 390,
+    "phoneScrollWidth": 390
+  },
+  "capturedAt": "2026-09-08T21:46:06.053Z"
+}

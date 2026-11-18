@@ -1,0 +1,234 @@
+- banner:
+  - link "BOX3D Engineering Studio":
+    - /url: "?studio=liquid"
+    - generic: 
+    - strong: BOX3D
+  - navigation "Studies":
+    - generic: Study
+    - combobox "Study":
+      - option "Liquid dynamics"
+      - option "Glass impact"
+      - option "Concrete crush"
+      - option "Elastomer lab"
+      - option "Granular flow"
+      - option "Metal press"
+      - option "Canopy"
+      - option "Suspension bridge" [selected]
+    - generic: 
+  - button "Reference workspace" [pressed]:
+    - generic: 
+    - generic: Reference
+  - button "Open preset library":
+    - generic: 
+    - generic: Presets
+  - button "Compare reference":
+    - generic: 
+  - button "Export run data":
+    - generic: 
+  - text: 
+  - button "Resume saved run":
+    - generic: 
+- main:
+  - navigation "Studio workflow":
+    - button "Browse experiments":
+      - generic: 
+      - generic: Labs
+    - button "Edit the scene":
+      - generic: 
+      - generic: Scene
+    - button "Edit the load":
+      - generic: 
+      - generic: Test
+    - button "Compare with the image":
+      - generic: 
+      - generic: Compare
+  - text:                      
+  - region "Simulation viewport":
+    - img "Interactive 3D simulation. Drag to orbit, scroll to zoom."
+    - group "Surface display":
+      - button "Material" [pressed]
+      - button "Response"
+    - button "Focus on scene":
+      - generic: 
+    - button "Second camera angle":
+      - generic: 
+    - button "Fit camera":
+      - generic: 
+    - button "Expand viewport":
+      - generic: 
+    - text:  
+    - status:
+      - generic: Ready to simulate
+      - generic: 0.00 s
+    - text:       
+  - complementary "Experiment desk":
+    - heading "Experiment desk" [level=2]
+    - button "Hide experiment desk":
+      - generic: 
+    - tablist "Experiment workflow":
+      - tab "Set up":
+        - generic: 
+        - generic: Set up
+      - tab "Surface":
+        - generic: 
+        - generic: Surface
+      - tab "World":
+        - generic: 
+        - generic: World
+      - tab "Test":
+        - generic: 
+        - generic: Test
+      - tab "Analyze" [selected]:
+        - generic: 
+        - generic: Analyze
+    - text:                         
+    - tabpanel "Analyze":
+      - group "Analysis mode":
+        - button "Inspect"
+        - button "Experiments" [pressed]
+      - text: +
+      - generic "Load scan · 30 s · next scan Edit":
+        - generic: 
+        - generic: Load scan · 30 s · next scan
+        - text: Edit
+        - generic: 
+      - text:    
+      - button "Run new scan":
+        - generic: 
+        - generic: Run new scan
+      - text: 
+      - status: 5 of 5 complete · 30 s per case
+      - generic: 5 / 5
+      - generic: Complete
+      - generic: 2 / 5
+      - generic "Recorded cases with an observed rupture": With rupture
+      - generic: 7.69 s
+      - generic: Earliest · Load 5.00
+      - region "Experiment results":
+        - heading "Compare responses" [level=4]
+        - group "Results presentation":
+          - button "Table" [pressed]:
+            - generic: 
+            - text: Table
+          - button "Chart":
+            - generic: 
+            - text: Chart
+        - button "Time probe" [expanded]
+        - paragraph: Load scan · 30 s · Strength 1.60× · Wind 2.00
+        - text: Compare at
+        - status: 7.7 s
+        - button "Show peaks"
+        - slider "Compare experiments at model time" [active]: "7.7"
+        - paragraph: At 7.7 s · displacement in model units
+        - table "Response samples at 7.7 model seconds. Outcomes cover the full recording.":
+          - caption: Response samples at 7.7 model seconds. Outcomes cover the full recording.
+          - rowgroup:
+            - row "Case Full-record outcome drop sideways Lost links":
+              - columnheader "Case Full-record outcome":
+                - text: Case
+                - generic: Full-record outcome
+              - columnheader "drop"
+              - columnheader "sideways"
+              - columnheader "Lost links"
+          - rowgroup:
+            - row "Load 0.20. No rupture observed. Deck drop 0.125 model units, Sideways 0.003 model units, Lost links 0 connections 0.125 0.003 0":
+              - rowheader "Load 0.20. No rupture observed. Deck drop 0.125 model units, Sideways 0.003 model units, Lost links 0 connections":
+                - button "Load 0.20. No rupture observed. Deck drop 0.125 model units, Sideways 0.003 model units, Lost links 0 connections":
+                  - generic: "01"
+                  - strong: Load 0.20
+                  - generic: No rupture observed
+                  - generic: +
+              - cell "0.125"
+              - cell "0.003"
+              - cell "0"
+            - row "Load 0.80. No rupture observed. Deck drop 0.210 model units, Sideways 0.020 model units, Lost links 0 connections 0.210 0.020 0":
+              - rowheader "Load 0.80. No rupture observed. Deck drop 0.210 model units, Sideways 0.020 model units, Lost links 0 connections":
+                - button "Load 0.80. No rupture observed. Deck drop 0.210 model units, Sideways 0.020 model units, Lost links 0 connections":
+                  - generic: "02"
+                  - strong: Load 0.80
+                  - generic: No rupture observed
+                  - generic: +
+              - cell "0.210"
+              - cell "0.020"
+              - cell "0"
+            - row "Load 1.80. No rupture observed. Deck drop 0.278 model units, Sideways 0.067 model units, Lost links 0 connections 0.278 0.067 0":
+              - rowheader "Load 1.80. No rupture observed. Deck drop 0.278 model units, Sideways 0.067 model units, Lost links 0 connections":
+                - button "Load 1.80. No rupture observed. Deck drop 0.278 model units, Sideways 0.067 model units, Lost links 0 connections":
+                  - generic: "03"
+                  - strong: Load 1.80
+                  - generic: No rupture observed
+                  - generic: +
+              - cell "0.278"
+              - cell "0.067"
+              - cell "0"
+            - row "Load 3.20. Ruptured. Deck drop 0.305 model units, Sideways 0.164 model units, Lost links 0 connections 0.305 0.164 0":
+              - rowheader "Load 3.20. Ruptured. Deck drop 0.305 model units, Sideways 0.164 model units, Lost links 0 connections":
+                - button "Load 3.20. Ruptured. Deck drop 0.305 model units, Sideways 0.164 model units, Lost links 0 connections":
+                  - generic: "04"
+                  - strong: Load 3.20
+                  - generic: Ruptured
+                  - generic: +
+              - cell "0.305"
+              - cell "0.164"
+              - cell "0"
+            - row "Load 5.00. Collapsed. Deck drop 0.307 model units, Sideways 0.218 model units, Lost links 1 connections 0.307 0.218 1":
+              - rowheader "Load 5.00. Collapsed. Deck drop 0.307 model units, Sideways 0.218 model units, Lost links 1 connections":
+                - button "Load 5.00. Collapsed. Deck drop 0.307 model units, Sideways 0.218 model units, Lost links 1 connections" [expanded]:
+                  - generic: "05"
+                  - strong: Load 5.00
+                  - generic: Collapsed
+                  - generic: −
+              - cell "0.307"
+              - cell "0.218"
+              - cell "1"
+        - generic: CASE 05
+        - strong: Load 5.00
+        - generic: First rupture
+        - generic: 7.69 s
+        - generic: Peak recorded drop
+        - generic: "6.200"
+        - generic: Lost links
+        - generic: 28 / 327
+        - paragraph:
+          - text: 30.0 s recorded · peak at 10.80 s
+          - text: Lateral peak 5.545 · Collapsed
+        - paragraph: Load 5.00 · Strength 1.60× · Wind 2.00
+        - group "Probe case milestones":
+          - button "First rupture"
+          - button "Peak drop"
+          - button "Record end"
+        - button "Load case"
+        - button "Use as baseline"
+      - button "Export CSV":
+        - generic: 
+        - text: Export CSV
+      - button "Export JSON"
+      - button "Clear scan"
+      - status: Scan saved in this browser. Export before running another scan.
+      - generic "How these experiments work"
+    - text:  
+  - region "Simulation playback":
+    - button "Run simulation":
+      - generic: 
+    - button "Reset simulation":
+      - generic: 
+    - generic: 0.00 s
+    - slider "Replay recorded history": "0"
+    - generic: 0 s
+    - generic: LIVE HISTORY
+    - generic: 0.0 s recorded
+    - button "Live"
+    - combobox "Playback speed":
+      - option "0.25×"
+      - option "0.5×"
+      - option "1.0×" [selected]
+      - option "2.0×"
+    - button "Capture viewport":
+      - generic: 
+- contentinfo:
+  - generic: WebGPU renderer · worker · 80 fps · 111 draws
+  - generic: Comparative model · not calibrated
+  - button "Export evidence":
+    - text: Export evidence
+    - generic: 
+- text:                

@@ -1,0 +1,125 @@
+{
+  "method": "Copy only. Source bytes and original maps retained unchanged. Appearance only; no mechanical properties imported.",
+  "assets": [
+    {
+      "source": "/Users/commander/commander-academy/public/d3d-rebuilds/assets/018/brass-sheet/basecolor.webp",
+      "destination": "public/studio/materials/brass-basecolor.webp",
+      "sha256": "09400d12cc3b6b5f1afa31c22791e1f52261891d4b2b5d8d636c9e5b0ea91179",
+      "bytes": 509944,
+      "pack": "brass",
+      "channel": "basecolor"
+    },
+    {
+      "source": "/Users/commander/commander-academy/public/d3d-rebuilds/assets/018/brass-sheet/normal.webp",
+      "destination": "public/studio/materials/brass-normal.webp",
+      "sha256": "5806756ebba24d0925d0809f3e9909582b5243fc83cc76314c995ef2bda3d52f",
+      "bytes": 631850,
+      "pack": "brass",
+      "channel": "normal"
+    },
+    {
+      "source": "/Users/commander/commander-academy/public/d3d-rebuilds/assets/018/brass-sheet/roughness.webp",
+      "destination": "public/studio/materials/brass-roughness.webp",
+      "sha256": "4ec3c2e80fecb825d7e1a8c596ca895e46d8034864ef69ed6e7893645b1b5225",
+      "bytes": 227486,
+      "pack": "brass",
+      "channel": "roughness"
+    },
+    {
+      "source": "/Users/commander/commander-academy/public/d3d-rebuilds/assets/d3d-019/heirloom-leather/basecolor.webp",
+      "destination": "public/studio/materials/leather-basecolor.webp",
+      "sha256": "eaee7a1d6dfe713a83d2e560f2191b4646cdaf156bbaf06806a48324ad5038af",
+      "bytes": 1366786,
+      "pack": "leather",
+      "channel": "basecolor"
+    },
+    {
+      "source": "/Users/commander/commander-academy/public/d3d-rebuilds/assets/d3d-019/heirloom-leather/normal.webp",
+      "destination": "public/studio/materials/leather-normal.webp",
+      "sha256": "3e273900c59de2a0814a12c737b38fedc451349d4de85cb45ab44e06d2b747ec",
+      "bytes": 666774,
+      "pack": "leather",
+      "channel": "normal"
+    },
+    {
+      "source": "/Users/commander/commander-academy/public/d3d-rebuilds/assets/d3d-019/heirloom-leather/roughness.webp",
+      "destination": "public/studio/materials/leather-roughness.webp",
+      "sha256": "ee321b021f2f8e9ca2b48ef7e06576e1f2735775f675a2be894157ef2749afd3",
+      "bytes": 101906,
+      "pack": "leather",
+      "channel": "roughness"
+    },
+    {
+      "source": "/Users/commander/commander-academy/public/d3d-rebuilds/assets/materials/world-081--cloudrest-bridge-timber/basecolor.webp",
+      "destination": "public/studio/materials/cloudrest-basecolor.webp",
+      "sha256": "b8e12e23c519598c1dc3c386d40c1af854900226de1ee0c5de39586ad2f296b3",
+      "bytes": 473664,
+      "pack": "cloudrest",
+      "channel": "basecolor"
+    },
+    {
+      "source": "/Users/commander/commander-academy/public/d3d-rebuilds/assets/materials/world-081--cloudrest-bridge-timber/normal.webp",
+      "destination": "public/studio/materials/cloudrest-normal.webp",
+      "sha256": "7c100edf3c5c5385bf9d55514c6b654b4cdbcd22459658372414fa4f35dff378",
+      "bytes": 565460,
+      "pack": "cloudrest",
+      "channel": "normal"
+    },
+    {
+      "source": "/Users/commander/commander-academy/public/d3d-rebuilds/assets/materials/world-081--cloudrest-bridge-timber/roughness.webp",
+      "destination": "public/studio/materials/cloudrest-roughness.webp",
+      "sha256": "a9898e34ec460dca708d19fd4bcbb9160d015012ce70d6f9592ead8f5beece07",
+      "bytes": 183700,
+      "pack": "cloudrest",
+      "channel": "roughness"
+    },
+    {
+      "source": "/Users/commander/commander-academy/labs/plate-d3d-012-blacksmith-alloy/assets/pbr/world-020--blacksmith-lane-forged-iron/basecolor.webp",
+      "destination": "public/studio/materials/forged-basecolor.webp",
+      "sha256": "f5b4260e3afac0aa188f9cc4ca5cba5cee936997387a9b89e45257546a7cbfd5",
+      "bytes": 261338,
+      "pack": "forged",
+      "channel": "basecolor"
+    },
+    {
+      "source": "/Users/commander/commander-academy/labs/plate-d3d-012-blacksmith-alloy/assets/pbr/world-020--blacksmith-lane-forged-iron/normal.webp",
+      "destination": "public/studio/materials/forged-normal.webp",
+      "sha256": "e7193b30aadba8b8de2cbcfcecb3015678ee9280116eba6ef65f81410d0afe49",
+      "bytes": 456980,
+      "pack": "forged",
+      "channel": "normal"
+    },
+    {
+      "source": "/Users/commander/commander-academy/labs/plate-d3d-012-blacksmith-alloy/assets/pbr/world-020--blacksmith-lane-forged-iron/roughness.webp",
+      "destination": "public/studio/materials/forged-roughness.webp",
+      "sha256": "0f1946b0272a6d961ab110d2cab238b9130b6e47d4901d42dde191eafd89de19",
+      "bytes": 129428,
+      "pack": "forged",
+      "channel": "roughness"
+    },
+    {
+      "source": "/Users/commander/commander-academy/labs/plate-d3d-012-blacksmith-alloy/assets/pbr/aged-copper-sheet/basecolor.webp",
+      "destination": "public/studio/materials/copper-sheet-basecolor.webp",
+      "sha256": "378f8c7bf7dcbf40fc621d6231f988c8d8b151d8995d4785598c40943b52793b",
+      "bytes": 1913564,
+      "pack": "copper-sheet",
+      "channel": "basecolor"
+    },
+    {
+      "source": "/Users/commander/commander-academy/labs/plate-d3d-012-blacksmith-alloy/assets/pbr/aged-copper-sheet/normal.webp",
+      "destination": "public/studio/materials/copper-sheet-normal.webp",
+      "sha256": "4ec7648728cff250affd85a74651136d5e3e91d5d5daf1fa7d0569c49d62ac95",
+      "bytes": 679754,
+      "pack": "copper-sheet",
+      "channel": "normal"
+    },
+    {
+      "source": "/Users/commander/commander-academy/labs/plate-d3d-012-blacksmith-alloy/assets/pbr/aged-copper-sheet/roughness.webp",
+      "destination": "public/studio/materials/copper-sheet-roughness.webp",
+      "sha256": "690a30df5713ea76046a512eced0044a5f4c2fa2627be85428d83f4d011e9daa",
+      "bytes": 246494,
+      "pack": "copper-sheet",
+      "channel": "roughness"
+    }
+  ]
+}

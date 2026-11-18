@@ -1,0 +1,57 @@
+.reference-rail,.reference-outline{display:none}
+.reference-toggle{font-size:11px;gap:7px;padding:8px 11px;background:transparent}
+.reference-toggle[aria-pressed=true]{color:var(--accent);border-color:var(--accent)}
+/* Bound the canvas by its panel, independent of its backing-store dimensions. */
+#studio.scene-workflow .response-panel{grid-template-rows:minmax(0,1fr)}
+#studio.scene-workflow .chart-area{min-height:0;height:100%;overflow:hidden}
+#studio.scene-workflow #response-chart{flex:1 1 0;height:0;min-height:0}
+.reference-comparison-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px}
+.reference-comparison-grid figure{margin:0;min-width:0}
+.reference-comparison-grid figcaption{font:10px 'IBM Plex Mono',monospace;color:var(--muted);padding-bottom:10px}
+.comparison-dialog .reference-comparison-grid img{width:100%;max-height:70vh;object-fit:contain;background:#121b1d;border:1px solid var(--line)}
+@media(min-width:1001px){
+  #studio.reference-workflow.scene-workflow[data-theme]{--desk-width:290px}
+  #studio.reference-workflow .reference-rail{position:absolute;inset:0 auto 0 0;display:flex;flex-direction:column;width:64px;gap:10px;padding:22px 7px;background:var(--panel);border-right:1px solid var(--line);z-index:5}
+  .reference-rail button{display:flex;flex-direction:column;gap:7px;padding:13px 0;background:none;border:0;font-size:9px;color:var(--muted)}
+  .reference-rail button:hover{background:var(--raised);color:var(--text)}.reference-rail .ph{font-size:23px}
+  #studio.reference-workflow .reference-outline{display:block;position:absolute;left:84px;top:24px;width:218px;background:var(--panel);border:1px solid var(--line);border-radius:8px;z-index:4;box-shadow:0 8px 24px #0003}
+  .reference-outline>div{padding:16px 16px 13px}.reference-outline strong{font-size:12px;font-weight:500;display:block}.reference-outline>div>span{font:8px 'IBM Plex Mono',monospace;letter-spacing:1px;color:var(--dim);display:block;margin-top:7px}
+  .reference-outline button{display:flex;width:calc(100% - 16px);margin:0 8px 6px;gap:11px;text-align:left;border-color:transparent;border-radius:4px;background:transparent;padding:11px 9px;font-size:11px}.reference-outline button span{flex:1}.reference-outline button .ph{font-size:18px;color:var(--muted)}.reference-outline button:hover{background:var(--raised);border-color:var(--line)}
+  #studio.reference-workflow.scene-workflow[data-theme] .viewport-wrap{left:64px}
+  #studio.reference-workflow.scene-workflow[data-theme] .load-inspector{top:24px;right:22px;bottom:244px;border-radius:8px}
+  #studio.reference-workflow.scene-workflow[data-theme] .desk-heading{padding:14px 16px}.reference-workflow .desk-kicker{display:none}
+  #studio.reference-workflow.scene-workflow[data-theme] .desk-heading h2{font-size:17px}
+  #studio.reference-workflow.scene-workflow[data-theme] .desk-scroll{padding:14px}
+  #studio.reference-workflow.scene-workflow[data-theme] .viewport-top{left:260px;right:calc(var(--desk-width) + 48px);top:24px}
+  #studio.reference-workflow.scene-workflow[data-theme] .live-status{top:80px;left:260px;font-size:9px}
+  #studio.reference-workflow.scene-workflow[data-theme] .response-panel{display:grid;inset:auto 22px 78px 84px;height:150px;grid-template-columns:minmax(0,1fr) 230px;border-radius:7px;padding:15px}
+  #studio.reference-workflow.scene-workflow[data-theme] .timeline-bar{left:84px;right:22px;bottom:15px;height:51px}
+  #studio.reference-workflow .desk-scene-label,#studio.reference-workflow .desk-view-dock{display:none}
+  #studio.reference-workflow.desk-collapsed .reference-outline{display:block}
+  #studio.reference-workflow.scene-focus .reference-outline,#studio.reference-workflow.scene-focus .reference-rail{display:none}
+  #studio.reference-workflow.scene-focus .viewport-wrap{left:0!important}
+  #studio.reference-workflow.scene-focus .timeline-bar{left:22px!important}
+  #studio.reference-workflow .desk-presentation select{width:150px!important;max-width:150px!important}
+  #studio.reference-workflow .desk-footer .result-stats strong{font-size:18px}
+  #studio.reference-workflow .desk-footer-actions>[data-desk-undo]{min-width:80px;font-size:9px}
+  #studio.reference-workflow .desk-tabs button{padding:7px 4px 9px;gap:4px}
+  #studio.reference-workflow .load-readout{margin:12px 0 10px}
+  #studio.reference-workflow .load-readout output{font-size:30px;letter-spacing:-1px;margin:5px 0}
+}
+@media(max-width:700px){.reference-toggle{padding:6px}.reference-toggle span{display:none}.reference-comparison-grid{grid-template-columns:1fr}.comparison-dialog .reference-comparison-grid img{max-height:42vh}}
+@media(min-width:1300px){
+  #studio.reference-workflow.scene-workflow[data-theme] .viewport-top{left:40%}
+  #studio.reference-workflow.scene-workflow[data-theme] .live-status{left:calc(40% + 22px)}
+}
+@media(min-width:1001px) and (max-height:830px){
+  #studio.reference-workflow.scene-workflow[data-theme] .load-inspector{bottom:192px;top:18px}
+  #studio.reference-workflow.scene-workflow[data-theme] .response-panel{height:102px}
+  #studio.reference-workflow .desk-heading{padding:10px 14px!important}
+  #studio.reference-workflow .desk-kicker{display:none}
+  #studio.reference-workflow .desk-tabs button{padding:6px 3px;font-size:9px}
+}
+
+.reference-picker{display:flex;gap:12px;align-items:center;padding:0 20px 4px;font-size:11px;color:var(--muted)}
+.reference-picker select{max-width:340px;flex:1;min-width:0}
+.reference-picker button{padding:8px 12px;font-size:11px;white-space:nowrap}
+@media(max-width:700px){.reference-picker{flex-wrap:wrap;gap:8px}.reference-picker label{width:100%}}

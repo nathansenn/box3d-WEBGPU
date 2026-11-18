@@ -1,0 +1,43 @@
+{
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 2643,
+      "sha256": "860cb98b0200c06b48a9ca099cceeac7d8bac686eae01abafc8d5e52562b352c",
+      "whyKept": "Compact review, experiment verdict, reproduction or verification record."
+    },
+    {
+      "path": "REVIEW.md",
+      "bytes": 2406,
+      "sha256": "e1a12082e2e4da14e88e965e6a5da0ea22772faaa55ce66af984b49ffd2b586a",
+      "whyKept": "Compact review, experiment verdict, reproduction or verification record."
+    },
+    {
+      "path": "results.json",
+      "bytes": 83416,
+      "sha256": "b3c06e853c3b682352a631cc7e0c4ce65f1a26d1892652870a2ac02ecbbc49d8",
+      "whyKept": "Compact review, experiment verdict, reproduction or verification record."
+    },
+    {
+      "path": "review.json",
+      "bytes": 14550,
+      "sha256": "a3bb13c262e5f1315f2c5e595296711294b6b6ca04260a0ae06f4e339f15e972",
+      "whyKept": "Compact review, experiment verdict, reproduction or verification record."
+    },
+    {
+      "path": "studio.jpg",
+      "bytes": 113455,
+      "sha256": "14e375a6dd04ec24ef6cb033b969862950ea0950456a1827d7dbe067a0bf4311",
+      "whyKept": "User-facing startup verification screenshot."
+    }
+  ],
+  "media": [
+    {
+      "path": "studio.jpg",
+      "sha256": "14e375a6dd04ec24ef6cb033b969862950ea0950456a1827d7dbe067a0bf4311",
+      "whyKept": "Cited by REVIEW.md; shows the started canopy studio reset and ready."
+    }
+  ],
+  "maximumBytes": 50000000,
+  "maximumImages": 20
+}

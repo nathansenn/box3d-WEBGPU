@@ -1,0 +1,43 @@
+<!doctype html>
+<!-- Thin client for room-server.mjs: no physics runs here. It decodes snapshots and draws them. Click to throw. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>box3d-kit · room client</title>
+  <style>html, body { margin: 0; height: 100%; background: #0b1020; overflow: hidden }</style>
+  <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js" } }</script>
+</head>
+<body>
+<script type="module">
+  import * as THREE from 'three';
+  import {SnapshotDecoder, EngineError} from '/dist/index.js';
+  import {createBodyMesh, syncInstancedMesh} from '/dist/three.js';
+
+  const view = new SnapshotDecoder();
+  view.color = [0.95, 0.7, 0.3, 1];
+  const renderer = new THREE.WebGLRenderer({antialias: true});
+  renderer.setSize(innerWidth, innerHeight);
+  document.body.append(renderer.domElement);
+  const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 500);
+  camera.position.set(8, 7, 16);
+  camera.lookAt(0, 3, 0);
+  scene.add(new THREE.HemisphereLight(0xdde8ff, 0x202030, 1.4));
+  const mesh = createBodyMesh(THREE, view, undefined, 512);
+  scene.add(mesh);
+
+  let stream;
+  const connect = () => {
+    stream?.close();
+    stream = new EventSource('/stream'); // a fresh connection starts with a keyframe
+    stream.onmessage = event => {
+      const bytes = Uint8Array.from(atob(event.data), c => c.charCodeAt(0));
+      try { view.apply(bytes); } catch (error) { if (error instanceof EngineError && error.code === 'INVALID_STATE') connect(); else throw error; }
+    };
+  };
+  connect();
+  addEventListener('pointerdown', () => fetch('/throw', {method: 'POST'}));
+  renderer.setAnimationLoop(() => { syncInstancedMesh(view, mesh); renderer.render(scene, camera); });
+</script>
+</body>
+</html>

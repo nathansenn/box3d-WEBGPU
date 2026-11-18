@@ -1,0 +1,146 @@
+{
+  "at": "2026-09-10T01:36:44.122734+00:00",
+  "logicalPublicHtmlPages": 1,
+  "studySelectorCount": 8,
+  "routeFamilies": 12,
+  "queryCombinations": "Unbounded parameter combinations of the same application; not separate editorial pages",
+  "sourceReady": true,
+  "deployedVerified": true,
+  "marketingReady": true,
+  "marketingHold": null,
+  "routes": [
+    {
+      "route": "/",
+      "family": "application-home",
+      "audience": "People exploring material behavior and structural experiments",
+      "intent": "Use an interactive browser simulation studio",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "indexability": "Indexable canonical application page",
+      "sitemap": true,
+      "owner": "01a07e7b-23c9-72e1-a62e-b780ac76623f"
+    },
+    {
+      "route": "/?studio={liquid,glass,concrete,rubber,granular,plate,canopy,bridge}",
+      "family": "study-selector",
+      "audience": "Studio users opening a selected study",
+      "intent": "Open a view of the same application",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "indexability": "Crawlable duplicate states consolidated by canonical; no noindex directive",
+      "sitemap": false,
+      "owner": "01a07e7b-23c9-72e1-a62e-b780ac76623f"
+    },
+    {
+      "route": "/?studio=...&{material,mode,experiment,seed,load,rate,size,damping,fill,theme,finish,light,recipe,camera,quality,surroundings,layout,water,flow,wave,foam,flowMotion,metal,thickness,tool,toolSize,toolAngle,pressure,strike,stroke,hold,setup,custom,target,strength,wind,speed,orbit}=...",
+      "family": "experiment-and-presentation-state",
+      "audience": "People sharing an experiment configuration",
+      "intent": "Restore controls in the same application",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "indexability": "Crawlable duplicate states consolidated by canonical; control settings do not create articles",
+      "sitemap": false,
+      "owner": "01a07e7b-23c9-72e1-a62e-b780ac76623f"
+    },
+    {
+      "route": "/?lab={canopy-load-capture,titan-bend-dent,suspension-cable-resonance} and ?workbench=1",
+      "family": "historical-entry-state",
+      "audience": "Users of historical studio links",
+      "intent": "Open the corresponding current study or default studio",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "indexability": "Crawlable historical duplicates consolidated by canonical",
+      "sitemap": false,
+      "owner": "01a07e7b-23c9-72e1-a62e-b780ac76623f"
+    },
+    {
+      "route": "/?workspace=test or /?view=structural-test",
+      "family": "historical-internal-test-state",
+      "audience": "Internal test/review workflow",
+      "intent": "Historical diagnostic launch context; no private data is served",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "indexability": "Intentional noindex, follow response header based on diagnostic purpose",
+      "sitemap": false,
+      "owner": "01a07e7b-23c9-72e1-a62e-b780ac76623f"
+    },
+    {
+      "route": "/index.html with optional query",
+      "family": "filename-alias",
+      "audience": "Legacy direct-document links",
+      "intent": "Reach the same application",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "indexability": "308 redirect to /; query preserved",
+      "sitemap": false,
+      "owner": "01a07e7b-23c9-72e1-a62e-b780ac76623f"
+    },
+    {
+      "route": "https://box3d-web-production.up.railway.app/{path}?{query}",
+      "family": "provider-alias",
+      "audience": "Legacy provider preview links",
+      "intent": "Reach the canonical custom-host resource",
+      "canonical": "https://box3d.apxlabs.parts/",
+      "indexability": "308 to canonical host; path and query preserved",
+      "sitemap": false,
+      "owner": "01a07e7b-23c9-72e1-a62e-b780ac76623f"
+    },
+    {
+      "route": "/health, /release-info.json, /licenses/*, /studio/materials/provenance.json, /studio/models/*.LICENSE.txt",
+      "family": "operational-and-provenance-resources",
+      "audience": "Operators and people checking release or asset provenance",
+      "intent": "Diagnostics, licensing and release identity",
+      "canonical": null,
+      "indexability": "Noindex response header; non-HTML resources remain accessible",
+      "sitemap": false,
+      "owner": "01a07e7b-23c9-72e1-a62e-b780ac76623f"
+    },
+    {
+      "route": "/assets/* and /studio/{materials,models,references}/* except provenance/notices above",
+      "family": "public-application-assets",
+      "audience": "App renderer and sharing crawlers",
+      "intent": "Load application code, models, textures and approved reference images",
+      "canonical": null,
+      "indexability": "Public crawlable assets; not HTML content pages",
+      "sitemap": false,
+      "owner": "01a07e7b-23c9-72e1-a62e-b780ac76623f"
+    },
+    {
+      "route": "/robots.txt and /sitemap.xml",
+      "family": "crawler-discovery",
+      "audience": "Search crawlers",
+      "intent": "Discover the canonical page and crawl policy",
+      "canonical": null,
+      "indexability": "Crawler configuration, not HTML pages",
+      "sitemap": false,
+      "owner": "01a07e7b-23c9-72e1-a62e-b780ac76623f"
+    },
+    {
+      "route": "Unknown paths including /login, /account, /checkout, /drafts, /review, /src/*, /engine-probe.html and /.git/*",
+      "family": "not-published",
+      "audience": "None",
+      "intent": "Not part of this public release",
+      "canonical": null,
+      "indexability": "Real 404; no private/account/review HTML surface exists",
+      "sitemap": false,
+      "owner": "01a07e7b-23c9-72e1-a62e-b780ac76623f"
+    },
+    {
+      "route": "blob: run downloads and in-memory replay history",
+      "family": "local-export-and-replay",
+      "audience": "The current browser user",
+      "intent": "Download/replay the current experiment",
+      "canonical": null,
+      "indexability": "Not public server URLs; no indexable HTML page",
+      "sitemap": false,
+      "owner": "01a07e7b-23c9-72e1-a62e-b780ac76623f"
+    }
+  ],
+  "wwwPolicy": "www.box3d.apxlabs.parts is not provisioned or advertised; no additional DNS hostname is added",
+  "supportReview": {
+    "repository": "https://github.com/nathansenn/box3d-WEBGPU",
+    "public": true,
+    "issueTrackerEnabled": false,
+    "decision": "Link project information and the published license; do not claim an issue tracker or publish an account email"
+  },
+  "schemaPolicy": "WebSite and WebApplication only; no invented organization, ratings, pricing or rich-result promise",
+  "baselineAudit": "/Users/commander/Documents/ChatGPT/theguardian/orchestration/seo-audit/findings.json",
+  "verifiedAt": "2026-09-10T02:07:51.147725+00:00",
+  "releaseCommit": "27a6f75ec93a2d0b37d45a34ca1939c10def5ead",
+  "deploymentId": "d5c878a4-dec1-4e5a-b325-510375fcc267",
+  "evidence": "ACCEPTANCE.json"
+}

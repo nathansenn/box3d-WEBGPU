@@ -1,0 +1,93 @@
+{
+  "defaultPresentation": "table",
+  "desk": {
+    "bottom": 818.96875,
+    "height": 612.46875,
+    "left": 855,
+    "right": 1241,
+    "top": 206.5,
+    "width": 386,
+    "x": 855,
+    "y": 206.5
+  },
+  "documentWidth": 1280,
+  "height": 720,
+  "rows": [
+    {
+      "rect": {
+        "bottom": 502.671875,
+        "height": 43,
+        "left": 856,
+        "right": 1240,
+        "top": 459.671875,
+        "width": 384,
+        "x": 856,
+        "y": 459.671875
+      },
+      "text": "01\nLoad 0.20\nNo rupture observed\n+\n\t0.132\t0.005\t0"
+    },
+    {
+      "rect": {
+        "bottom": 545.671875,
+        "height": 43,
+        "left": 856,
+        "right": 1240,
+        "top": 502.671875,
+        "width": 384,
+        "x": 856,
+        "y": 502.671875
+      },
+      "text": "02\nLoad 0.80\nNo rupture observed\n+\n\t0.254\t0.026\t0"
+    },
+    {
+      "rect": {
+        "bottom": 588.671875,
+        "height": 43,
+        "left": 856,
+        "right": 1240,
+        "top": 545.671875,
+        "width": 384,
+        "x": 856,
+        "y": 545.671875
+      },
+      "text": "03\nLoad 1.80\nNo rupture observed\n+\n\t0.320\t0.086\t0"
+    },
+    {
+      "rect": {
+        "bottom": 631.671875,
+        "height": 43,
+        "left": 856,
+        "right": 1240,
+        "top": 588.671875,
+        "width": 384,
+        "x": 856,
+        "y": 588.671875
+      },
+      "text": "04\nLoad 3.20\nRuptured\n+\n\t0.417\t0.689\t3"
+    },
+    {
+      "rect": {
+        "bottom": 673.671875,
+        "height": 42,
+        "left": 856,
+        "right": 1240,
+        "top": 631.671875,
+        "width": 384,
+        "x": 856,
+        "y": 631.671875
+      },
+      "text": "05\nLoad 5.00\nCollapsed\n+\n\t6.200\t5.545\t28"
+    }
+  ],
+  "table": {
+    "bottom": 674.671875,
+    "height": 256.78125,
+    "left": 855,
+    "right": 1241,
+    "top": 417.890625,
+    "width": 386,
+    "x": 855,
+    "y": 417.890625
+  },
+  "width": 1280
+}

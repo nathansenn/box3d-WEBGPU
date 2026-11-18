@@ -1,0 +1,298 @@
+[
+  {
+    "file": "01-press-overview.jpg",
+    "entry": [
+      "http://127.0.0.1:5185/assets/index-BxySqcFd.js"
+    ],
+    "ready": "true",
+    "size": [
+      1280,
+      720
+    ],
+    "engine": "WebGPU",
+    "study": "plate",
+    "url": "http://127.0.0.1:5185/?studio=plate&theme=atelier&finish=plate-machined&light=softbox&recipe=plate-fracture&camera=hero&quality=ultra&surroundings=hall-concrete&layout=reference&metal=mild-steel&thickness=2&tool=round&toolSize=1&toolAngle=0&pressure=100&strike=100&stroke=140&hold=2&custom=1&target=5&strength=1&wind=0&speed=1",
+    "sha256": "d3bf5c00ebc41888e33b840420b7608321b2ff798d618f5f52d867d5708eb386",
+    "bytes": 119640,
+    "metadataSource": "Consolidated from the observed final production browser capture outputs.",
+    "phase": "Ready",
+    "cycle": "Ready",
+    "clock": "0.00 s",
+    "broken": 0,
+    "deflection": "0.0 mm"
+  },
+  {
+    "file": "02-metal-library.jpg",
+    "entry": [
+      "http://127.0.0.1:5185/assets/index-BxySqcFd.js"
+    ],
+    "ready": "true",
+    "size": [
+      1280,
+      720
+    ],
+    "engine": "WebGPU",
+    "study": "plate",
+    "url": "http://127.0.0.1:5185/?studio=plate&theme=atelier&finish=plate-machined&light=softbox&recipe=plate-fracture&camera=hero&quality=ultra&surroundings=hall-concrete&layout=reference&metal=mild-steel&thickness=2&tool=round&toolSize=1&toolAngle=0&pressure=100&strike=100&stroke=140&hold=2&custom=1&target=5&strength=1&wind=0&speed=1",
+    "sha256": "b242a8a337b77b9974c6ddab45449330f8380b7fa131d00eb4515a0cb4823fa2",
+    "bytes": 120096,
+    "metadataSource": "Consolidated from the observed final production browser capture outputs.",
+    "phase": "Ready",
+    "cycle": "Ready",
+    "clock": "0.00 s",
+    "broken": 0,
+    "deflection": "0.0 mm"
+  },
+  {
+    "file": "03-tool-library.jpg",
+    "entry": [
+      "http://127.0.0.1:5185/assets/index-BxySqcFd.js"
+    ],
+    "ready": "true",
+    "size": [
+      1280,
+      720
+    ],
+    "engine": "WebGPU",
+    "study": "plate",
+    "url": "http://127.0.0.1:5185/?studio=plate&theme=atelier&finish=plate-machined&light=softbox&recipe=plate-fracture&camera=hero&quality=ultra&surroundings=hall-concrete&layout=reference&metal=mild-steel&thickness=2&tool=round&toolSize=1&toolAngle=0&pressure=100&strike=100&stroke=140&hold=2&custom=1&target=5&strength=1&wind=0&speed=1",
+    "sha256": "5eb6cc79125089c9a05782b64f072bf10f397c434a1848f51d7c329c460d59c4",
+    "bytes": 122075,
+    "metadataSource": "Consolidated from the observed final production browser capture outputs.",
+    "phase": "Ready",
+    "cycle": "Ready",
+    "clock": "0.00 s",
+    "broken": 0,
+    "deflection": "0.0 mm"
+  },
+  {
+    "file": "04-fracture-contact.jpg",
+    "entry": [
+      "http://127.0.0.1:5185/assets/index-BxySqcFd.js"
+    ],
+    "ready": "true",
+    "size": [
+      1280,
+      720
+    ],
+    "engine": "WebGPU",
+    "study": "plate",
+    "url": "http://127.0.0.1:5185/?studio=plate&theme=atelier&finish=plate-machined&light=softbox&recipe=plate-fracture&camera=detail&quality=ultra&surroundings=hall-concrete&layout=reference&metal=mild-steel&thickness=2&tool=round&toolSize=1&toolAngle=0&pressure=100&strike=100&stroke=140&hold=2&custom=1&target=5&strength=1&wind=0&speed=1",
+    "sha256": "731fe87a29df8fee2e40b3ec8b7161b296ce7c4e25451153d2d7ad24fc7af691",
+    "bytes": 125237,
+    "metadataSource": "Consolidated from the observed final production browser capture outputs.",
+    "phase": "perforated",
+    "cycle": "Complete",
+    "clock": "8.30 s",
+    "broken": 530,
+    "deflection": "153.0 mm"
+  },
+  {
+    "file": "05-fracture-cutaway.jpg",
+    "entry": [
+      "http://127.0.0.1:5185/assets/index-BxySqcFd.js"
+    ],
+    "ready": "true",
+    "size": [
+      1280,
+      720
+    ],
+    "engine": "WebGPU",
+    "study": "plate",
+    "url": "http://127.0.0.1:5185/?studio=plate&theme=atelier&finish=plate-machined&light=softbox&recipe=plate-fracture&camera=plan&quality=ultra&surroundings=hall-concrete&layout=reference&metal=mild-steel&thickness=2&tool=round&toolSize=1&toolAngle=0&pressure=100&strike=100&stroke=140&hold=2&custom=1&target=5&strength=1&wind=0&speed=1",
+    "sha256": "4e598823bfb9ba86a3d36f28580d51ebf9278f5c2b4ffdd4f00ee70a37969d14",
+    "bytes": 117160,
+    "metadataSource": "Consolidated from the observed final production browser capture outputs.",
+    "phase": "perforated",
+    "cycle": "Complete",
+    "clock": "8.30 s",
+    "broken": 530,
+    "deflection": "153.0 mm"
+  },
+  {
+    "file": "06-replay-start.jpg",
+    "entry": [
+      "http://127.0.0.1:5185/assets/index-BxySqcFd.js"
+    ],
+    "ready": "true",
+    "size": [
+      1280,
+      720
+    ],
+    "engine": "WebGPU",
+    "study": "plate",
+    "url": "http://127.0.0.1:5185/?studio=plate&theme=atelier&finish=plate-machined&light=softbox&recipe=plate-fracture&camera=plan&quality=ultra&surroundings=hall-concrete&layout=reference&metal=mild-steel&thickness=2&tool=round&toolSize=1&toolAngle=0&pressure=100&strike=100&stroke=140&hold=2&custom=1&target=5&strength=1&wind=0&speed=1",
+    "sha256": "4e598823bfb9ba86a3d36f28580d51ebf9278f5c2b4ffdd4f00ee70a37969d14",
+    "bytes": 117160,
+    "metadataSource": "Consolidated from the observed final production browser capture outputs.",
+    "phase": "Ready",
+    "cycle": "Ready",
+    "clock": "0.00 s",
+    "broken": 0,
+    "deflection": "0.0 mm"
+  },
+  {
+    "file": "07-copper-ball-tool.jpg",
+    "entry": [
+      "http://127.0.0.1:5185/assets/index-BxySqcFd.js"
+    ],
+    "ready": "true",
+    "size": [
+      1280,
+      720
+    ],
+    "engine": "WebGPU",
+    "study": "plate",
+    "url": "http://127.0.0.1:5185/?studio=plate&theme=atelier&finish=plate-burnished-copper&light=softbox&recipe=plate-fracture&camera=detail&quality=ultra&surroundings=hall-concrete&layout=reference&metal=copper&thickness=1.5&tool=ball&toolSize=1&toolAngle=0&pressure=30&strike=10&stroke=60&hold=2&custom=1&target=1.5&strength=1&wind=0&speed=1",
+    "sha256": "b4a6a0ea9e0bc27cfe6c03eb84a2e0cb83575d1cccc0415f55d656c8ac9f2f21",
+    "bytes": 123760,
+    "metadataSource": "Consolidated from the observed final production browser capture outputs.",
+    "phase": "Ready",
+    "cycle": "Ready",
+    "clock": "0.00 s",
+    "broken": 0,
+    "deflection": "0.0 mm"
+  },
+  {
+    "file": "08-thick-copper-sheet.jpg",
+    "entry": [
+      "http://127.0.0.1:5185/assets/index-BxySqcFd.js"
+    ],
+    "ready": "true",
+    "size": [
+      1280,
+      720
+    ],
+    "engine": "WebGPU",
+    "study": "plate",
+    "url": "http://127.0.0.1:5185/?studio=plate&theme=atelier&finish=plate-burnished-copper&light=softbox&recipe=plate-fracture&camera=detail&quality=ultra&surroundings=hall-concrete&layout=reference&metal=copper&thickness=20&tool=ball&toolSize=1&toolAngle=0&pressure=30&strike=10&stroke=60&hold=2&custom=1&target=1.5&strength=1&wind=0&speed=1",
+    "sha256": "ca60dfee13c77e1419b370098dd9307f703d152995741dbb43dda2c84e427695",
+    "bytes": 123263,
+    "metadataSource": "Consolidated from the observed final production browser capture outputs.",
+    "phase": "Ready",
+    "cycle": "Ready",
+    "clock": "0.00 s",
+    "broken": 0,
+    "deflection": "0.0 mm"
+  },
+  {
+    "file": "09-v-blade.jpg",
+    "entry": [
+      "http://127.0.0.1:5185/assets/index-BxySqcFd.js"
+    ],
+    "ready": "true",
+    "size": [
+      1280,
+      720
+    ],
+    "engine": "WebGPU",
+    "study": "plate",
+    "url": "http://127.0.0.1:5185/?studio=plate&theme=atelier&finish=plate-burnished-copper&light=softbox&recipe=plate-fracture&camera=detail&quality=ultra&surroundings=hall-concrete&layout=reference&metal=copper&thickness=20&tool=wedge&toolSize=1&toolAngle=0&pressure=30&strike=10&stroke=60&hold=2&custom=1&target=1.5&strength=1&wind=0&speed=1",
+    "sha256": "479fedb849e87d262f3729b390e78929dbcd79663a3f56e6f6609b8ba74df176",
+    "bytes": 122882,
+    "metadataSource": "Consolidated from the observed final production browser capture outputs.",
+    "phase": "Ready",
+    "cycle": "Ready",
+    "clock": "0.00 s",
+    "broken": 0,
+    "deflection": "0.0 mm"
+  },
+  {
+    "file": "10-annular-tool.jpg",
+    "entry": [
+      "http://127.0.0.1:5185/assets/index-BxySqcFd.js"
+    ],
+    "ready": "true",
+    "size": [
+      1280,
+      720
+    ],
+    "engine": "WebGPU",
+    "study": "plate",
+    "url": "http://127.0.0.1:5185/?studio=plate&theme=atelier&finish=plate-burnished-copper&light=softbox&recipe=plate-fracture&camera=detail&quality=ultra&surroundings=hall-concrete&layout=reference&metal=copper&thickness=20&tool=ring&toolSize=1&toolAngle=0&pressure=30&strike=10&stroke=60&hold=2&custom=1&target=1.5&strength=1&wind=0&speed=1",
+    "sha256": "65f882054c7aad61b01907a7683fcdb0a74ea8dfb57b5ef480dc9f8841e4633c",
+    "bytes": 124549,
+    "metadataSource": "Consolidated from the observed final production browser capture outputs.",
+    "phase": "Ready",
+    "cycle": "Ready",
+    "clock": "0.00 s",
+    "broken": 0,
+    "deflection": "0.0 mm"
+  },
+  {
+    "file": "11-phone-scene.png",
+    "entry": [
+      "http://127.0.0.1:5185/assets/index-BxySqcFd.js"
+    ],
+    "overflow": false,
+    "ready": "true",
+    "settings": "{\"metal\":\"copper\",\"tool\":\"ring\",\"thickness\":20,\"toolScale\":1,\"angle\":0,\"pressure\":72,\"strikeSpeed\":10,\"stroke\":60,\"hold\":2}",
+    "size": [
+      390,
+      844
+    ],
+    "url": "http://127.0.0.1:5185/?studio=plate&theme=atelier&finish=plate-burnished-copper&light=softbox&recipe=plate-fracture&camera=hero&quality=ultra&surroundings=hall-concrete&layout=reference&metal=copper&thickness=20&tool=ring&toolSize=1&toolAngle=0&pressure=72&strike=10&stroke=60&hold=2&custom=1&target=3.6&strength=1&wind=0&speed=1",
+    "sha256": "2f7a1f1ac2232378dd710d20a2f4dc070f77672b162c48df64d7ef8f625d439a",
+    "bytes": 290627,
+    "study": "plate"
+  },
+  {
+    "file": "12-phone-controls.png",
+    "entry": [
+      "http://127.0.0.1:5185/assets/index-BxySqcFd.js"
+    ],
+    "overflow": false,
+    "ready": "true",
+    "settings": "{\"metal\":\"copper\",\"tool\":\"ring\",\"thickness\":20,\"toolScale\":1,\"angle\":0,\"pressure\":72,\"strikeSpeed\":10,\"stroke\":60,\"hold\":2}",
+    "size": [
+      390,
+      844
+    ],
+    "url": "http://127.0.0.1:5185/?studio=plate&theme=atelier&finish=plate-burnished-copper&light=softbox&recipe=plate-fracture&camera=hero&quality=ultra&surroundings=hall-concrete&layout=reference&metal=copper&thickness=20&tool=ring&toolSize=1&toolAngle=0&pressure=72&strike=10&stroke=60&hold=2&custom=1&target=3.6&strength=1&wind=0&speed=1",
+    "sha256": "c4878298698e703fba2c9b97e432864430cce41fff191680d5c77c0046a5b002",
+    "bytes": 94505,
+    "study": "plate"
+  },
+  {
+    "file": "13-canopy-smoke.jpg",
+    "entry": [
+      "http://127.0.0.1:5185/assets/index-BxySqcFd.js"
+    ],
+    "ready": "true",
+    "size": [
+      1280,
+      720
+    ],
+    "engine": "WebGPU",
+    "study": "canopy",
+    "url": "http://127.0.0.1:5185/?studio=canopy&theme=precision&finish=canopy-linen&light=daylight&recipe=canopy-tear&camera=hero&quality=ultra&surroundings=hall-concrete&layout=reference",
+    "sha256": "5dd0437fff0659ed1d0b783e069a0b342fbd70456bcebb580fe371a8be60ff67",
+    "bytes": 113754,
+    "metadataSource": "Consolidated from the observed final production browser capture outputs.",
+    "phase": "Ready",
+    "clock": "0.00 s",
+    "broken": 0,
+    "deflection": "0.000"
+  },
+  {
+    "file": "14-bridge-smoke.jpg",
+    "entry": [
+      "http://127.0.0.1:5185/assets/index-BxySqcFd.js"
+    ],
+    "ready": "true",
+    "size": [
+      1280,
+      720
+    ],
+    "engine": "WebGPU",
+    "study": "bridge",
+    "url": "http://127.0.0.1:5185/?studio=bridge&theme=observatory&finish=bridge-weathered&light=daylight&recipe=bridge-collapse&camera=hero&quality=ultra&surroundings=valley-stream&layout=reference&water=academy&flow=1&wave=1&foam=1&flowMotion=1",
+    "sha256": "212a0e7a73436f4f2aac6aecceeded6b3e373cb1c8273729f5fe287ca063c04f",
+    "bytes": 137264,
+    "metadataSource": "Consolidated from the observed final production browser capture outputs.",
+    "phase": "Ready",
+    "clock": "0.00 s",
+    "broken": 0,
+    "deflection": "0.000"
+  }
+]

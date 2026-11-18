@@ -1,0 +1,115 @@
+{
+  "at": "2026-09-11T11:13:13.852122+00:00",
+  "scope": "Liquid studio V2, local build and native GPU browser; no deployment",
+  "catalog": {
+    "rigs": 5,
+    "experiments": 40,
+    "fluids": 20,
+    "surfaces": 8,
+    "pipeOutlets": 4,
+    "stormPrograms": 3,
+    "viscosityShortcuts": 8
+  },
+  "numerical": {
+    "testFile": "tests/studio/liquid-lab-v2.test.mjs",
+    "fullPresetRuns": 40,
+    "grid": [
+      84,
+      28
+    ],
+    "fixedStep": 0.008333333333333333,
+    "maximumAbsoluteBudgetErrorM3": 5.863512800297066e-13,
+    "liquidAndLibraryChecks": 57,
+    "sharedRegressionChecks": 27,
+    "failedChecks": 0,
+    "calibrated": false
+  },
+  "build": {
+    "typecheck": "passed",
+    "production": "passed",
+    "output": "/private/tmp/box3d-liquid-v2-build-20260911",
+    "advisory": "Existing large JS chunk warning"
+  },
+  "imageGeneration": {
+    "mode": "built-in",
+    "mockup": "docs/design/liquid-lab-v2-20260911/mockup.png",
+    "prompt": "docs/design/liquid-lab-v2-20260911/PROMPT.md",
+    "original": "/Users/commander/.codex/generated_images/01a07e7b-23c9-72e1-a62e-b780ac76623f/exec-c9a277a9-4af4-4612-9a14-572f5ea228de.png"
+  },
+  "browser": {
+    "provider": "Codex in-app browser",
+    "exception": "Private machine-local app and native WebGPU/WebGL dependency. No build, held media or profile transferred to a remote browser. Existing Browserless transfer and retention rejections were preserved.",
+    "taskOwnedTabs": [
+      "7",
+      "8"
+    ],
+    "userTabPreserved": "1",
+    "screenshots": "Native screenshots are in the task tool transcript. No filesystem screenshot is claimed.",
+    "viewports": [
+      [
+        1280,
+        720
+      ],
+      [
+        1440,
+        900
+      ],
+      [
+        390,
+        844
+      ]
+    ],
+    "backendsObserved": [
+      "WebGPU",
+      "WebGL"
+    ],
+    "consoleErrors": 0,
+    "consoleWarningsOnFinalBuild": 0,
+    "checks": [
+      "All five apparatus layouts render",
+      "Twin manifold ran; 140 mm bore and 50 L/s demand produced 50 L/s delivery",
+      "20 mm bore committed with Enter and limited actual delivery to 0.98 L/s",
+      "Supply cutoff stopped inputs and extended the remaining observation window",
+      "Two runs persisted across reload, compared unequal durations, and showed Pipe bore plus Manual action differences",
+      "Mobile width and scrollWidth were both 390 px",
+      "Mobile 20-fluid selection, 4x viscosity shortcut, surface dropdown and 20 mm film value reached normalized settings",
+      "Tiny rainfall depth and flow remain visible as nonzero measurements",
+      "Closed flume inspected from top",
+      "Rainfall inspected from overview and detail",
+      "River inspected in development and compiled preview",
+      "Model snapshots and UI replay retained recorded source rates",
+      "Final compiled comparison lists Pipe bore 20 / 140 mm and the differing manual cutoff; desktop notebook widened to 619 px at 1440 px viewport."
+    ],
+    "cleanup": "Owned tabs 7 and 8 closed; viewport override reset; original user bridge tab 1 preserved.",
+    "finalDevelopmentCheck": {
+      "ready": true,
+      "rig": "pipes",
+      "renderer": "WebGPU",
+      "consoleErrors": 0
+    },
+    "referenceImageLoaded": {
+      "complete": true,
+      "width": 1659
+    }
+  },
+  "preview": {
+    "development": {
+      "url": "http://127.0.0.1:5173/?studio=liquid&experiment=pipe-clear",
+      "pid": 19602,
+      "binding": "127.0.0.1",
+      "running": true
+    },
+    "temporaryProduction": {
+      "port": 5186,
+      "pid": 29073,
+      "binding": "127.0.0.1",
+      "cleanup": "stopped"
+    }
+  },
+  "concurrentWork": {
+    "preserved": true,
+    "runtimeWatcherFix": "Ignore generated benchmarks/experiments/**/runtime/** tsconfig churn",
+    "commitOrPush": false
+  },
+  "sourceManifestMatches": true
+}

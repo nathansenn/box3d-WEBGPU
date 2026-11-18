@@ -1,0 +1,35 @@
+{
+  "url": "http://127.0.0.1:5174/?studio=bridge&theme=observatory&finish=bridge-amber&light=afternoon&recipe=bridge-collapse&camera=hero&quality=ultra&surroundings=valley-alpine&custom=1&target=4&strength=1&wind=0.25&speed=2",
+  "broken": "0",
+  "clock": "0.00 s",
+  "controls": {
+    "camera-preset": "hero",
+    "load": "4",
+    "speed": "2",
+    "strength": "1",
+    "surroundings": "valley-alpine",
+    "wind": "0.25"
+  },
+  "deflection": "0.000",
+  "scrollWidth": 390,
+  "state": {
+    "camera": "hero",
+    "drawCalls": "64",
+    "finish": "bridge-amber",
+    "fps": "11",
+    "lighting": "afternoon",
+    "phase": "ready",
+    "quality": "ultra",
+    "recipe": "custom",
+    "renderFrames": "1345",
+    "renderReady": "true",
+    "running": "false",
+    "sceneObjects": "24030",
+    "setup": "custom",
+    "study": "bridge",
+    "surroundings": "valley-alpine",
+    "theme": "observatory",
+    "triangles": "958165"
+  },
+  "width": 390
+}

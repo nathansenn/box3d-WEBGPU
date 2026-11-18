@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "references": [
+    {
+      "id": "hero",
+      "path": "public/studio/references/bridge-v2-hero.png",
+      "sha256": "c90503270f06bed40e97100e4450831a4de2ad49eaf3fb56087903ee3a025c86",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "authority": "ImageGen appearance target; existing solver owns topology",
+      "source": "docs/design/bridge-imagegen-v2-20260909/references/bridge-hero.png"
+    },
+    {
+      "id": "detail",
+      "path": "public/studio/references/bridge-v2-detail.png",
+      "sha256": "5be5b5dff1bb08b3474fe8c289a53e332dd423464f9344a09f1bcb96530f532f",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "authority": "ImageGen appearance target; existing solver owns topology",
+      "source": "docs/design/bridge-imagegen-v2-20260909/references/bridge-detail.png"
+    }
+  ]
+}

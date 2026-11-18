@@ -1,0 +1,35 @@
+{
+  "url": "http://127.0.0.1:5173/?studio=canopy&theme=precision&finish=canopy-saddle&light=amber-room&recipe=canopy-calm&camera=detail&quality=ultra&surroundings=hall-foundry&setup=setup-canopy-saddle",
+  "broken": "0",
+  "clock": "0.00 s",
+  "controls": {
+    "camera-preset": "detail",
+    "load": "1.4",
+    "speed": "1",
+    "strength": "1.4",
+    "surroundings": "hall-foundry",
+    "wind": "0"
+  },
+  "deflection": "0.000",
+  "scrollWidth": 390,
+  "state": {
+    "camera": "detail",
+    "drawCalls": "32",
+    "finish": "canopy-saddle",
+    "fps": "6",
+    "lighting": "amber-room",
+    "phase": "ready",
+    "quality": "ultra",
+    "recipe": "canopy-calm",
+    "renderFrames": "734",
+    "renderReady": "true",
+    "running": "false",
+    "sceneObjects": "554",
+    "setup": "setup-canopy-saddle",
+    "study": "canopy",
+    "surroundings": "hall-foundry",
+    "theme": "precision",
+    "triangles": "77863"
+  },
+  "width": 390
+}

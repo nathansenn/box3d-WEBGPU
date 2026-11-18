@@ -1,0 +1,294 @@
+{
+  "format": "box3d-bridge-experiments",
+  "version": 1,
+  "model": "bridge-review-v1:studio-pbd-scaled-norm3-js-v1:f192ee7a",
+  "createdAt": "2026-09-14T17:36:58.893Z",
+  "plan": "strength",
+  "duration": 60,
+  "base": {
+    "target": 5,
+    "strength": 1.6,
+    "wind": 2,
+    "program": "failure",
+    "speed": 1
+  },
+  "status": "cancelled",
+  "transport": "worker",
+  "cases": [
+    {
+      "index": 0,
+      "settings": {
+        "target": 5,
+        "strength": 0.4,
+        "wind": 2,
+        "program": "failure",
+        "speed": 1
+      },
+      "status": "cancelled",
+      "points": [
+        {
+          "time": 0,
+          "load": 0,
+          "drop": 0,
+          "lateral": 2.3841857821338408e-8,
+          "broken": 0
+        },
+        {
+          "time": 0.09999999999999999,
+          "load": 0.055000000000000014,
+          "drop": 0.010184812428866152,
+          "lateral": 0.00019695758819571196,
+          "broken": 0
+        },
+        {
+          "time": 0.19999999999999998,
+          "load": 0.10999999999999996,
+          "drop": 0.02620040403745527,
+          "lateral": 0.0006302833557128018,
+          "broken": 0
+        },
+        {
+          "time": 0.3000000000000001,
+          "load": 0.1649999999999999,
+          "drop": 0.03329867917020124,
+          "lateral": 0.001296067237853915,
+          "broken": 0
+        },
+        {
+          "time": 0.4000000000000004,
+          "load": 0.21999999999999983,
+          "drop": 0.032866939383136895,
+          "lateral": 0.002559208869933993,
+          "broken": 0
+        },
+        {
+          "time": 0.5000000000000007,
+          "load": 0.2749999999999998,
+          "drop": 0.03590320010793491,
+          "lateral": 0.0041960716247557706,
+          "broken": 0
+        },
+        {
+          "time": 0.6000000000000003,
+          "load": 0.32999999999999974,
+          "drop": 0.04861280001378798,
+          "lateral": 0.0060031652450560635,
+          "broken": 0
+        },
+        {
+          "time": 0.7,
+          "load": 0.3849999999999997,
+          "drop": 0.06753196876166889,
+          "lateral": 0.007802748680114657,
+          "broken": 0
+        },
+        {
+          "time": 0.7999999999999996,
+          "load": 0.4399999999999996,
+          "drop": 0.08584382754368569,
+          "lateral": 0.009572291374206454,
+          "broken": 0
+        },
+        {
+          "time": 0.8999999999999992,
+          "load": 0.49499999999999955,
+          "drop": 0.1009694187005401,
+          "lateral": 0.011310243606567294,
+          "broken": 0
+        },
+        {
+          "time": 0.9999999999999989,
+          "load": 0.55,
+          "drop": 0.11546167193574686,
+          "lateral": 0.012958431243896396,
+          "broken": 0
+        },
+        {
+          "time": 1.0999999999999985,
+          "load": 0.6050000000000006,
+          "drop": 0.13244575989095608,
+          "lateral": 0.014289999008178622,
+          "broken": 0
+        },
+        {
+          "time": 1.1999999999999982,
+          "load": 0.6600000000000013,
+          "drop": 0.15199163542619232,
+          "lateral": 0.015240454673767001,
+          "broken": 0
+        },
+        {
+          "time": 1.2999999999999978,
+          "load": 0.7150000000000019,
+          "drop": 0.17179469131136216,
+          "lateral": 0.015735054016113192,
+          "broken": 0
+        },
+        {
+          "time": 1.3999999999999975,
+          "load": 0.7700000000000025,
+          "drop": 0.19008844657620383,
+          "lateral": 0.015709185600280673,
+          "broken": 0
+        },
+        {
+          "time": 1.4999999999999971,
+          "load": 0.8250000000000031,
+          "drop": 0.2070295418250261,
+          "lateral": 0.014885330200195224,
+          "broken": 0
+        },
+        {
+          "time": 1.5999999999999968,
+          "load": 0.8800000000000037,
+          "drop": 0.22348154401428744,
+          "lateral": 0.013213300704955966,
+          "broken": 0
+        },
+        {
+          "time": 1.6999999999999964,
+          "load": 0.9350000000000043,
+          "drop": 0.23913751048418153,
+          "lateral": 0.010733866691589267,
+          "broken": 0
+        },
+        {
+          "time": 1.799999999999996,
+          "load": 0.9900000000000049,
+          "drop": 0.2520959739034696,
+          "lateral": 0.007718467712402255,
+          "broken": 0
+        },
+        {
+          "time": 1.8999999999999957,
+          "load": 1.0450000000000055,
+          "drop": 0.28042416940976533,
+          "lateral": 0.006613755226135165,
+          "broken": 1
+        },
+        {
+          "time": 1.9999999999999953,
+          "load": 1.100000000000006,
+          "drop": 0.3587293197656125,
+          "lateral": 0.017110371589660556,
+          "broken": 3
+        }
+      ],
+      "firstRupture": 1.824999999999996,
+      "phase": "Fracturing"
+    },
+    {
+      "index": 1,
+      "settings": {
+        "target": 5,
+        "strength": 0.7,
+        "wind": 2,
+        "program": "failure",
+        "speed": 1
+      },
+      "status": "pending",
+      "points": [],
+      "firstRupture": null,
+      "phase": "Ready"
+    },
+    {
+      "index": 2,
+      "settings": {
+        "target": 5,
+        "strength": 1,
+        "wind": 2,
+        "program": "failure",
+        "speed": 1
+      },
+      "status": "pending",
+      "points": [],
+      "firstRupture": null,
+      "phase": "Ready"
+    },
+    {
+      "index": 3,
+      "settings": {
+        "target": 5,
+        "strength": 1.4,
+        "wind": 2,
+        "program": "failure",
+        "speed": 1
+      },
+      "status": "pending",
+      "points": [],
+      "firstRupture": null,
+      "phase": "Ready"
+    },
+    {
+      "index": 4,
+      "settings": {
+        "target": 5,
+        "strength": 2,
+        "wind": 2,
+        "program": "failure",
+        "speed": 1
+      },
+      "status": "pending",
+      "points": [],
+      "firstRupture": null,
+      "phase": "Ready"
+    }
+  ],
+  "exportedAt": "2026-09-14T17:37:34.287Z",
+  "units": {
+    "time": "model seconds",
+    "drop": "model units",
+    "lateral": "model units",
+    "load": "normalized",
+    "wind": "normalized",
+    "strength": "multiplier"
+  },
+  "basis": {
+    "fixedHz": 120,
+    "sampleHz": 10,
+    "initialState": "intact bridge",
+    "loadHistory": "constant target with existing solver load ramp",
+    "calibration": "authored comparative",
+    "speed": "Playback speed does not affect fixed-tick experiments.",
+    "water": "Visual surroundings do not apply river forces.",
+    "geometry": "Response samples and settings only; load a case and rerun to inspect geometry."
+  },
+  "summaries": [
+    {
+      "index": 0,
+      "label": "Strength 0.40×",
+      "status": "cancelled",
+      "firstRupture": 1.824999999999996,
+      "time": 1.9999999999999953,
+      "peak": 0.3587293197656125,
+      "peakTime": 1.9999999999999953,
+      "lateral": 0.017110371589660556,
+      "broken": 3,
+      "outcome": "Ruptured"
+    },
+    {
+      "index": 1,
+      "label": "Strength 0.70×",
+      "status": "pending",
+      "firstRupture": null
+    },
+    {
+      "index": 2,
+      "label": "Strength 1.00×",
+      "status": "pending",
+      "firstRupture": null
+    },
+    {
+      "index": 3,
+      "label": "Strength 1.40×",
+      "status": "pending",
+      "firstRupture": null
+    },
+    {
+      "index": 4,
+      "label": "Strength 2.00×",
+      "status": "pending",
+      "firstRupture": null
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "{{NAME}}",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "vite --host 127.0.0.1", "build": "vite build", "preview": "vite preview --host 127.0.0.1" },
+  "dependencies": { "box3d-webgpu-kit": "^{{VERSION}}", "three": "^0.185.0" },
+  "devDependencies": { "vite": "^8.0.0" }
+}

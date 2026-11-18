@@ -1,0 +1,31 @@
+{
+  "head": "dfedd9fe9983200f492d686488d27b6a4b11c650",
+  "sources": {
+    "src/studio/lighting.ts": "aee76af2192ab9002b463d3537b71117baf87787ecd64585d88a646456c07a10",
+    "src/studio/main.ts": "35ef032f300f942f536d18e5a9ffba0d00f4302e96b51b7729ebc2dcc07a5507",
+    "src/studio/materials.ts": "d41c57f8e60a23b0e52afbcb54d90557555257f54b475f9e285ad291b0b6f522",
+    "src/studio/physics.ts": "fbc8326cb7f2f734351b2fc4d68a112340756311d28db92b794133acb934e0f0",
+    "src/studio/preset-browser.ts": "eae67896667ba17c032c070a8d44b4cb16de415b7c67ec67277a9948ed9ad945",
+    "src/studio/presets.ts": "9787ca01775239221642e90b73e1f2a0e0759cc1d8638c40752a70d2ac391862",
+    "src/studio/studio.css": "fb029493cd1677018a3e4a21ce5c0fa6f3526887aee1a9777e35a2275670a01e",
+    "src/studio/world.ts": "10e383146b506abbd0fcf80d0d4f522bff22ba3f8b7e215faa1248df8f677cec"
+  },
+  "entrySource": {
+    "src/entry.ts": "2861237cf73ccdfdddacc94d6bb0d9277541db3e0d8b9214818c584a5ceb3b74"
+  },
+  "productionScripts": {
+    "dist/assets/index-DipR682Y.js": "4be9133c4b7946ddec6e4986de0f71cc00fa5b8a3f4b7d68b03ed2ec193b2671",
+    "dist/assets/main-BiX5MzAb.js": "695666282a60d34c1f15d755f680986c3a8f56db8c680bc874708da0127c7951",
+    "dist/assets/main-CdFvpjhk.js": "0069c80d62231159e46f1673609281b91b24837cf430bee493d7a60dddf91302",
+    "dist/assets/turboquant-DEooNtgG.js": "be4423a33e469ea9e905b65aedb2c8c10ff2cdb8a717527c48e7f145a7529c66"
+  },
+  "productionStyles": {
+    "dist/assets/index-B-hnpRUR.css": "a8901f37eaa5c11e9b547016328ed43cb66f7ed466d5d3507f0b70560e6586b3",
+    "dist/assets/main-Bwqo8j-g.css": "9d072801725a784666eb3f44ff1c97108f70cd470fd77518de1098588ff87858",
+    "dist/assets/main-DnvK00am.css": "35f9f83e59fa517d14abf0d4acf90a3aec58ba82973dacccbb70b525cef05ed5",
+    "dist/assets/style-DzWAs8Pe.css": "36bd4309ef888306fa05d1d75f43744c2a2ba469615068fbbb8605327ecb204a"
+  },
+  "runtimeAssetBytes": 52919348,
+  "newAssetCount": 19,
+  "humanVisualAcceptance": "pending-user-review"
+}

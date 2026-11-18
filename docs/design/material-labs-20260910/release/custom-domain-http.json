@@ -1,0 +1,30 @@
+{
+  "at": "2026-09-10T00:01:37.455640+00:00",
+  "checks": [
+    {
+      "url": "https://box3d.apxlabs.parts/index.html",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "sha256": "2e1c609831033dabef3e386521911a62ec0888db6f1a6cdff02b5fb535b8b2e8",
+      "frozenMatch": true,
+      "tlsValidation": "default certificate validation succeeded"
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/assets/studio-worker-CiVNd5Bm.js",
+      "status": 200,
+      "contentType": "text/javascript; charset=utf-8",
+      "sha256": "80fd3ffeef713fa62e350bcaf3fe1a22f1c71c5b0436f24c583f978d4e837b58",
+      "frozenMatch": true,
+      "tlsValidation": "default certificate validation succeeded"
+    },
+    {
+      "url": "https://box3d.apxlabs.parts/release-info.json",
+      "status": 200,
+      "contentType": "application/json",
+      "sha256": "6741567b44c29232103b5cfa9b5a9489a83039d07b5e8701f02ff0555a54abf7",
+      "frozenMatch": true,
+      "tlsValidation": "default certificate validation succeeded"
+    }
+  ],
+  "pass": true
+}

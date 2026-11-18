@@ -1,0 +1,150 @@
+{
+  "at": "2026-09-10T02:03:42.946Z",
+  "provider": "Existing Browserless shared lease helper",
+  "owner": "01a07e7b-23c9-72e1-a62e-b780ac76623f",
+  "url": "https://box3d.apxlabs.parts/",
+  "captures": 0,
+  "scope": "Public rendered SEO and responsive DOM sample; no physics suite, private fixture or native performance claim.",
+  "rendered": {
+    "pass": true,
+    "checks": {
+      "successfulPage": true,
+      "runtimeReady": true,
+      "stableCanonicalAndSchema": true,
+      "usefulRenderedTitleAndHeading": true,
+      "navigationCoverage": true,
+      "noHorizontalOverflow": true,
+      "actualNoScriptContent": true,
+      "modelLimitsVisible": true,
+      "noRuntimeErrors": true
+    },
+    "desktop": {
+      "title": "BOX3D — Liquid dynamics",
+      "canonical": [
+        "https://box3d.apxlabs.parts/"
+      ],
+      "description": "Explore liquid flow, glass fracture, concrete compression and more in eight interactive studies. Compare presets, replay simulations and export run data.",
+      "robots": "follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      "ogUrl": "https://box3d.apxlabs.parts/",
+      "schemaTypes": [
+        "WebSite",
+        "WebApplication"
+      ],
+      "h1": [
+        "Liquid dynamics"
+      ],
+      "studies": [
+        "liquid",
+        "glass",
+        "concrete",
+        "rubber",
+        "granular",
+        "plate",
+        "canopy",
+        "bridge"
+      ],
+      "study": "liquid",
+      "renderReady": "true",
+      "runEnabled": true,
+      "width": 1280,
+      "scrollWidth": 1280,
+      "canvas": [
+        {
+          "width": 886,
+          "height": 642
+        }
+      ],
+      "modelNotice": "About this modelA conservative, flat-bed shallow-water model with closed tank boundaries, solid obstacles and a gate flux limiter. Viscosity is represented by depth-averaged drag. It does not simulate overturning waves or separated droplets.Material coefficients are authored for comparison. These results are not calibrated material-test data.",
+      "studyLinks": [
+        "?studio=glass",
+        "?studio=concrete",
+        "?studio=rubber",
+        "?studio=granular",
+        "?studio=plate",
+        "?studio=canopy",
+        "?studio=bridge"
+      ]
+    },
+    "mobile": {
+      "title": "BOX3D — Liquid dynamics",
+      "canonical": [
+        "https://box3d.apxlabs.parts/"
+      ],
+      "description": "Explore liquid flow, glass fracture, concrete compression and more in eight interactive studies. Compare presets, replay simulations and export run data.",
+      "robots": "follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+      "ogUrl": "https://box3d.apxlabs.parts/",
+      "schemaTypes": [
+        "WebSite",
+        "WebApplication"
+      ],
+      "h1": [
+        "Liquid dynamics"
+      ],
+      "studies": [
+        "liquid",
+        "glass",
+        "concrete",
+        "rubber",
+        "granular",
+        "plate",
+        "canopy",
+        "bridge"
+      ],
+      "study": "liquid",
+      "renderReady": "true",
+      "runEnabled": true,
+      "width": 390,
+      "scrollWidth": 390,
+      "canvas": [
+        {
+          "width": 390,
+          "height": 456
+        }
+      ],
+      "modelNotice": "About this modelA conservative, flat-bed shallow-water model with closed tank boundaries, solid obstacles and a gate flux limiter. Viscosity is represented by depth-averaged drag. It does not simulate overturning waves or separated droplets.Material coefficients are authored for comparison. These results are not calibrated material-test data.",
+      "studyLinks": [
+        "?studio=glass",
+        "?studio=concrete",
+        "?studio=rubber",
+        "?studio=granular",
+        "?studio=plate",
+        "?studio=canopy",
+        "?studio=bridge"
+      ]
+    },
+    "noScript": {
+      "h1": [
+        "BOX3D Engineering Studio"
+      ],
+      "text": "BOX3D\nBOX3D Engineering Studio\n\nExplore material behavior and structural failure through interactive experiments in your browser. Compare materials, adjust a test program, inspect the response and replay the recorded run.\n\nChoose a study\nLiquid flow and viscosity\nGlass impact and fracture\nConcrete compression\nElastomer compression and recovery\nGranular flow and settling\nMetal press and tooling\nCanopy loading\nSuspension bridge loading\nCompare, replay and inspect\n\nThe five material labs include 40 material profiles and 40 prepared experiments. Change the material and test controls, run the experiment, then use the timeline to inspect its recorded history. Export the selected settings and recorded frames as JSON run data.\n\nUnderstand the models\n\nThe simulations use authored coefficients and reduced models for comparison. They are uncalibrated and do not provide certified engineering results. Each lab explains its model and limits. The interactive scene needs JavaScript and a browser with WebGL 2 or WebGPU support.\n\nProject information is available in the BOX3D project repository. Read the project code license; individual asset notices are included with their files.\n\nEnable JavaScript to open the experiments. This page describes the available studies; it does not run a simulation without JavaScript.\n\nGenerated design reference for the liquid dynamics lab.",
+      "studyLinks": [
+        "/?studio=liquid",
+        "/?studio=glass",
+        "/?studio=concrete",
+        "/?studio=rubber",
+        "/?studio=granular",
+        "/?studio=plate",
+        "/?studio=canopy",
+        "/?studio=bridge"
+      ],
+      "width": 390,
+      "scrollWidth": 390,
+      "loadingMessageHidden": true,
+      "image": [
+        {
+          "alt": "Generated design reference for the liquid flow apparatus, experiment controls and replay timeline.",
+          "width": 262,
+          "height": 164
+        }
+      ]
+    },
+    "pageErrors": [],
+    "failedRequests": [],
+    "consoleErrors": []
+  },
+  "pass": true,
+  "cleanup": {
+    "helperReturned": true,
+    "ownLeaseRemaining": 0
+  }
+}

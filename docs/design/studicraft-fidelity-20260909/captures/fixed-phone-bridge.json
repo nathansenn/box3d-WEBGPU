@@ -1,0 +1,40 @@
+{
+  "data": {
+    "camera": "reference",
+    "cameraPose": "{\"position\":[-58.83076923076925,19.184615384615384,71.07692307692311],\"target\":[-4,7,0],\"fov\":48}",
+    "deskPanel": "test",
+    "drawCalls": "70",
+    "finish": "bridge-weathered",
+    "fps": "21",
+    "lighting": "reference-daylight",
+    "phase": "ready",
+    "quality": "ultra",
+    "recipe": "bridge-service",
+    "renderFrames": "1457",
+    "renderReady": "true",
+    "riverAnimate": "true",
+    "riverFlow": "1",
+    "riverFoam": "1",
+    "riverTime": "57.603",
+    "riverWave": "1",
+    "running": "false",
+    "sceneObjects": "41722",
+    "setup": "custom",
+    "study": "bridge",
+    "surroundings": "valley-stream",
+    "theme": "observatory",
+    "triangles": "3091667"
+  },
+  "scripts": [
+    "http://127.0.0.1:5174/assets/index-04KyPelw.js"
+  ],
+  "title": "BOX3D — Engineering Studio",
+  "ui": "BOX3D\n01\nCanopy\n02\nPlate press\n03\nSuspension bridge\nMaterial\nResponse\nReady to simulate\nRIVER / STRUCTURAL STUDY\nSuspension bridge\nWeathered oak · Reference daylight\nResults\n0.00 s\n0 s\n0.0 s recorded\nLive\n0.25×\n0.5×\n1.0×\n2.0×\nWebGL 2 renderer\nComparative model · not calibrated\nExport evidence",
+  "url": "http://127.0.0.1:5174/?studio=bridge&theme=observatory&finish=bridge-weathered&light=reference-daylight&recipe=bridge-service&camera=reference&quality=ultra&surroundings=valley-stream&layout=reference&water=academy&flow=1&wave=1&foam=1&flowMotion=1",
+  "viewport": {
+    "height": 844,
+    "width": 390
+  },
+  "logs": [],
+  "capturedAt": "2026-09-08T21:30:21.201Z"
+}

@@ -1,0 +1,81 @@
+Scan setup
+Strength scan · 60 s · next scan
+Edit
+Run new scan
+
+Cancelled · partial results retained.
+
+0 / 5
+Complete
+1 / 1
+With rupture
+1.82 s
+Earliest · Strength 0.40×
+Compare responses
+Table
+Chart
+Time probe
+
+Strength scan · 60 s · Load 5.00 · Wind 2.00
+
+Compare at 60.0 s
+Show peaks
+Actual 0.1 s samples · “No sample” means outside the recorded interval.
+
+At 60.0 s · displacement in model units
+
+Response samples at 60.0 model seconds. Outcomes cover the full recording.
+Case
+Full-record outcome
+	drop	sideways	Lost links
+
+01
+Strength 0.40×
+Partial · Ruptured
+	—	—	—
+
+02
+Strength 0.70×
+Not run
+	—	—	—
+
+03
+Strength 1.00×
+Not run
+	—	—	—
+
+04
+Strength 1.40×
+Not run
+	—	—	—
+
+05
+Strength 2.00×
+Not run
+	—	—	—
+CASE 01
+Strength 0.40×
+First rupture
+1.82 s
+Peak recorded drop
+0.359
+Lost links
+3 / 327
+
+2.0 s recorded · peak at 2.00 s
+Lateral peak 0.017 · Fracturing
+
+Load 5.00 · Strength 0.40× · Wind 2.00
+
+First rupture
+Peak drop
+Record end
+Load case
+Use as baseline
+Export CSV
+Export JSON
+Clear scan
+
+Scan saved in this browser. Export before running another scan.
+
+How these experiments work

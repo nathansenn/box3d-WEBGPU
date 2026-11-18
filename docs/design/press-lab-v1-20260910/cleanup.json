@@ -1,0 +1,17 @@
+{
+  "time": "2026-09-09T20:43:07.103966+00:00",
+  "removed": [
+    "/private/tmp/box3d-press-lab-v1-20260910/dist"
+  ],
+  "reason": "Owned disposable production verification build; server is stopped; source, screenshot and validation receipts retained.",
+  "logicalBytesRemoved": 135231399,
+  "freeBytesBefore": 14704640000,
+  "freeBytesAfter": 14827520000,
+  "sourceAndLockfilesUnchanged": true,
+  "retained": [
+    "docs/design/press-lab-v1-20260910",
+    "src/studio",
+    "tests/studio"
+  ],
+  "skipped": "Other tasks, installed dependencies and active 127.0.0.1:5173 runtime were preserved. Free-space change may include concurrent activity."
+}

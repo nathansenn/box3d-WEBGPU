@@ -1,0 +1,16 @@
+✔ all 24 profiles are represented and every complete preset stays within independent control bounds (1.692583ms)
+✔ all 36 cartridges preserve visible and analytical contact at their configured scale and angle (41.649583ms)
+✔ both section axes recover actual rest dimensions and show connected zero deflection before loading (9.739125ms)
+✔ every cartridge is seated continuously against its backing and ram shaft (15.012208ms)
+✔ a removed surface creates real section gaps and replay restores the original continuity without using live link state (6.443041ms)
+✔ yield and rupture coloring follow the selected alloy and strength factor, not the generic steel limit (0.169833ms)
+✔ actual loaded and unloaded snapshots retain plastic stretch and report cracks, not an animation stage (2106.96325ms)
+✔ fracture highlighting excludes only true exterior rims, including corner-adjacent diagonals (0.16525ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2371.41525

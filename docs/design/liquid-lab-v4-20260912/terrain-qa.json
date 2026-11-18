@@ -1,0 +1,40 @@
+{
+  "at": "2026-09-12T13:14:12.923Z",
+  "results": [
+    {
+      "case": "flat",
+      "depthDrift": 0,
+      "speed": 1.1053507984683212e-16
+    },
+    {
+      "case": "crown",
+      "depthDrift": 0,
+      "speed": 1.4380321867508592e-16
+    },
+    {
+      "case": "gutter",
+      "depthDrift": 0,
+      "speed": 1.3748329409738478e-16
+    },
+    {
+      "case": "bowl",
+      "depthDrift": 0,
+      "speed": 1.0125143330880248e-16
+    },
+    {
+      "case": "ridges",
+      "depthDrift": 0,
+      "speed": 1.1697810875201586e-16
+    },
+    {
+      "case": "steps",
+      "depthDrift": 0,
+      "speed": 9.456080608522446e-17
+    },
+    {
+      "case": "bank-height",
+      "low": 5.489795918367321,
+      "high": 0
+    }
+  ]
+}

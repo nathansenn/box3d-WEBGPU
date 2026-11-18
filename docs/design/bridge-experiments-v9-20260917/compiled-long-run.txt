@@ -1,0 +1,53 @@
+Inspect
+Experiments
+Load scan · 3 cases · 120 s · next scan
+Edit
+Run 3 cases
+
+3 of 3 complete · 120 s per case
+
+3 / 3
+Complete
+0 / 3
+With rupture
+—
+No rupture recorded
+Compare responses
+Table
+Chart
+Time probe
+
+Load scan · 120 s · Strength 1.60× · Wind 0.00
+
+Recorded peaks · displacement in model units
+
+Recorded peaks and final lost links. Outcomes cover the full recording.
+Case
+Full-record outcome
+	Peak drop	Peak sideways	Lost links
+
+01
+Load 0.00
+No rupture observed
++
+	0.026	0.000	0
+
+02
+Load 0.50
+No rupture observed
++
+	0.233	0.001	0
+
+03
+Load 1.00
+No rupture observed
++
+	0.311	0.001	0
+Summary CSV
+Samples CSV
+JSON
+Clear scan
+
+Scan saved in this browser. Export before running another scan.
+
+How these experiments work

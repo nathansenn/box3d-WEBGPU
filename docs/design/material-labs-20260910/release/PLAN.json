@@ -1,0 +1,19 @@
+{
+  "preparedAt": "2026-09-09T23:19:36.415868+00:00",
+  "purpose": "Independent user-authorized BOX3D public web launch, not a Browserless fixture transfer.",
+  "authorization": {
+    "task": "01a0879d-7888-7ef1-918d-b51de293230b",
+    "turn": "01a08833-014c-7b51-8233-823085a918eb",
+    "userRequest": "I want everything going online and in play ios store, check cloud flare and godaddy for the domains then make sure that as these task progress they are getting stood up and updated online."
+  },
+  "host": "GitHub Pages in the existing public nathansenn/box3d-WEBGPU repository",
+  "hostname": "box3d.apxlabs.parts",
+  "branch": "codex/material-studio-pages",
+  "sourceBranchUntouched": "main",
+  "fileCount": 81,
+  "payloadBytes": 118673897,
+  "largestBytes": 7796107,
+  "assetScope": "Compiled app and all product studio references, textures, models and license/provenance metadata. No original workbench public payload, source repository, credentials, fixture datasets or browser profiles.",
+  "privateReviewHolds": "None in this product task. The blocked Browserless fixture receipt is preserved and no transfer is retried.",
+  "rollback": "First publication with no prior live BOX3D Pages deployment. On a failed first-release critical flow, withhold domain connection and disable/revert the Pages source; retain frozen artifacts. Subsequent releases must keep the last healthy Pages commit and deploy it on rollback."
+}

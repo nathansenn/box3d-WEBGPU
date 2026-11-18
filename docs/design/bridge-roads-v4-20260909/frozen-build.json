@@ -1,0 +1,69 @@
+{
+  "created": "2026-09-09T16:29:44.373471+00:00",
+  "buildDirectory": "/private/tmp/box3d-bridge-roads-v4-20260909/dist",
+  "source": {
+    "index.html": "39561d8d714bb23feb0dd5c7b0204612b3ea8338438270b46383d9b375c5688b",
+    "package.json": "2e329f2bc7d1a023d9439896231d97725dc2a586e628db9a934610af700fba93",
+    "src/entry.ts": "2861237cf73ccdfdddacc94d6bb0d9277541db3e0d8b9214818c584a5ceb3b74",
+    "src/studio/bridge-approaches.ts": "f2e2171f5ec524fee7b3379652795a19d6488315279a013f7c27d4904d9e6cce",
+    "src/studio/bridge-deck.ts": "e50c6e90418cf957f8a2af98270362cae4eea0b3051e749131bec8867db1d66e",
+    "src/studio/bridge-ecology.ts": "37405a1af290d0b755076054c04758160299dff4f9a0a868a6eeb69d49eff08d",
+    "src/studio/bridge-framing.ts": "571585b26c917565a861367fa0da39205a0307814094b05951961d7a47053c4f",
+    "src/studio/bridge-layout.ts": "5fad7399f0affa581d1c6b3751b8141b7671daeca50534c821655935eeeeae98",
+    "src/studio/collection-state.ts": "0382a1fcb79c4237507dab8e9c47be626417587aabaa32fd190455ce320b7628",
+    "src/studio/collection.css": "0ddcba7edf01a2263f32a9c414c06156fcdf32c462c1772a8adbb859b8440b7d",
+    "src/studio/lighting.ts": "f8de477b2ed175a97c505c6df3e32e7db7ce6b8846735cadf5b3f5c9422244ac",
+    "src/studio/main.ts": "1a1f67de58df51f43dedcbf0bf5132a8c464b69268836a2d0eeafc9e91d9ac07",
+    "src/studio/materials.ts": "a989e1debebff52d4e44e0f1da166fc44896fbf1bb9e86819868e633ebb0089a",
+    "src/studio/physics.ts": "fbc8326cb7f2f734351b2fc4d68a112340756311d28db92b794133acb934e0f0",
+    "src/studio/preset-browser.ts": "18e14effd7143a5ed74974dda9d19734114b8951651af47c802b7b54c10eb3bc",
+    "src/studio/presets.ts": "aadd81627db4ad6acd071733a21c9290cf77c32ddc8214dff7f577030482455b",
+    "src/studio/reference-scene.ts": "ff81496325d12677d5c823df698515b805b008ad6714ffa3647d6b2e24128c53",
+    "src/studio/reference-workspace.css": "4014e738a582d55e1395685acf6824d6a7d3738726a7a771bdea84ea9f5e8e63",
+    "src/studio/river-settings.ts": "7d355be8bbe8d11acc893ae8b180e7644dba2ca2afe7ad86464ef78c804c7a1b",
+    "src/studio/river-water.ts": "2e9eb7ace892bef791075b0f2c43039fa4a7266fc618c0c318277ac41e73bd88",
+    "src/studio/scene-desk.css": "119a9d5bb3cbbf405168b6e864f9a189cacaae42f4efd6deecf7638246afdc17",
+    "src/studio/scene-desk.ts": "70e16ab1d9701d5d90273f7dcaef881b294f8c4fd4d407fd5015693e237ecb1c",
+    "src/studio/studio.css": "fb029493cd1677018a3e4a21ce5c0fa6f3526887aee1a9777e35a2275670a01e",
+    "src/studio/world.ts": "b5bf8739df3fec90f26d726ddcce06d845f164580f05d387aca11498ef2d7895",
+    "vite.config.ts": "450fbeb8429907bc719c6983b546489c284bee167debc3ee5ff4d0b1938f6d42"
+  },
+  "built": {
+    "index.html": "759557e72aab9a50ffb1f3e2232bb155b774c9baa5052652652866372eaa6cc3",
+    "assets/index-DBcNSnY5.js": "c3e014f5bb31cceed53beb8198cf4cba51731166e74d34ab9336ffd9a9e999cd",
+    "assets/main-Bq-B0PvC.js": "c78fe63c3288678e203f13f32e17bd0d689bd43b5774b2104ffbc307cbe08e78",
+    "assets/main-CGEGWVvz.js": "9b5003c51b85d6dcfea9cfb10681fbd7b0933a62946d809719195b3ff5eeac03",
+    "assets/turboquant-DEooNtgG.js": "be4423a33e469ea9e905b65aedb2c8c10ff2cdb8a717527c48e7f145a7529c66",
+    "assets/index-B-hnpRUR.css": "a8901f37eaa5c11e9b547016328ed43cb66f7ed466d5d3507f0b70560e6586b3",
+    "assets/main-Boy0v8xh.css": "b1b2cb4f399a2ec9f1e011d0f9a330423ecc30c479e96393b9c3e158cb32583c",
+    "assets/main-Bwqo8j-g.css": "9d072801725a784666eb3f44ff1c97108f70cd470fd77518de1098588ff87858",
+    "assets/style-DzWAs8Pe.css": "36bd4309ef888306fa05d1d75f43744c2a2ba469615068fbbb8605327ecb204a"
+  },
+  "validation": {
+    "typecheck": "passed",
+    "productionBuild": "passed; existing large chunk warning",
+    "physics": 26,
+    "presets": 44,
+    "river": 7,
+    "referenceGeometry": 6,
+    "refinement": 7,
+    "roads": 7,
+    "total": 97
+  },
+  "critic": {
+    "resolved": [
+      "approach plank/stringer contact",
+      "rails follow tilted station frames",
+      "road triangles conform to rendered terrain"
+    ],
+    "roadInteriorPoints": 334376,
+    "roadTriangles": 47768,
+    "terrainClearance": [
+      0.06,
+      0.084
+    ],
+    "maxRailAttachmentError": 4e-15
+  },
+  "renderingCorrection": "AO strength fades from view depth 28 to 70; near fixture contact shading retained. Controlled no-AO diagnostic removed distant bands.",
+  "temporaryBuildRemovedAfterValidation": true
+}

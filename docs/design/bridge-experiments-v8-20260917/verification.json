@@ -1,0 +1,17 @@
+{
+  "status": "PASS",
+  "cases": 5,
+  "samples": 1505,
+  "devAndCompiledCasesIdentical": true,
+  "sampleTime": 7.7,
+  "comparisonDeltas": {
+    "drop": 0.09742029196635649,
+    "lateral": 0.19861829280853271,
+    "broken": 1
+  },
+  "partialEnd": 10.000000000000073,
+  "referenceEnd": 59.999999999997236,
+  "allFiveDesktopRowsVisible": true,
+  "phoneWidth": 390,
+  "phoneControlHeight": 42
+}

@@ -1,0 +1,34 @@
+{
+  "url": "http://127.0.0.1:5174/?studio=plate&theme=atelier&finish=plate-copper-sheet&light=crosslight&recipe=plate-yield&camera=detail&quality=ultra&surroundings=hall-slate&setup=setup-plate-copper",
+  "broken": "0",
+  "clock": "0.00 s",
+  "controls": {
+    "camera-preset": "detail",
+    "load": "1.1",
+    "speed": "0.5",
+    "strength": "1.25",
+    "surroundings": "hall-slate"
+  },
+  "deflection": "0.000",
+  "scrollWidth": 1026,
+  "state": {
+    "camera": "detail",
+    "drawCalls": "41",
+    "finish": "plate-copper-sheet",
+    "fps": "3",
+    "lighting": "crosslight",
+    "phase": "ready",
+    "quality": "ultra",
+    "recipe": "plate-yield",
+    "renderFrames": "26",
+    "renderReady": "true",
+    "running": "false",
+    "sceneObjects": "138",
+    "setup": "setup-plate-copper",
+    "study": "plate",
+    "surroundings": "hall-slate",
+    "theme": "atelier",
+    "triangles": "60535"
+  },
+  "width": 1026
+}

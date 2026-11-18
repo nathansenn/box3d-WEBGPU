@@ -79,6 +79,10 @@ declare global {
 
   interface GPUDevice {
     readonly queue: GPUQueue;
+    readonly limits?: Record<string, number>;
+    pushErrorScope(filter: 'validation' | 'out-of-memory' | 'internal'): void;
+    popErrorScope(): Promise<GPUError | null>;
+    addEventListener?(type: 'uncapturederror', listener: (event: { readonly error: { readonly message: string } }) => void): void;
     createBuffer(descriptor: GPUBufferDescriptor): GPUBuffer;
     createBindGroupLayout(descriptor: GPUBindGroupLayoutDescriptor): GPUBindGroupLayout;
     createBindGroup(descriptor: GPUBindGroupDescriptor): GPUBindGroup;
@@ -92,6 +96,7 @@ declare global {
     createTexture(descriptor: GPUTextureDescriptor): GPUTexture;
     createSampler(descriptor?: GPUSamplerDescriptor): GPUSampler;
   }
+  interface GPUError { readonly message: string; }
 
   interface GPUQueue {
     writeBuffer(buffer: GPUBuffer, bufferOffset: number, data: BufferSource, dataOffset?: number, size?: number): void;
@@ -129,6 +134,7 @@ declare global {
   interface GPUCommandBuffer {}
 
   interface GPUCommandEncoder {
+    copyBufferToBuffer(source: GPUBuffer, sourceOffset: number, destination: GPUBuffer, destinationOffset: number, size: number): void;
     beginRenderPass(descriptor: GPURenderPassDescriptor): GPURenderPassEncoder;
     beginComputePass(descriptor?: GPUComputePassDescriptor): GPUComputePassEncoder;
     finish(): GPUCommandBuffer;
@@ -140,6 +146,7 @@ declare global {
     setVertexBuffer(slot: number, buffer: GPUBuffer, offset?: number, size?: number): void;
     setIndexBuffer(buffer: GPUBuffer, indexFormat: GPUIndexFormat, offset?: number, size?: number): void;
     draw(vertexCount: number, instanceCount?: number, firstVertex?: number, firstInstance?: number): void;
+    drawIndirect(indirectBuffer: GPUBuffer, indirectOffset: number): void;
     drawIndexed(indexCount: number, instanceCount?: number, firstIndex?: number, baseVertex?: number, firstInstance?: number): void;
     end(): void;
   }

@@ -9,7 +9,7 @@ import { getMaterialDemoRecipe, type MaterialDemoRecipe } from '../material-demo
 import type { ScenePreset } from '../scenes';
 import { quantizedHash as sharedQuantizedHash } from './quantized-hash';
 import type { DebugLine, MaterialFailureTelemetry, PackedSurfaceFrame, RopeGridFrame } from '../types';
-import type { SoftSimulation, SoftSimulationFrame } from './simulations';
+import type { SoftSimulation, SoftSimulationFrame, SoftSimulationTelemetry } from './simulations';
 import { materialPresetForVariant, type MaterialBehaviorPreset } from './material-presets';
 import {
   PACKED_SURFACE_VERTEX_BYTES,
@@ -398,6 +398,7 @@ export class MaterialSimulation implements SoftSimulation {
   private cycleEnabled = false;
   private time = 0;
   private frameVersion = 1;
+  private telemetryResult: SoftSimulationTelemetry | null = null;
   private builtFrameVersion = -1;
   private builtFrameDebug = false;
   private telemetryCountdown = 0;
@@ -3294,6 +3295,23 @@ export class MaterialSimulation implements SoftSimulation {
       );
     }
     return index;
+  }
+
+  readTelemetry(): SoftSimulationTelemetry {
+    if (this.telemetryResult?.frameVersion === this.frameVersion) return this.telemetryResult;
+    return this.telemetryResult = Object.freeze({
+      kind: this.kind,
+      label: this.label,
+      nodeCount: this.nodeCountValue,
+      constraintCount: this.constraintCountValue,
+      brokenCount: this.brokenCountValue,
+      energy: this.energyValue,
+      hash: this.hashValue,
+      frameVersion: this.frameVersion,
+      // Material telemetry is mutable solver state. A retained recording read
+      // must not change when the next scheduled telemetry refresh occurs.
+      material: Object.freeze({ ...this.telemetry }),
+    });
   }
 
   buildFrame(debug: boolean): SoftSimulationFrame {

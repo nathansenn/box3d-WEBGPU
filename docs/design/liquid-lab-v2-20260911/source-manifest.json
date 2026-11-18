@@ -1,0 +1,58 @@
+{
+  "src/studio/material-labs/liquid-config.ts": {
+    "sha256": "acdb6ca6da4186ba8de9cd7d73450fca8a89f65f9fe6e201464cd274a1ba050f",
+    "bytes": 5289
+  },
+  "src/studio/material-labs/liquid-panel.ts": {
+    "sha256": "5138f30a1f0b5745dfef759b7e40688dcd656e3f38ce6c8098a1fb93d0605a43",
+    "bytes": 7061
+  },
+  "src/studio/material-labs/liquid-scene.ts": {
+    "sha256": "ef1da1ade435a9006d3c31be9f519c580d4606ed7aa14be9fa9844d8e02d2f64",
+    "bytes": 21405
+  },
+  "src/studio/material-labs/liquid.css": {
+    "sha256": "08dc0c7f7f0c68811a4d6c057d611c0079a0d2ee1feb50ba3745ed5e5b37640f",
+    "bytes": 7019
+  },
+  "src/studio/material-labs/catalog.ts": {
+    "sha256": "32c26a2934296ae6a63b73ab2166be18834be7893c9e97ad0c05084ddd19f436",
+    "bytes": 22151
+  },
+  "src/studio/material-labs/models.ts": {
+    "sha256": "25bde7eb0e8d3e51b74189cb232b475d58e34066edc66570c03c49757d372cef",
+    "bytes": 27874
+  },
+  "src/studio/material-labs/main.ts": {
+    "sha256": "cc053529be0cfc791268fc6dd38cf32169b35db107bbce8c4122c4f176e3b9d0",
+    "bytes": 26196
+  },
+  "src/studio/material-labs/world.ts": {
+    "sha256": "daeea1e005ce73e1ea2f35e9015b7738438b00b7481f7036a311cd976af6e687",
+    "bytes": 34796
+  },
+  "src/studio/material-labs/run-library.ts": {
+    "sha256": "a7c5429e52e0c3a620acfa713595c36d8da4f1991c7067d4c897f17cba488097",
+    "bytes": 8105
+  },
+  "src/studio/material-labs/run-library-view.ts": {
+    "sha256": "b1130cbfb6fe4e88eeb9b005729351ef06c82438cc26b09efa0edf96df217732",
+    "bytes": 16344
+  },
+  "tests/studio/liquid-lab-v2.test.mjs": {
+    "sha256": "6d67a669eb621e7cb807c98088773cbc195b575349651ef0d32e3ff5aa08f2dc",
+    "bytes": 7101
+  },
+  "tests/studio/material-labs.test.mjs": {
+    "sha256": "fee640a417e2408bc59c5077c6f79f0e52ae19d66252d86ae6e6a85207d617f8",
+    "bytes": 7375
+  },
+  "vite.config.ts": {
+    "sha256": "7edc875b35fa9b859bebbc0254b4e11cdc8a458cefa005d907730f8b0c8a6af7",
+    "bytes": 555
+  },
+  "public/studio/references/material-labs/liquid-v2.png": {
+    "sha256": "7ff612949b185bb2cbfd4768167deb0d3584cb79d3f033bd92b7a287212ed08d",
+    "bytes": 2332583
+  }
+}

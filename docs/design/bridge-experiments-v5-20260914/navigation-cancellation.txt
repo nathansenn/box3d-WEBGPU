@@ -1,0 +1,203 @@
+- banner:
+  - link "BOX3D Engineering Studio":
+    - /url: "?studio=liquid"
+    - generic: 
+    - strong: BOX3D
+  - navigation "Studies":
+    - generic: Study
+    - combobox "Study":
+      - option "Liquid dynamics"
+      - option "Glass impact"
+      - option "Concrete crush"
+      - option "Elastomer lab"
+      - option "Granular flow"
+      - option "Metal press"
+      - option "Canopy"
+      - option "Suspension bridge" [selected]
+    - generic: 
+  - button "Reference workspace" [pressed]:
+    - generic: 
+    - generic: Reference
+  - button "Open preset library":
+    - generic: 
+    - generic: Presets
+  - button "Compare reference":
+    - generic: 
+  - button "Export run data":
+    - generic: 
+  - text: 
+  - button "Resume saved run":
+    - generic: 
+- main:
+  - navigation "Studio workflow":
+    - button "Browse experiments":
+      - generic: 
+      - generic: Labs
+    - button "Edit the scene":
+      - generic: 
+      - generic: Scene
+    - button "Edit the load":
+      - generic: 
+      - generic: Test
+    - button "Compare with the image":
+      - generic: 
+      - generic: Compare
+  - text:                      
+  - region "Simulation viewport":
+    - img "Interactive 3D simulation. Drag to orbit, scroll to zoom."
+    - group "Surface display":
+      - button "Material" [pressed]
+      - button "Response"
+    - button "Focus on scene":
+      - generic: 
+    - button "Second camera angle":
+      - generic: 
+    - button "Fit camera":
+      - generic: 
+    - button "Expand viewport":
+      - generic: 
+    - text:  
+    - status:
+      - generic: Ready to simulate
+      - generic: 0.00 s
+    - text:       
+  - complementary "Experiment desk":
+    - heading "Experiment desk" [level=2]
+    - button "Hide experiment desk":
+      - generic: 
+    - tablist "Experiment workflow":
+      - tab "Set up":
+        - generic: 
+        - generic: Set up
+      - tab "Surface":
+        - generic: 
+        - generic: Surface
+      - tab "World":
+        - generic: 
+        - generic: World
+      - tab "Test":
+        - generic: 
+        - generic: Test
+      - tab "Analyze" [selected]:
+        - generic: 
+        - generic: Analyze
+    - text:                         
+    - tabpanel "Analyze":
+      - group "Analysis mode":
+        - button "Inspect"
+        - button "Experiments" [pressed]
+      - text: +
+      - heading "Find the turning point." [level=3]
+      - paragraph: One variable. Five controlled runs.
+      - group "Experiment scan":
+        - button "Load scan":
+          - generic: 
+          - text: Load scan
+        - button "Strength scan":
+          - generic: 
+          - text: Strength scan
+        - button "Crosswind scan" [pressed]:
+          - generic: 
+          - text: Crosswind scan
+      - group "Duration / model seconds":
+        - generic: Duration / model seconds
+        - button "15 s"
+        - button "30 s"
+        - button "60 s" [pressed]
+      - paragraph:
+        - generic: 
+        - text: Load 5.00 · Strength 1.60×
+        - generic: Held constant in the next scan
+      - button "Run 5 experiments":
+        - generic: 
+        - text: Run 5 experiments
+      - text: 
+      - status: 0 of 5 complete · Scan cancelled. Partial results retained.
+      - region "Experiment results":
+        - heading "Recorded deck drop" [level=4]
+        - button "Selected only"
+        - paragraph: Crosswind scan · 60 s · worker
+        - img "Recorded deck drop over model time. Select a case below for exact measurements.":
+          - generic: first rupture 9.59 s
+          - generic: model units
+          - generic: "6.7"
+          - generic: "0"
+          - generic: "0"
+          - generic: "30"
+          - generic: "60"
+          - generic: model seconds
+        - article:
+          - button "01 Wind 0.00 Partial · Collapsed" [expanded]:
+            - generic: "01"
+            - strong: Wind 0.00
+            - generic: Partial · Collapsed
+            - generic: −
+          - generic: First rupture
+          - generic: 9.59 s
+          - generic: Peak recorded drop
+          - generic: "6.200"
+          - generic: Lost links
+          - generic: 12 / 327
+          - paragraph:
+            - text: 13.0 s recorded · peak at 11.70 s
+            - text: Lateral peak 3.177 · Collapsed
+          - paragraph: Load 5.00 · Strength 1.60× · Wind 0.00
+          - button "Load case"
+          - button "Use as baseline"
+        - article:
+          - button "02 Wind 0.25 Not run":
+            - generic: "02"
+            - strong: Wind 0.25
+            - generic: Not run
+            - generic: +
+        - article:
+          - button "03 Wind 0.65 Not run":
+            - generic: "03"
+            - strong: Wind 0.65
+            - generic: Not run
+            - generic: +
+        - article:
+          - button "04 Wind 1.20 Not run":
+            - generic: "04"
+            - strong: Wind 1.20
+            - generic: Not run
+            - generic: +
+        - article:
+          - button "05 Wind 2.00 Not run":
+            - generic: "05"
+            - strong: Wind 2.00
+            - generic: Not run
+            - generic: +
+      - button "Export CSV":
+        - generic: 
+        - text: Export CSV
+      - button "Export JSON"
+      - button "Clear scan"
+      - status: Saved scan restored. The live scene has its own recording.
+      - generic "How these experiments work"
+    - text:  
+  - region "Simulation playback":
+    - button "Run simulation":
+      - generic: 
+    - button "Reset simulation":
+      - generic: 
+    - generic: 0.00 s
+    - slider "Replay recorded history": "0"
+    - generic: 0 s
+    - generic: LIVE HISTORY
+    - generic: 0.0 s recorded
+    - button "Live"
+    - combobox "Playback speed":
+      - option "0.25×"
+      - option "0.5×"
+      - option "1.0×" [selected]
+      - option "2.0×"
+    - button "Capture viewport":
+      - generic: 
+- contentinfo:
+  - generic: WebGPU renderer · worker · 63 fps · 111 draws
+  - generic: Comparative model · not calibrated
+  - button "Export evidence":
+    - text: Export evidence
+    - generic: 
+- text:                

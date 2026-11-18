@@ -1,0 +1,74 @@
+Inspect
+Experiments
+Load scan · 5 cases · 15 s · next scan
+Edit
+Run 5 cases
+
+5 of 5 complete · 15 s per case
+
+5 / 5
+Complete
+2 / 5
+With rupture
+9.59 s
+Earliest · Load 5.00
+Compare responses
+Table
+Chart
+Time probe
+
+Load scan · 15 s · Strength 1.60× · Wind 0.00
+
+Recorded peaks · displacement in model units
+
+Recorded peaks and final lost links. Outcomes cover the full recording.
+Case
+Full-record outcome
+	Peak drop	Peak sideways	Lost links
+
+01
+Load 4.375
+No rupture observed
++
+	0.502	0.003	0
+
+02
+Load 4.5313
+No rupture observed
++
+	0.508	0.003	0
+
+03
+Load 4.6875
+No rupture observed
++
+	0.514	0.004	0
+
+04
+Load 4.8438
+Collapsed
++
+	6.200	5.267	12
+
+05
+Load 5.00
+Collapsed
++
+	6.200	4.068	13
+Refine an observed transition
+
+Adjacent completed cases had different rupture outcomes. Look closer under the same conditions.
+
+4.6875 → 4.8438
+No rupture → rupture
+
+Observed for 15 s. This interval is not a safe-load rating or a proven failure threshold.
+
+Summary CSV
+Samples CSV
+JSON
+Clear scan
+
+Saved scan restored with its fixed settings. Export before replacing it.
+
+How these experiments work

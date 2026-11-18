@@ -1,0 +1,74 @@
+{
+  "at": "2026-09-10T02:06:39.454Z",
+  "deployment": {
+    "id": "d5c878a4-dec1-4e5a-b325-510375fcc267",
+    "status": "SUCCESS",
+    "createdAt": "2026-09-10T02:01:30.843Z",
+    "meta": {
+      "buildOnly": false,
+      "cliAgentSessionId": "01a07e7b-23c9-72e1-a62e-b780ac76623f",
+      "cliCaller": "codex",
+      "cliMessage": "SEO icon correction 27a6f75: reuse approved studio image; runtime and media bytes unchanged",
+      "fileServiceManifest": {},
+      "imageDigest": "sha256:26cd21e341c8bbb18199ae01966e8a957857cbd833412f668782a7644e32b947",
+      "logsV2": true,
+      "nixpacksProviders": [],
+      "propertyFileMapping": {
+        "build.builder": "$.build.builder",
+        "build.dockerfilePath": "$.build.dockerfilePath",
+        "deploy.healthcheckPath": "$.deploy.healthcheckPath",
+        "deploy.healthcheckTimeout": "$.deploy.healthcheckTimeout",
+        "deploy.numReplicas": "$.deploy.numReplicas",
+        "deploy.restartPolicyMaxRetries": "$.deploy.restartPolicyMaxRetries",
+        "deploy.restartPolicyType": "$.deploy.restartPolicyType"
+      },
+      "reason": "deploy",
+      "rootDirectory": null,
+      "runtime": "V2",
+      "serviceManifest": {
+        "build": {
+          "buildCommand": null,
+          "buildEnvironment": "V3",
+          "builder": "DOCKERFILE",
+          "dockerfilePath": "/Dockerfile",
+          "nixpacksConfigPath": null,
+          "nixpacksPlan": null,
+          "watchPatterns": []
+        },
+        "deploy": {
+          "cronSchedule": null,
+          "drainingSeconds": null,
+          "healthcheckPath": null,
+          "healthcheckTimeout": null,
+          "ipv6EgressEnabled": false,
+          "limitOverride": null,
+          "multiRegionConfig": {
+            "us-west2": {
+              "numReplicas": 1
+            }
+          },
+          "numReplicas": 1,
+          "overlapSeconds": null,
+          "preDeployCommand": null,
+          "preDeployTimeoutSeconds": null,
+          "region": null,
+          "registryCredentials": null,
+          "requiredMountPath": null,
+          "restartPolicyMaxRetries": 10,
+          "restartPolicyType": "ON_FAILURE",
+          "runtime": "V2",
+          "sleepApplication": false,
+          "startCommand": null,
+          "useLegacyStacker": false
+        }
+      },
+      "volumeMounts": []
+    }
+  },
+  "configurationValidation": {
+    "deploymentId": "d2ec6e22-417f-4789-804e-ba89c5f7ee1d",
+    "result": "Valid configuration",
+    "unchangedInFinalRelease": true
+  },
+  "startupLog": "Starting Container\n2026-09-10T02:02:44.970276525Z [INFO] maxprocs: Updating GOMAXPROCS=32: determined from CPU quota ts=1789005763.9894347\n2026-09-10T02:02:44.970279594Z [INFO] GOMEMLIMIT is updated ts=1789005763.98945 GOMEMLIMIT=28800000000 previous=9223372036854775807\n2026-09-10T02:02:44.970284414Z [INFO] using config from file ts=1789005763.9894524 file=\"/etc/caddy/Caddyfile\"\n2026-09-10T02:02:44.970287344Z [INFO] adapted config to JSON ts=1789005763.9894538 adapter=\"caddyfile\"\n2026-09-10T02:02:44.970290214Z [WARN] admin endpoint disabled ts=1789005763.9894557 logger=\"admin\"\n2026-09-10T02:02:44.970293864Z [INFO] automatic HTTPS is completely disabled for server ts=1789005763.9895241 logger=\"http.auto_https\" server_name=\"srv0\"\n2026-09-10T02:02:44.970297154Z [INFO] started background certificate maintenance ts=1789005763.98964 logger=\"tls.cache.maintenance\" cache=\"0x3d170c0f7980\"\n2026-09-10T02:02:44.970300084Z [WARN] HTTP/2 skipped because it requires TLS ts=1789005763.9924507 logger=\"http\" network=\"tcp\" addr=\"10.163.157.244:8080\"\n2026-09-10T02:02:44.970302874Z [WARN] HTTP/3 skipped because it requires TLS ts=1789005763.9924693 logger=\"http\" network=\"tcp\" addr=\"10.163.157.244:8080\"\n2026-09-10T02:02:44.970305704Z [INFO] server running ts=1789005763.9924717 logger=\"http.log\" name=\"srv0\" protocols=[\"h1\",\"h2\",\"h3\"]\n2026-09-10T02:02:44.970308744Z [INFO] serving initial configuration ts=1789005763.9925122\n2026-09-10T02:02:44.970311794Z [INFO] cleaning storage unit ts=1789005763.9938178 logger=\"tls\" storage=\"FileStorage:/data/caddy\"\n2026-09-10T02:02:44.970314234Z [INFO] finished cleaning storage units ts=1789005763.9941459 logger=\"tls\"\n"
+}

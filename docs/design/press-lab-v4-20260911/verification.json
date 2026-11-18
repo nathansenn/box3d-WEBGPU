@@ -1,0 +1,174 @@
+{
+  "task": "01a07e7b-23c9-72e1-a62e-b780ac76623f",
+  "recordedAt": "2026-09-11T06:16:22.667810+00:00",
+  "scope": "Metal press V4; shared checkout preserved, no Git staging or deployment",
+  "browser": {
+    "mode": "local exception",
+    "reason": "Private localhost and native WebGPU / worker integration. Prior private asset transfer rejection remains binding.",
+    "remoteUse": false,
+    "ownedTabs": [
+      "5",
+      "6"
+    ],
+    "preservedUserTab": "1",
+    "developmentBackend": "WebGPU renderer \u00b7 worker",
+    "productionBackend": "WebGL 2 renderer \u00b7 worker",
+    "consoleErrors": [],
+    "screenshots": "CUA task transcript",
+    "cleanup": "Completed: viewport override reset; disposable tabs 5 and 6 closed; user tab 1 and its bridge URL preserved."
+  },
+  "tests": {
+    "uniquePassed": 45,
+    "regressions": "35 / 35",
+    "v4": "10 / 10",
+    "finalPressureReplay": "14 / 14",
+    "finalTooling": "8 / 8",
+    "typecheck": "passed",
+    "productionBuild": "passed",
+    "buildAdvisory": "A preexisting shared chunk exceeds 500 kB"
+  },
+  "production": {
+    "buildDirectory": "/private/tmp/box3d-press-v4-build-20260911",
+    "sizeMiB": 136,
+    "origin": "http://127.0.0.1:5186",
+    "listenerPid": 52521,
+    "session": 8350,
+    "entryScript": "/assets/index-CAJI1aE3.js",
+    "referenceImage": "/assets/mockup-Du1_4jAZ.png",
+    "referenceDimensions": [
+      1536,
+      1024
+    ],
+    "ready": true,
+    "temporaryServerCleanup": "Completed: owned PID 52521 stopped; existing PID 67040 on 127.0.0.1:5173 retained."
+  },
+  "development": {
+    "origin": "http://127.0.0.1:5173",
+    "listenerPid": 67040,
+    "preserveExistingServer": true
+  },
+  "runs": [
+    {
+      "name": "Two-stage copper overload",
+      "settings": {
+        "metal": "copper",
+        "thickness": 2,
+        "tool": "capsule",
+        "toolScale": 1,
+        "angle": 90,
+        "pressure": 65,
+        "strikeSpeed": 25,
+        "stroke": 100,
+        "hold": 2
+      },
+      "completeAtSeconds": 16.38,
+      "firstRecordedYield": 3.7,
+      "yieldDeflectionMm": 20.797658205,
+      "yieldPlasticPercent": 0.6,
+      "yieldBrokenConnections": 0,
+      "yieldRequestedPressure": 22.75,
+      "firstRecordedCrack": 7.6,
+      "crackDeflectionMm": 72.860752705,
+      "crackBrokenConnections": 9,
+      "crackRequestedPressure": 65,
+      "finalBrokenConnections": 342,
+      "replaySavingDisabled": true
+    },
+    {
+      "name": "Soft-start 5 mm copper overload",
+      "completeAtSeconds": 17.38,
+      "firstRecordedYield": 3.5,
+      "firstRecordedCrack": 6.1,
+      "brokenConnections": 2377,
+      "comparisonChangedLabels": [
+        "Thickness",
+        "Pressure program"
+      ],
+      "historicalReferenceUnchanged": true
+    },
+    {
+      "name": "Pulse copper pocket, manual override and release",
+      "cataloguePreset": "Copper capsule pocket",
+      "manualOverride": {
+        "timeBefore": 18.691666666666247,
+        "timeAfter": 18.691666666666247,
+        "sampleCountBefore": 187,
+        "sampleCountAfter": 187,
+        "deflectionBeforeMm": 29.20121659117485,
+        "deflectionAfterMm": 29.20121659117485,
+        "plasticBeforePercent": 24,
+        "plasticAfterPercent": 24,
+        "programBefore": "pulse",
+        "programAfter": "steady"
+      },
+      "replayAtZero": {
+        "program": "pulse",
+        "requestedPressure": 15.2,
+        "pressureDisabled": true,
+        "programDisabled": true
+      },
+      "completeAtSeconds": 21.38,
+      "peakBendMm": 54.98814853431311,
+      "finalBendMm": 18.477460931883847,
+      "recoveredMm": 36.510687602429265,
+      "brokenConnections": 0,
+      "savedComparisons": 2,
+      "persistenceVerifiedAcrossSourceReload": true
+    },
+    {
+      "name": "Compiled soft-start copper pocket",
+      "completeAtSeconds": 12.9,
+      "peakBendMm": 54.96447066939538,
+      "finalBendMm": 17.294597907039222,
+      "plasticPercent": 20.4,
+      "brokenConnections": 0,
+      "backend": "WebGL 2 renderer \u00b7 worker",
+      "topCutawayInspected": true
+    }
+  ],
+  "responsive": {
+    "sizes": [
+      [
+        1280,
+        720
+      ],
+      [
+        1536,
+        1024
+      ],
+      [
+        390,
+        844
+      ]
+    ],
+    "horizontalOverflow": false,
+    "keyboardArrowRight": "Stroke to Runs passed",
+    "phoneSettings": {
+      "metal": "stainless-316",
+      "thickness": 20,
+      "attachment": "cartridge-36",
+      "toolScale": 1.3,
+      "angle": 90,
+      "strikeSpeed": 250,
+      "pressure": 100
+    },
+    "phoneSaveBounds": {
+      "top": 663.40625,
+      "bottom": 703.40625,
+      "left": 45,
+      "right": 253.78125
+    },
+    "phoneProgramDialogFits": true
+  },
+  "storage": {
+    "initialFreeGiB": 74,
+    "preFinalBuildFreeGiB": 72,
+    "reserveGiB": 50,
+    "dependenciesInstalled": false,
+    "existingDistPreserved": true,
+    "qaOnlySavedRunsRemoved": 2,
+    "finalFreeGiB": 69
+  },
+  "modelLimits": "Authored comparative PBD; pressure is a model capacity percentage. No calibrated hydraulic force, material failure or production WebGPU certification.",
+  "completedAt": "2026-09-11T06:18:24.480018+00:00"
+}

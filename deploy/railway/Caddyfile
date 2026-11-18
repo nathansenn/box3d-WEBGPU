@@ -1,0 +1,48 @@
+{
+	admin off
+	persist_config off
+	auto_https off
+}
+
+:{$PORT:8080} {
+	bind {$BOX3D_BIND:127.0.0.1}
+	root * /srv/box3d
+	encode zstd gzip
+
+	@provider host box3d-web-production.up.railway.app
+	@indexQuery {
+		path /index.html
+		not query ""
+	}
+	@indexPlain path /index.html
+	@internal {
+		path / /index.html
+		expression `query({'workspace':'test'}) || query({'view':'structural-test'})`
+	}
+	@nonPage path /health /release-info.json /licenses/* /studio/materials/provenance.json /studio/models/*.LICENSE.txt
+
+	route {
+		header {
+			X-Content-Type-Options nosniff
+			Referrer-Policy strict-origin-when-cross-origin
+		}
+		header -Server
+		header ?Cache-Control "public, max-age=0, must-revalidate"
+		header /assets/* Cache-Control "public, max-age=31536000, immutable"
+		header @internal X-Robots-Tag "noindex, follow"
+		header @nonPage X-Robots-Tag "noindex"
+
+		redir @provider https://box3d.apxlabs.parts{uri} 308
+		redir @indexQuery https://box3d.apxlabs.parts/?{query} 308
+		redir @indexPlain https://box3d.apxlabs.parts/ 308
+
+		handle /health {
+			header Cache-Control no-store
+			rewrite * /release-info.json
+			file_server
+		}
+		handle {
+			file_server
+		}
+	}
+}

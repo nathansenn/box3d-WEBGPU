@@ -1,0 +1,557 @@
+{
+  "meta": {
+    "source_image": "/Users/commander/box3d-WEBGPU/public/studio/references/material-labs/concrete.png",
+    "image_width": 1180,
+    "image_height": 872,
+    "unit": "m",
+    "scale_anchor": {
+      "object_id": "bench",
+      "axis": "x",
+      "real_size": 3.4,
+      "confidence": "ASSUMED"
+    },
+    "scope": "Coarse at-rest apparatus support graph; viewport framing only. Fine fasteners and dynamic collision proxies are verified separately in source/runtime.",
+    "source_colour_samples": {
+      "300,700": "#1e1d17",
+      "500,450": "#faf9f6",
+      "200,250": "#9d938b"
+    }
+  },
+  "camera": {
+    "position": [
+      4,
+      4.95,
+      13
+    ],
+    "target": [
+      0,
+      2.45,
+      0
+    ],
+    "up": [
+      0,
+      1,
+      0
+    ],
+    "fov_vertical_deg": 38,
+    "shot_type": "eye_level",
+    "confidence": "INFERRED"
+  },
+  "environment": {
+    "background": "#cecfc5",
+    "ground": {
+      "present": true,
+      "y": 0,
+      "size": 30,
+      "color": "#c6c3b6"
+    }
+  },
+  "objects": [
+    {
+      "id": "foot--1.55--1.2000000000000002",
+      "label": "foot  1.55  1.2000000000000002",
+      "primitives": [
+        {
+          "type": "cylinder",
+          "params": {
+            "rt": 0.05,
+            "rb": 0.05,
+            "h": 0.22,
+            "seg": 32
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          -1.55,
+          0.11,
+          -1.2000000000000002
+        ]
+      },
+      "material": {
+        "color": "#a4aaa5",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "ground"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "foot--1.55-1.2000000000000002",
+      "label": "foot  1.55 1.2000000000000002",
+      "primitives": [
+        {
+          "type": "cylinder",
+          "params": {
+            "rt": 0.05,
+            "rb": 0.05,
+            "h": 0.22,
+            "seg": 32
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          -1.55,
+          0.11,
+          1.2000000000000002
+        ]
+      },
+      "material": {
+        "color": "#a4aaa5",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "ground"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "foot-1.55--1.2000000000000002",
+      "label": "foot 1.55  1.2000000000000002",
+      "primitives": [
+        {
+          "type": "cylinder",
+          "params": {
+            "rt": 0.05,
+            "rb": 0.05,
+            "h": 0.22,
+            "seg": 32
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          1.55,
+          0.11,
+          -1.2000000000000002
+        ]
+      },
+      "material": {
+        "color": "#a4aaa5",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "ground"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "foot-1.55-1.2000000000000002",
+      "label": "foot 1.55 1.2000000000000002",
+      "primitives": [
+        {
+          "type": "cylinder",
+          "params": {
+            "rt": 0.05,
+            "rb": 0.05,
+            "h": 0.22,
+            "seg": 32
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          1.55,
+          0.11,
+          1.2000000000000002
+        ]
+      },
+      "material": {
+        "color": "#a4aaa5",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "ground"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "bench",
+      "label": "bench",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 3.4,
+            "h": 0.48,
+            "d": 2.7
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          0,
+          0.46,
+          0
+        ]
+      },
+      "material": {
+        "color": "#69716e",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "foot--1.55--1.2000000000000002"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "column--1.46--1.11",
+      "label": "column  1.46  1.11",
+      "primitives": [
+        {
+          "type": "cylinder",
+          "params": {
+            "rt": 0.11,
+            "rb": 0.11,
+            "h": 3.97,
+            "seg": 32
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          -1.46,
+          2.685,
+          -1.11
+        ]
+      },
+      "material": {
+        "color": "#a4aaa5",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "bench"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "column--1.46-1.11",
+      "label": "column  1.46 1.11",
+      "primitives": [
+        {
+          "type": "cylinder",
+          "params": {
+            "rt": 0.11,
+            "rb": 0.11,
+            "h": 3.97,
+            "seg": 32
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          -1.46,
+          2.685,
+          1.11
+        ]
+      },
+      "material": {
+        "color": "#a4aaa5",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "bench"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "column-1.46--1.11",
+      "label": "column 1.46  1.11",
+      "primitives": [
+        {
+          "type": "cylinder",
+          "params": {
+            "rt": 0.11,
+            "rb": 0.11,
+            "h": 3.97,
+            "seg": 32
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          1.46,
+          2.685,
+          -1.11
+        ]
+      },
+      "material": {
+        "color": "#a4aaa5",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "bench"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "column-1.46-1.11",
+      "label": "column 1.46 1.11",
+      "primitives": [
+        {
+          "type": "cylinder",
+          "params": {
+            "rt": 0.11,
+            "rb": 0.11,
+            "h": 3.97,
+            "seg": 32
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          1.46,
+          2.685,
+          1.11
+        ]
+      },
+      "material": {
+        "color": "#a4aaa5",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "bench"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "crown",
+      "label": "crown",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 3.5,
+            "h": 0.46,
+            "d": 2.5500000000000003
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          0,
+          4.9,
+          0
+        ]
+      },
+      "material": {
+        "color": "#646c68",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "column-1.46-1.11"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "lower-support",
+      "label": "lower support",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 2.5,
+            "h": 0.13,
+            "d": 1.7
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          0,
+          0.765,
+          0
+        ]
+      },
+      "material": {
+        "color": "#69716e",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "bench"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "lower-platen",
+      "label": "lower platen",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 2.7,
+            "h": 0.12,
+            "d": 1.9
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          0,
+          0.89,
+          0
+        ]
+      },
+      "material": {
+        "color": "#69716e",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "lower-support"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "specimen",
+      "label": "specimen",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 1.3,
+            "h": 1.3,
+            "d": 1.3
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          0,
+          1.6,
+          0
+        ]
+      },
+      "material": {
+        "color": "#aaa59b",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "lower-platen"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "upper-platen",
+      "label": "upper platen",
+      "primitives": [
+        {
+          "type": "box",
+          "params": {
+            "w": 1.9,
+            "h": 0.19,
+            "d": 1.9
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          0,
+          2.345,
+          0
+        ]
+      },
+      "material": {
+        "color": "#69716e",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "specimen"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "ram",
+      "label": "ram",
+      "primitives": [
+        {
+          "type": "cylinder",
+          "params": {
+            "rt": 0.2,
+            "rb": 0.2,
+            "h": 1.6400000000000001,
+            "seg": 32
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          0,
+          3.26,
+          0
+        ]
+      },
+      "material": {
+        "color": "#a4aaa5",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "upper-platen"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    },
+    {
+      "id": "housing",
+      "label": "housing",
+      "primitives": [
+        {
+          "type": "cylinder",
+          "params": {
+            "rt": 0.44,
+            "rb": 0.44,
+            "h": 0.59,
+            "seg": 32
+          }
+        }
+      ],
+      "transform": {
+        "position": [
+          0,
+          4.375,
+          0
+        ]
+      },
+      "material": {
+        "color": "#a4aaa5",
+        "roughness": 0.5,
+        "metalness": 0.3
+      },
+      "support": {
+        "on": "ram"
+      },
+      "container": false,
+      "confidence": "ASSUMED"
+    }
+  ]
+}

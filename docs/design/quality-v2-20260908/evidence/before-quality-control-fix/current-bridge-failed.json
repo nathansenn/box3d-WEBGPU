@@ -1,0 +1,23 @@
+{
+  "name": "current-bridge-failed",
+  "at": "2026-09-08T08:03:41.450Z",
+  "broken": "27",
+  "camera": "hero",
+  "deflection": "6.200",
+  "draws": "64",
+  "events": "11",
+  "finish": "bridge-weathered",
+  "fps": "96",
+  "frames": "63099",
+  "height": 1058,
+  "horizontalOverflow": false,
+  "lighting": "daylight",
+  "objects": "24030",
+  "productionEntry": "index--Zc_i5BF.js",
+  "ready": "true",
+  "study": "bridge",
+  "time": "40.03 s",
+  "triangles": "958165",
+  "url": "http://127.0.0.1:5174/?studio=bridge&theme=observatory&finish=bridge-weathered&light=daylight&recipe=bridge-collapse&camera=hero&quality=ultra",
+  "width": 1487
+}

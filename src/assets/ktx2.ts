@@ -272,32 +272,36 @@ function proceduralAtlasFallback(device: GPUDevice): MaterialAtlasTexture {
   };
 }
 
-async function fetchKtx2(file: string): Promise<ParsedKtx2> {
+async function fetchKtx2(file: string, signal?: AbortSignal): Promise<ParsedKtx2> {
   const base = typeof document !== 'undefined' ? document.baseURI : 'http://localhost/';
-  const response = await fetch(new URL(`textures/${file}`, base));
+  signal?.throwIfAborted();
+  const response = await fetch(new URL(`textures/${file}`, base), { signal });
   if (!response.ok) throw new Error(`${file}: HTTP ${response.status}`);
-  return parseKtx2(new Uint8Array(await response.arrayBuffer()));
+  const bytes = await response.arrayBuffer();
+  signal?.throwIfAborted();
+  return parseKtx2(new Uint8Array(bytes));
 }
 
-export async function loadMaterialNoiseTexture(device: GPUDevice, supportsBc: boolean): Promise<MaterialNoiseTexture> {
+export async function loadMaterialNoiseTexture(device: GPUDevice, supportsBc: boolean, signal?: AbortSignal): Promise<MaterialNoiseTexture> {
   const file = supportsBc ? 'material-noise-bc4.ktx2' : 'material-noise-r8.ktx2';
   try {
-    const parsed = await fetchKtx2(file);
+    const parsed = await fetchKtx2(file, signal);
     if (supportsBc && parsed.vkFormat !== VK_FORMAT_BC4_UNORM_BLOCK) throw new Error('Expected BC4 KTX2 payload.');
     if (!supportsBc && parsed.vkFormat !== VK_FORMAT_R8_UNORM) throw new Error('Expected R8 KTX2 payload.');
     return createNoiseTextureFromParsed(device, parsed);
   } catch (error) {
+    signal?.throwIfAborted();
     console.warn(`[WebGPU] ${file} unavailable; using deterministic R8 fallback.`, error);
     return proceduralNoiseFallback(device);
   }
 }
 
-export async function loadMaterialAtlasTexture(device: GPUDevice, supportsAstc: boolean): Promise<MaterialAtlasTexture> {
+export async function loadMaterialAtlasTexture(device: GPUDevice, supportsAstc: boolean, signal?: AbortSignal): Promise<MaterialAtlasTexture> {
   const variant = supportsAstc ? 'astc' : 'rgba8';
   const albedoFile = `poliigon-materials-albedo-${variant}.ktx2`;
   const surfaceFile = `poliigon-materials-surface-${variant}.ktx2`;
   try {
-    const [albedo, surface] = await Promise.all([fetchKtx2(albedoFile), fetchKtx2(surfaceFile)]);
+    const [albedo, surface] = await Promise.all([fetchKtx2(albedoFile, signal), fetchKtx2(surfaceFile, signal)]);
     const expectedAlbedo = supportsAstc ? VK_FORMAT_ASTC_6X6_SRGB_BLOCK : VK_FORMAT_R8G8B8A8_SRGB;
     const expectedSurface = supportsAstc ? VK_FORMAT_ASTC_6X6_UNORM_BLOCK : VK_FORMAT_R8G8B8A8_UNORM;
     if (albedo.vkFormat !== expectedAlbedo || surface.vkFormat !== expectedSurface) {
@@ -323,6 +327,7 @@ export async function loadMaterialAtlasTexture(device: GPUDevice, supportsAstc: 
       source: supportsAstc ? 'poliigon-astc' : 'poliigon-rgba8',
     };
   } catch (error) {
+    signal?.throwIfAborted();
     console.warn(`[WebGPU] Poliigon ${variant} material atlases unavailable; using deterministic procedural materials.`, error);
     return proceduralAtlasFallback(device);
   }

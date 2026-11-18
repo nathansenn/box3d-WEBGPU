@@ -1,0 +1,19 @@
+{
+  "time": "2026-09-09T20:45:05.794266+00:00",
+  "exitCode": 0,
+  "sourceBefore": {
+    "src/studio/physics.ts": "cc2a37d965c23ce8da483cd3787342dfa2d8d44c3b25e143766df2b74bc609d0",
+    "src/studio/world.ts": "8c8ab00326fad8b30886d70e5709c7421064c477feb611d77e162e740a9cf734",
+    "src/studio/press-tooling.ts": "3e0d3444ff09a72a46fca108b1361c7958bf3fa4ad759074b817b1423facdacb",
+    "src/studio/surface-topology.ts": "231f8b9f2fb80f454dc1cb39c203cfeff6649c48c84af32bdac2ee991dedf89e",
+    "src/studio/main.ts": "b867e895e69577ff3b44e87ffcd863678f71ec2db252a00ecb82f46c182008ef"
+  },
+  "sourceAfter": {
+    "src/studio/physics.ts": "cc2a37d965c23ce8da483cd3787342dfa2d8d44c3b25e143766df2b74bc609d0",
+    "src/studio/world.ts": "8c8ab00326fad8b30886d70e5709c7421064c477feb611d77e162e740a9cf734",
+    "src/studio/press-tooling.ts": "3e0d3444ff09a72a46fca108b1361c7958bf3fa4ad759074b817b1423facdacb",
+    "src/studio/surface-topology.ts": "231f8b9f2fb80f454dc1cb39c203cfeff6649c48c84af32bdac2ee991dedf89e",
+    "src/studio/main.ts": "b867e895e69577ff3b44e87ffcd863678f71ec2db252a00ecb82f46c182008ef"
+  },
+  "sourceStable": true
+}

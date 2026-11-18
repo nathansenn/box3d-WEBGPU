@@ -1,0 +1,11 @@
+# Imagegen V4
+
+Mode: built-in edit. Reference: docs/design/press-lab-v3-20260911/mockup.png.
+
+Exact prompt:
+
+Edit this BOX3D metal press UI into the next version of the same product. Keep the light ivory application chrome, graphite inspection card, orange accent, realistic polished four-column press, copper specimen, attached capsule tool, coherent workshop lighting and dominant 3D viewport. Landscape desktop product screenshot, 1536 by 1024. Preserve the physically connected machine and visibly bent copper sheet. The right workbench now has four compact tabs: Metal, Tooling, Stroke, Runs. Select Runs. In the right panel show a clear Run response chart with elapsed seconds horizontally and deflection in mm vertically. Current run is an orange curve and a saved comparison is a muted cyan curve. Under it, two compact cards labeled Current and Reference display material, thickness and tool. A small comparison table has rows Peak bend, Final bend, Plastic stretch, Broken connections with two numeric columns, using plausible illustrative values. Add two small milestone buttons First recorded yield and First recorded crack with timestamps, plus a Save comparison button. Include a compact saved-run selector near the chart. In the viewport retain the small dark Bend & fracture section card with movable slice control, placed below and left of tool contact, and a modest floating badge Two-stage pressure. Bottom replay timeline has two tiny yield and crack markers. Main press and the evolving metal are the visual priority. The interface must look like an intentional engineering product: readable type, restrained hierarchy, well spaced controls, warm photographic reflections, subtle metal grain, real contact shadows. Header subtitle remains 24 metals / 36 attachments / 54 experiments. Footer: Comparative simulation. Do not add fake force certification, complex graphs across the whole scene, extra machines, illegible dense labels, arbitrary cards over the tool, bridge elements or stylized glowing neon.
+
+Generated source: `/Users/commander/.codex/generated_images/01a07e7b-23c9-72e1-a62e-b780ac76623f/exec-14721930-0b66-4a00-ace8-fcddf72db4de.png`.
+
+Project copy: `docs/design/press-lab-v4-20260911/mockup.png` (1536 × 1024). The source image is retained. The application bundles the project copy as its V4 comparison reference.

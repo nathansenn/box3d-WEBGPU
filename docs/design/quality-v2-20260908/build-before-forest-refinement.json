@@ -1,0 +1,23 @@
+{
+  "head": "dfedd9f",
+  "sources": {
+    "src/studio/lighting.ts": "aee76af2192ab9002b463d3537b71117baf87787ecd64585d88a646456c07a10",
+    "src/studio/main.ts": "aaf8c39f89f494636754cf6fe747b5722d00003922afd1f7542a015c7d0bceab",
+    "src/studio/materials.ts": "b2ae347c5d501bfa4b68ea8216e5e1da20f2ecf433bef087c40e2780117643db",
+    "src/studio/physics.ts": "fbc8326cb7f2f734351b2fc4d68a112340756311d28db92b794133acb934e0f0",
+    "src/studio/preset-browser.ts": "eae67896667ba17c032c070a8d44b4cb16de415b7c67ec67277a9948ed9ad945",
+    "src/studio/presets.ts": "b34407eb3ce73e2ad0d105fc5e8ff7360e2d1d5e873c9c4073d27e253d17c241",
+    "src/studio/studio.css": "b2b49b15a87e48326aaaff048c8463c70a409e1f4734cb12c9b412d5b4d9d8ab",
+    "src/studio/world.ts": "c1bf65f0f631e14912b0e025aa95d32f05d63fdc1aaae1e2f88c6214e18db57f",
+    "src/entry.ts": "2861237cf73ccdfdddacc94d6bb0d9277541db3e0d8b9214818c584a5ceb3b74"
+  },
+  "productionScripts": {
+    "dist/assets/index-DjxS_xI_.js": "1a45968c1578d32ddee23417b83f449c2617f6fa6f6a3c046f914fac03ade802",
+    "dist/assets/main-BBwav6ch.js": "73dcd0e289510c9985451763bb72c76a2db0ec719c31f94f9be3064115e0417f",
+    "dist/assets/main-RX14vuAc.js": "fd5ce483e9947104cecdc45c2bfcce87b103abe5eceba891466246897ffe6829",
+    "dist/assets/turboquant-DEooNtgG.js": "be4423a33e469ea9e905b65aedb2c8c10ff2cdb8a717527c48e7f145a7529c66"
+  },
+  "runtimeAssetBytes": 52919348,
+  "newAssetCount": 19,
+  "humanVisualAcceptance": "pending-user-review"
+}

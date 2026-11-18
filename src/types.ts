@@ -13,10 +13,22 @@ export type InstanceBufferSource = {
   _b3w_max_bodies(): number;
 };
 
+/** How the native backend uses its worker pool (docs/THREADED_ENGINE.md). Results never depend on it. */
+export type PhysicsThreading = {
+  readonly mode: 'single' | 'threads';
+  /** Workers the solver may use, calling thread included. */
+  readonly workers: number;
+  /** Why the single-threaded artifact is running when threads were not used. */
+  readonly reason?: string;
+};
+
 export type PhysicsBackend = InstanceBufferSource & {
   readonly name: string;
   readonly isWasm: boolean;
   readonly maxBodies: number;
+  readonly threading?: PhysicsThreading;
+  /** Workers the most recent step used; below the awake-body threshold a threaded module still steps on one. */
+  lastStepWorkers?(): number;
   createScene(scene: ScenePreset, stressScale: number, seed: number): number;
   step(dt: number, subSteps: number): void;
   syncTransforms(): void;

@@ -1,0 +1,67 @@
+{
+  "at": "2026-09-10T02:07:51.147725+00:00",
+  "sourceReady": true,
+  "deployedVerified": true,
+  "marketingReady": true,
+  "marketingActivityStarted": false,
+  "canonical": "https://box3d.apxlabs.parts/",
+  "logicalPublicHtmlPages": 1,
+  "studySelectors": 8,
+  "routeFamilies": 12,
+  "sourceHead": "dfedd9fe9983200f492d686488d27b6a4b11c650",
+  "sourceIndexSha256": "e2beee4d8c93d0572482ddcbcebf24a8f3b6cbc2e42d72d306d96d116da73773",
+  "sourceDirtyTreePreserved": true,
+  "releaseCommit": "27a6f75ec93a2d0b37d45a34ca1939c10def5ead",
+  "deploymentId": "d5c878a4-dec1-4e5a-b325-510375fcc267",
+  "imageDigest": "sha256:26cd21e341c8bbb18199ae01966e8a957857cbd833412f668782a7644e32b947",
+  "entrySha256": "5d91a8b8dff607ec4fc9bd8381b1f6b9c889bc3b05b808e8b5ba5ba4cc98c321",
+  "checks": {
+    "source": 21,
+    "frozenHtml": 21,
+    "publicHttpCases": 49,
+    "renderedChecks": 9,
+    "unchangedFrozenFiles": 89
+  },
+  "renderedViewports": [
+    [
+      1280,
+      800
+    ],
+    [
+      390,
+      844
+    ]
+  ],
+  "noJavaScriptViewVerified": true,
+  "browserErrors": 0,
+  "browserlessLeaseReleased": true,
+  "newApplicationBuild": false,
+  "newMedia": false,
+  "sourceMainStagedOrPushed": false,
+  "dnsChanged": false,
+  "editorialReview": "SEO-RELEASE.md: actual application intent, coherent app-state canonicals, meaningful initial content, truthful model claims, public project/license links, labeled design-reference image, no invented support/commercial/rating claims.",
+  "evidence": [
+    "source-check.json",
+    "artifact-check.json",
+    "served-check.json",
+    "rendered-check.json",
+    "deployment-check.json",
+    "final-artifact-manifest.json",
+    "route-inventory.json",
+    "SEO-RELEASE.md"
+  ],
+  "historicalFailure": "The first browser sample found /favicon.ico missing; explicit existing-image icon fixed it, and its failed receipt is retained separately.",
+  "notClaimed": [
+    "Search engine indexing or rankings",
+    "Rich-result eligibility",
+    "Real-user Core Web Vitals",
+    "Physical-device performance",
+    "Calibrated engineering results"
+  ],
+  "allocation": {
+    "admittedGiB": 0.01,
+    "newReleasePayloadBytes": 10121,
+    "futureGiB": 0,
+    "releaseRequested": true
+  }
+}

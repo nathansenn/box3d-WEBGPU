@@ -1,0 +1,35 @@
+{
+  "url": "http://127.0.0.1:5173/?studio=canopy&theme=precision&finish=canopy-linen&light=crosslight&recipe=canopy-tear&camera=hero&quality=ultra&surroundings=hall-concrete&setup=setup-canopy-tear",
+  "broken": "69",
+  "clock": "18.40 s",
+  "controls": {
+    "camera-preset": "hero",
+    "load": "4",
+    "speed": "1",
+    "strength": "1",
+    "surroundings": "hall-concrete",
+    "wind": "0.25"
+  },
+  "deflection": "5.172",
+  "scrollWidth": 1026,
+  "state": {
+    "camera": "hero",
+    "drawCalls": "32",
+    "finish": "canopy-linen",
+    "fps": "5",
+    "lighting": "crosslight",
+    "phase": "collapsed",
+    "quality": "ultra",
+    "recipe": "canopy-tear",
+    "renderFrames": "536",
+    "renderReady": "true",
+    "running": "false",
+    "sceneObjects": "554",
+    "setup": "setup-canopy-tear",
+    "study": "canopy",
+    "surroundings": "hall-concrete",
+    "theme": "precision",
+    "triangles": "75881"
+  },
+  "width": 1026
+}

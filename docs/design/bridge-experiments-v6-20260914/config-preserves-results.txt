@@ -1,0 +1,226 @@
+- banner:
+  - link "BOX3D Engineering Studio":
+    - /url: "?studio=liquid"
+    - generic: 
+    - strong: BOX3D
+    - generic: Engineering Studio
+  - navigation "Studies":
+    - generic: Study
+    - combobox "Study":
+      - option "Liquid dynamics"
+      - option "Glass impact"
+      - option "Concrete crush"
+      - option "Elastomer lab"
+      - option "Granular flow"
+      - option "Metal press"
+      - option "Canopy"
+      - option "Suspension bridge" [selected]
+    - generic: 
+  - button "Reference workspace" [pressed]:
+    - generic: 
+    - generic: Reference
+  - button "Open preset library":
+    - generic: 
+    - generic: Presets
+  - button "Compare reference":
+    - generic: 
+  - button "Export run data":
+    - generic: 
+  - text: 
+  - button "Resume saved run":
+    - generic: 
+- main:
+  - navigation "Studio workflow":
+    - button "Browse experiments":
+      - generic: 
+      - generic: Labs
+    - button "Edit the scene":
+      - generic: 
+      - generic: Scene
+    - button "Edit the load":
+      - generic: 
+      - generic: Test
+    - button "Compare with the image":
+      - generic: 
+      - generic: Compare
+  - text:                      
+  - region "Simulation viewport":
+    - img "Interactive 3D simulation. Drag to orbit, scroll to zoom."
+    - group "Surface display":
+      - button "Material" [pressed]
+      - button "Response"
+    - button "Focus on scene":
+      - generic: 
+    - button "Second camera angle":
+      - generic: 
+    - button "Fit camera":
+      - generic: 
+    - button "Expand viewport":
+      - generic: 
+    - text:  
+    - status:
+      - generic: Ready to simulate
+      - generic: 0.00 s
+    - text:       
+  - complementary "Experiment desk":
+    - heading "Experiment desk" [level=2]
+    - button "Hide experiment desk":
+      - generic: 
+    - tablist "Experiment workflow":
+      - tab "Set up":
+        - generic: 
+        - generic: Set up
+      - tab "Surface":
+        - generic: 
+        - generic: Surface
+      - tab "World":
+        - generic: 
+        - generic: World
+      - tab "Test":
+        - generic: 
+        - generic: Test
+      - tab "Analyze" [selected]:
+        - generic: 
+        - generic: Analyze
+    - text:                         
+    - tabpanel "Analyze":
+      - group "Analysis mode":
+        - button "Inspect"
+        - button "Experiments" [pressed]
+      - text: +
+      - generic "Scan setup Strength scan · 60 s · next scan Edit":
+        - generic: 
+        - generic: Scan setup
+        - generic: Strength scan · 60 s · next scan
+        - text: Edit
+        - generic: 
+      - group "Experiment scan":
+        - button "Load scan":
+          - generic: 
+          - text: Load scan
+        - button "Strength scan" [pressed]:
+          - generic: 
+          - text: Strength scan
+        - button "Crosswind scan":
+          - generic: 
+          - text: Crosswind scan
+      - group "Duration / model seconds":
+        - generic: Duration / model seconds
+        - button "15 s"
+        - button "30 s"
+        - button "60 s" [active] [pressed]
+      - paragraph:
+        - generic: 
+        - text: Load 1.80 · Wind 2.00
+        - generic: Held constant in the next scan
+      - paragraph: 0.40× / 0.70× / 1.00× / 1.40× / 2.00× · fresh bridge per case
+      - button "Run new scan":
+        - generic: 
+        - generic: Run new scan
+      - text: 
+      - generic: 5 / 5
+      - generic: Complete
+      - generic: 2 / 5
+      - generic "Recorded cases with an observed rupture": With rupture
+      - generic: 7.69 s
+      - generic: Earliest · Load 5.00
+      - region "Experiment results":
+        - heading "Compare responses" [level=4]
+        - button "Time probe"
+        - button "Selected only" [pressed]
+        - paragraph: Load scan · 30 s · Strength 1.60× · Wind 2.00
+        - group "Response measurement":
+          - button "Deck drop" [pressed]
+          - button "Sideways"
+          - button "Lost links"
+        - img "Recorded deck drop over model time, in model units. Select a case or use the time probe for exact measurements.":
+          - generic: model units
+          - generic: "0.3"
+          - generic: "0"
+          - generic: "0"
+          - generic: 15 model seconds
+          - generic: "30"
+        - generic: Case / observed outcome
+        - generic: Peak drop
+        - article:
+          - button "01 Load 0.20 No rupture observed 0.132":
+            - generic: "01"
+            - strong: Load 0.20
+            - generic: No rupture observed
+            - generic: "0.132"
+            - generic: +
+        - article:
+          - button "02 Load 0.80 No rupture observed 0.254":
+            - generic: "02"
+            - strong: Load 0.80
+            - generic: No rupture observed
+            - generic: "0.254"
+            - generic: +
+        - article:
+          - button "03 Load 1.80 No rupture observed 0.320" [expanded]:
+            - generic: "03"
+            - strong: Load 1.80
+            - generic: No rupture observed
+            - generic: "0.320"
+            - generic: −
+        - article:
+          - button "04 Load 3.20 Ruptured 0.417":
+            - generic: "04"
+            - strong: Load 3.20
+            - generic: Ruptured
+            - generic: "0.417"
+            - generic: +
+        - article:
+          - button "05 Load 5.00 Collapsed 6.200":
+            - generic: "05"
+            - strong: Load 5.00
+            - generic: Collapsed
+            - generic: "6.200"
+            - generic: +
+        - generic: CASE 03
+        - strong: Load 1.80
+        - generic: First rupture
+        - generic: —
+        - generic: Peak recorded drop
+        - generic: "0.320"
+        - generic: Lost links
+        - generic: 0 / 327
+        - paragraph:
+          - text: 30.0 s recorded · peak at 18.80 s
+          - text: Lateral peak 0.086 · Elastic response
+        - paragraph: Load 1.80 · Strength 1.60× · Wind 2.00
+        - button "Load case"
+        - button "Use as baseline"
+      - button "Export CSV":
+        - generic: 
+        - text: Export CSV
+      - button "Export JSON"
+      - button "Clear scan"
+      - status: JSON exported with settings, response samples and model details.
+      - generic "How these experiments work"
+    - text:  
+  - region "Simulation playback":
+    - button "Run simulation":
+      - generic: 
+    - button "Reset simulation":
+      - generic: 
+    - generic: 0.00 s
+    - slider "Replay recorded history": "0"
+    - generic: 0 s
+    - generic: LIVE HISTORY
+    - generic: 0.0 s recorded
+    - button "Live"
+    - combobox "Playback speed":
+      - option "0.25×"
+      - option "0.5×"
+      - option "1.0×" [selected]
+      - option "2.0×"
+    - button "Capture viewport":
+      - generic: 
+- contentinfo:
+  - generic: WebGL 2 renderer · worker · 14 fps · 111 draws
+  - generic: Comparative model · not calibrated
+  - button "Export evidence":
+    - text: Export evidence
+    - generic: 
+- text:                

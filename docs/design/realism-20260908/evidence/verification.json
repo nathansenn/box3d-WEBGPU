@@ -1,0 +1,418 @@
+{
+  "createdAt": "2026-09-08T04:36:41.366876+00:00",
+  "baseCommit": "dfedd9fe9983200f492d686488d27b6a4b11c650",
+  "branch": "main",
+  "runtime": "v26.0.0",
+  "sources": [
+    {
+      "path": "src/entry.ts",
+      "sha256": "2861237cf73ccdfdddacc94d6bb0d9277541db3e0d8b9214818c584a5ceb3b74"
+    },
+    {
+      "path": "src/studio/main.ts",
+      "sha256": "2f20a505e5d3d557f7671e0fbeea80ea4b2661b370637b9a25bb4e470374f8e3"
+    },
+    {
+      "path": "src/studio/physics.ts",
+      "sha256": "fbc8326cb7f2f734351b2fc4d68a112340756311d28db92b794133acb934e0f0"
+    },
+    {
+      "path": "src/studio/world.ts",
+      "sha256": "b22df527a51856c8f6a6f27db99315dfb08c7edef8c691662a55ae0a55bb2e43"
+    },
+    {
+      "path": "src/studio/studio.css",
+      "sha256": "24296da89400245fec8605c0f3759ae7f9f5b81091cb6b7b03f7ddbbb8b1a779"
+    },
+    {
+      "path": "tests/studio/failure.test.mjs",
+      "sha256": "f93dc5e9b5655baeb7b48547866c5f793adcc0fde1faabd5b600273e5d680db9"
+    },
+    {
+      "path": "index.html",
+      "sha256": "39561d8d714bb23feb0dd5c7b0204612b3ea8338438270b46383d9b375c5688b"
+    },
+    {
+      "path": "package.json",
+      "sha256": "2e959c7ddc38a5fe41add52fc03dfaa6c8834778943ebf0d1f78f5f2c94d7cf0"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "68550e7f7171700a37a50303ba473d6cc0e744e1f9fb3ce7661f6c7a2a86fd6b"
+    },
+    {
+      "path": "vite.config.ts",
+      "sha256": "450fbeb8429907bc719c6983b546489c284bee167debc3ee5ff4d0b1938f6d42"
+    }
+  ],
+  "checks": {
+    "typecheck": "passed",
+    "productionBuild": "passed; warning for chunks above 500 kB",
+    "studioPhysics": "26 of 26 passed",
+    "originalUnitSuites": "46 passed",
+    "originalEngineeringEvidenceSuites": "8 passed",
+    "diffWhitespace": "passed",
+    "freshProductionConsole": [],
+    "fullLegacyNativeMetalSoak": "not run"
+  },
+  "browser": {
+    "renderer": "WebGPU observed",
+    "desktopCssViewports": [
+      [
+        1487,
+        1058
+      ],
+      [
+        1280,
+        720
+      ]
+    ],
+    "mobileCssViewport": [
+      390,
+      844
+    ],
+    "density": 1,
+    "scenes": [
+      "canopy",
+      "plate",
+      "bridge"
+    ],
+    "states": [
+      "intact",
+      "load to failure",
+      "second angle",
+      "reset",
+      "strain/material",
+      "mobile inspector",
+      "replay",
+      "unload",
+      "JSON export",
+      "PNG viewport export"
+    ],
+    "originalWorkbench": "Reached live Box3D WASM structural study at ?workbench=1",
+    "productionPreview": "Verified on loopback port 5174, then stopped",
+    "userPreview": "http://127.0.0.1:5173/?studio=canopy"
+  },
+  "failureObservations": {
+    "canopy": {
+      "connectionsLost": 69,
+      "deflection": 5.172
+    },
+    "plate": {
+      "connectionsLostAfterUnload": 895,
+      "samples": 401,
+      "finalResponse": {
+        "time": 40.008333333331706,
+        "load": 0,
+        "deflection": 1.5299999999999998,
+        "strain": 0.22237008266947678,
+        "broken": 895,
+        "damage": 1,
+        "plastic": 0.44399999999999573,
+        "phase": "Perforated"
+      }
+    },
+    "bridge": {
+      "connectionsLost": 27,
+      "deflection": 6.2,
+      "time": 30.01
+    }
+  },
+  "modelBoundary": "Authored reduced particle/constraint models, not calibrated engineering predictions. Fixed fixtures, towers and environment do not fail. No cloth/fragment self-collision or water interaction.",
+  "visualAcceptance": "Implementation QA passed for the three interactive studies. Human acceptance and photographic reference equivalence are not claimed.",
+  "captureVersionNote": "Files retain their actual save timestamps. Some captures precede later UI-only corrections. Final bridge desktop/comparison and canopy/bridge mobile captures follow the caption correction. Source hashes describe the final code, not a retroactive claim that each older capture used identical source.",
+  "artifacts": [
+    {
+      "path": "docs/design/realism-20260908/evidence/bridge-failed.png",
+      "sha256": "a330f9a3a83b1fbcb480ca95bf0cf1ba1c2aafbd948d5aacdb65541528bee5d5",
+      "bytes": 167438,
+      "capturedOrSavedAt": "2026-09-08T04:34:33.199546+00:00",
+      "pixels": [
+        1487,
+        1058
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/bridge-intact.png",
+      "sha256": "151ba7d72de67008068329255c9064896928629e5762f21458f5093e3d64bbc8",
+      "bytes": 154731,
+      "capturedOrSavedAt": "2026-09-08T04:31:45.763019+00:00",
+      "pixels": [
+        1487,
+        1058
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/bridge-mobile.png",
+      "sha256": "df541e64993a3f14c8da49ff50401e806c06efc78d3bae5924addae050a88f46",
+      "bytes": 38900,
+      "capturedOrSavedAt": "2026-09-08T04:34:56.869797+00:00",
+      "pixels": [
+        390,
+        844
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/bridge-second-angle.png",
+      "sha256": "8f7dd5632185161ee45f01aefca46dbeda2bd6c423bdf4e7ea070faf716a08a7",
+      "bytes": 165051,
+      "capturedOrSavedAt": "2026-09-08T04:34:18.444475+00:00",
+      "pixels": [
+        1487,
+        1058
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/canopy-failed.png",
+      "sha256": "e3b97d4b650ebbb45ee0809bcb7d1b50a061ba27bfbe9287901cc72004edc94e",
+      "bytes": 171672,
+      "capturedOrSavedAt": "2026-09-08T02:35:33.901208+00:00",
+      "pixels": [
+        1487,
+        1058
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/canopy-intact.png",
+      "sha256": "33a5bf9b2a021f60d9cd118ae9b70abb5e4c613e77629b422ea6e315081158a7",
+      "bytes": 163058,
+      "capturedOrSavedAt": "2026-09-08T02:34:24.001402+00:00",
+      "pixels": [
+        1487,
+        1058
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/canopy-mobile.png",
+      "sha256": "700d27d403238311abeaee16ec89e5ef0444879dde2fda3fa31d045b1c0fcaac",
+      "bytes": 46339,
+      "capturedOrSavedAt": "2026-09-08T04:35:09.273641+00:00",
+      "pixels": [
+        390,
+        844
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/canopy-pass1.png",
+      "sha256": "58858260615b5d131d5d453e408d6a7422ab27d49ac728eed66e9607fa3c72e5",
+      "bytes": 162110,
+      "capturedOrSavedAt": "2026-09-08T02:16:59.597248+00:00",
+      "pixels": [
+        1487,
+        1058
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/canopy-second-angle.png",
+      "sha256": "72d53e92f42777406563aee199dd3bbf9b108f4afae5f6558299779332552817",
+      "bytes": 162277,
+      "capturedOrSavedAt": "2026-09-08T02:36:09.066546+00:00",
+      "pixels": [
+        1487,
+        1058
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/canopy-strain.png",
+      "sha256": "e6385f3490c644d16780e3bc1708f27c6e520638d29d59cf3dcac9aa1aeac0e7",
+      "bytes": 172483,
+      "capturedOrSavedAt": "2026-09-08T02:38:06.770676+00:00",
+      "pixels": [
+        1487,
+        1058
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/compare-bridge-focus.png",
+      "sha256": "ece165232756916707b250af5387b97334d36a6859dc6468dff3df52e2cd89af",
+      "bytes": 110443,
+      "capturedOrSavedAt": "2026-09-08T04:34:18.285071+00:00",
+      "pixels": [
+        1280,
+        720
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/compare-bridge-full.png",
+      "sha256": "a52d04b972b0400faa4f6d59e0255f97ac338448674b23d61572d4f967cd790e",
+      "bytes": 113347,
+      "capturedOrSavedAt": "2026-09-08T04:34:07.084968+00:00",
+      "pixels": [
+        1280,
+        720
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/compare-canopy-focus.png",
+      "sha256": "96402d292fbfaa074792afabf0d66dafc1f295257e3100668a22542219cc3390",
+      "bytes": 114377,
+      "capturedOrSavedAt": "2026-09-08T02:50:37.064804+00:00",
+      "pixels": [
+        1280,
+        792
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/compare-canopy-full.png",
+      "sha256": "c6ac702cf06c16641d25ea8c17aea00f74df4e2468acc95d43ddd01e2d925bf8",
+      "bytes": 105324,
+      "capturedOrSavedAt": "2026-09-08T04:27:22.258802+00:00",
+      "pixels": [
+        1280,
+        720
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/compare-plate-focus.png",
+      "sha256": "33794c28970148e016c20a484b840f4ad89748d5751560ea8ad2242b249d5c79",
+      "bytes": 101368,
+      "capturedOrSavedAt": "2026-09-08T02:51:40.768946+00:00",
+      "pixels": [
+        1280,
+        720
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/compare-plate-full.png",
+      "sha256": "c010db0514e8a1c115b67cd07d1ab162e3877b5e96b04f18e8767071a439959d",
+      "bytes": 111103,
+      "capturedOrSavedAt": "2026-09-08T02:51:32.229527+00:00",
+      "pixels": [
+        1280,
+        720
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/mobile-inspector.png",
+      "sha256": "6d0cfe38babb8906a9370adc4cb58e5bb7cfe81d8e263d4394e078aa8642ac81",
+      "bytes": 33452,
+      "capturedOrSavedAt": "2026-09-08T02:43:11.360595+00:00",
+      "pixels": [
+        390,
+        844
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/original-workbench.png",
+      "sha256": "8ab932b78b8fcdd5060aaca8f4b5891470eaa9fabb1b5babba4025b8ab0c9d4f",
+      "bytes": 128792,
+      "capturedOrSavedAt": "2026-09-08T04:31:33.161218+00:00",
+      "pixels": [
+        1280,
+        720
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/plate-failed.png",
+      "sha256": "98adf6099b61fd5a1150041ba5319bd4ce6589064fcd49744c1b73d4903486b1",
+      "bytes": 159652,
+      "capturedOrSavedAt": "2026-09-08T02:31:11.836812+00:00",
+      "pixels": [
+        1487,
+        1058
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/plate-intact.png",
+      "sha256": "ff69af9072a989be2e6dd152130e5d66faa2871251427d82f3c8dafb5e69056d",
+      "bytes": 153878,
+      "capturedOrSavedAt": "2026-09-08T02:30:22.827151+00:00",
+      "pixels": [
+        1487,
+        1058
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/plate-mobile.png",
+      "sha256": "849ceb94217ed30079b2b2d7235be658489c14d223c4d10d7ead0654cde76b94",
+      "bytes": 47377,
+      "capturedOrSavedAt": "2026-09-08T02:45:54.134792+00:00",
+      "pixels": [
+        390,
+        844
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/plate-pass1.png",
+      "sha256": "5a4f98f928a6b2c442decb939ce8beca65a3b6130dbcacd618e5499daf281afc",
+      "bytes": 156173,
+      "capturedOrSavedAt": "2026-09-08T02:18:00.262162+00:00",
+      "pixels": [
+        1487,
+        1058
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/plate-run.json",
+      "sha256": "2881a8c9ad11c64e60028187e7a4165a3599443b065722797787990991841234",
+      "bytes": 1093666,
+      "capturedOrSavedAt": "2026-09-08T02:33:15.305232+00:00"
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/plate-second-angle.png",
+      "sha256": "ca731c5259d0ff5823a9c4639dd5b737f3d8dba481f99a2808e34eef0e25b90a",
+      "bytes": 163920,
+      "capturedOrSavedAt": "2026-09-08T02:33:00.750879+00:00",
+      "pixels": [
+        1487,
+        1058
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/plate-unloaded.png",
+      "sha256": "03d6ec31a82d58d6d1750d988b36be78df00aa7f3728e9e953ecf2cfb5934ed7",
+      "bytes": 160651,
+      "capturedOrSavedAt": "2026-09-08T02:32:07.501282+00:00",
+      "pixels": [
+        1487,
+        1058
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/production-bridge.png",
+      "sha256": "aabd68cb77b9c91ff25f7a740f1c91e98e43d7d85b06c1f402d587c004df0d98",
+      "bytes": 101913,
+      "capturedOrSavedAt": "2026-09-08T04:34:43.335657+00:00",
+      "pixels": [
+        1280,
+        720
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/production-canopy.png",
+      "sha256": "5311a0ad10227f12e73a20f7813d892d4df7eda2ab8a1579bb70fef7db64bb2d",
+      "bytes": 105112,
+      "capturedOrSavedAt": "2026-09-08T04:27:46.006043+00:00",
+      "pixels": [
+        1280,
+        720
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/production-console.json",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "bytes": 2,
+      "capturedOrSavedAt": "2026-09-08T04:35:09.285957+00:00"
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/production-plate.png",
+      "sha256": "2908f85decf95f5bb614901720d4f95ba8cd37ff6a5ac2282f27451a89315c6c",
+      "bytes": 105924,
+      "capturedOrSavedAt": "2026-09-08T04:28:06.401504+00:00",
+      "pixels": [
+        1280,
+        720
+      ]
+    },
+    {
+      "path": "docs/design/realism-20260908/evidence/viewport-export-canopy.png",
+      "sha256": "540b8e3e485b000b4feffe4381403b70a5cc156feb0c3dc4d4444fed03efe8d7",
+      "bytes": 401099,
+      "capturedOrSavedAt": "2026-09-08T04:27:46.262533+00:00",
+      "pixels": [
+        796,
+        373
+      ]
+    }
+  ]
+}

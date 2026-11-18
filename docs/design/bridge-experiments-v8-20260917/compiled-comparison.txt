@@ -1,0 +1,16 @@
+Compare with
+Choose a reference
+Load 0.20
+Load 0.80
+Load 1.80
+Load 3.20
+Load 5.00
+Pin this case
+Load 5.00 vs Load 0.80
+Both cases at 7.7 s
+Measurement	Selected	Reference	Difference
+Deck drop	0.307	0.210	+0.097
+Sideways	0.218	0.020	+0.199
+Lost links	1	0	+1
+
+Selected − reference, calculated before rounding. Displacement in model units; lost links in connections.

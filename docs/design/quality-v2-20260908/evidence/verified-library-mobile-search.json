@@ -1,0 +1,23 @@
+{
+  "name": "verified-library-mobile-search",
+  "at": "2026-09-08T07:47:37.213Z",
+  "broken": "0",
+  "camera": "hero",
+  "deflection": "0.000",
+  "draws": "64",
+  "events": "0",
+  "finish": "bridge-aged",
+  "fps": "75",
+  "frames": "1706",
+  "height": 844,
+  "horizontalOverflow": false,
+  "lighting": "golden",
+  "objects": "24030",
+  "productionEntry": "index-UfGnfBzt.js",
+  "ready": "true",
+  "study": "bridge",
+  "time": "0.00 s",
+  "triangles": "958165",
+  "url": "http://127.0.0.1:5174/?studio=bridge&theme=observatory&finish=bridge-aged&light=golden&recipe=bridge-collapse&camera=hero&quality=ultra",
+  "width": 390
+}

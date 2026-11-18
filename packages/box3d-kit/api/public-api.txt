@@ -1,0 +1,1404 @@
+// ==== axes.d.ts ====
+export type UpAxis = 'y' | 'z';
+export declare function convertMatrices(source: Float32Array, out: Float32Array, count: number, up?: UpAxis): Float32Array;
+export declare function convertVector(v: readonly [number, number, number], up?: UpAxis): [number, number, number];
+export declare function toBox3DFrame(v: readonly [number, number, number], up?: UpAxis): [number, number, number];
+
+// ==== babylon.d.ts ====
+import type { InstanceSource } from './three.js';
+export interface ThinInstanceMeshLike {
+    thinInstanceSetBuffer(kind: string, buffer: Float32Array | null, stride?: number, staticBuffer?: boolean): void;
+    thinInstanceBufferUpdated(kind: string): void;
+    thinInstanceCount: number;
+}
+export interface BabylonSyncOptions {
+    readonly alpha?: number;
+    readonly rightHanded?: boolean;
+}
+export declare function bindThinInstances(source: InstanceSource, mesh: ThinInstanceMeshLike, capacity?: number): void;
+export declare function syncThinInstances(source: InstanceSource, mesh: ThinInstanceMeshLike, options?: BabylonSyncOptions): number;
+
+// ==== backend-types.d.ts ====
+export type InstanceBufferSource = {
+    readonly HEAPF32: Float32Array;
+    frameVersion(): number;
+    colorVersion(): number;
+    _b3w_matrices_ptr(): number | bigint;
+    _b3w_colors_ptr(): number | bigint;
+    _b3w_body_count(): number;
+    _b3w_max_bodies(): number;
+};
+export type ScenePreset = {
+    readonly id: number;
+};
+export type PhysicsBackend = InstanceBufferSource & {
+    readonly name: string;
+    readonly isWasm: boolean;
+    readonly maxBodies: number;
+    createScene(scene: ScenePreset, stressScale: number, seed: number): number;
+    step(dt: number, subSteps: number): void;
+    syncTransforms(): void;
+    kick(strength: number): void;
+    explode(centerX: number, centerY: number, centerZ: number, strength: number, radius: number): void;
+    launchProjectile(x: number, y: number, z: number, vx: number, vy: number, vz: number, size: number): number;
+    spawnRain(count: number, spread: number, height: number): number;
+    bodyCount(): number;
+    dynamicCount(): number;
+    replayHash(): number;
+    destroy(): void;
+};
+
+// ==== cable.d.ts ====
+export * from './core/compliant-cable.js';
+
+// ==== core/build-info.d.ts ====
+export interface BuildInfo {
+    readonly kitVersion: string;
+    readonly box3dRef: string | null;
+    readonly box3dCommit: string | null;
+    readonly emscripten: string | null;
+    readonly bridgeSha256: string | null;
+    readonly wasmSha256: string;
+    readonly wasmBytes: number;
+    readonly glueSha256: string;
+}
+export declare const BUILD_INFO: BuildInfo;
+
+// ==== core/closed-water.d.ts ====
+import { type LinearWaterArrays, type LinearWaterConfig } from './linear-water.js';
+export declare const CLOSED_WATER_CPU_BACKEND = "linear-water-closed-cgrid-js-f32-v1";
+export declare function closedWaterCoefficients(input: LinearWaterConfig): Readonly<{
+    decay: number;
+    px: number;
+    pz: number;
+    cx: number;
+    cz: number;
+}>;
+export declare function copyClosedWaterArrays(input: LinearWaterConfig, initial?: Partial<LinearWaterArrays>): LinearWaterArrays;
+export declare function createClosedWaterArrays(input: LinearWaterConfig, initial?: Partial<Pick<LinearWaterArrays, 'eta' | 'u' | 'v'>>): LinearWaterArrays;
+export declare function stepClosedWaterCpu(s: LinearWaterArrays, c: Readonly<LinearWaterConfig>): void;
+
+// ==== core/compliant-cable.d.ts ====
+import { type EngineCapabilities, type EngineRuntime, type FixedTickCommand, type FixedTickStep } from './contracts.js';
+export declare const COMPLIANT_CABLE_BACKEND = "cable-xpbd-js-f64-v1";
+export declare const PROXIMAL_CABLE_BACKEND = "cable-proximal-js-f64-v2";
+type CableBackend = typeof COMPLIANT_CABLE_BACKEND | typeof PROXIMAL_CABLE_BACKEND;
+export interface CableConstraint {
+    a: number;
+    b: number;
+    restLength: number;
+    compliance: number;
+}
+export interface CableConfig {
+    dt: number;
+    substeps: number;
+    maxIterations: number;
+    residualTolerance: number;
+    drag: number;
+    gravity: readonly [number, number, number];
+    solver?: 'proximal';
+    forceTolerance?: number;
+}
+export interface CableDefinition {
+    config: CableConfig;
+    positions: ArrayLike<number>;
+    masses: ArrayLike<number>;
+    pinned?: ArrayLike<number>;
+    velocities?: ArrayLike<number>;
+    forces?: ArrayLike<number>;
+    constraints: readonly CableConstraint[];
+}
+export interface CableCommand extends FixedTickCommand {
+    type: 'force' | 'impulse';
+    node: number;
+    value: readonly [number, number, number];
+}
+export type CableStepRequest = FixedTickStep<CableCommand>;
+export interface CableDiagnostics {
+    time: number;
+    mass: number;
+    kineticEnergy: number;
+    elasticEnergy: number;
+    gravitationalEnergy: number;
+    externalWork: number;
+    dragDissipation: number;
+    momentum: [number, number, number];
+    maxStrain: number;
+    maxTension: number;
+    maxResidual: number;
+    maxImplicitForceResidual: number;
+    unconvergedSubsteps: number;
+    maxIterationsUsed: number;
+    constraintProjections: number;
+    residualEvaluations: number;
+    maxConstraintForceResidual?: number;
+}
+export interface CableSnapshot {
+    backend: CableBackend;
+    tick: number;
+    positions: Float64Array;
+    velocities: Float64Array;
+    tensions: Float64Array;
+    supportReactions: Float64Array;
+    diagnostics: CableDiagnostics;
+    impulses?: {
+        support: Float64Array;
+        applied: [number, number, number];
+        drag: [number, number, number];
+    };
+}
+export interface CableCheckpoint {
+    format: 'box3d-compliant-cable';
+    version: 1 | 2;
+    backend: CableBackend;
+    definition: {
+        config: CableConfig;
+        positions: number[];
+        masses: number[];
+        pinned: number[];
+        constraints: CableConstraint[];
+    };
+    state: {
+        tick: number;
+        positions: number[];
+        velocities: number[];
+        forces: number[];
+        multipliers: number[];
+        externalWork: number;
+        dragDissipation: number;
+        maxResidual: number;
+        maxImplicitForceResidual: number;
+        unconvergedSubsteps: number;
+        maxIterationsUsed: number;
+        constraintProjections: number;
+        residualEvaluations: number;
+        maxConstraintForceResidual?: number;
+        vectorMultipliers?: number[];
+        impulses?: {
+            support: number[];
+            applied: [number, number, number];
+            drag: [number, number, number];
+        };
+    };
+}
+export declare class CompliantCableRuntime implements EngineRuntime<CableStepRequest, CableSnapshot> {
+    readonly capabilities: EngineCapabilities;
+    readonly config: CableConfig;
+    readonly backend: CableBackend;
+    private initial;
+    private mass;
+    private pinned;
+    private edges;
+    private invMass;
+    private p;
+    private v;
+    private force;
+    private lambda;
+    private previous;
+    private predicted;
+    private forceResidual;
+    private vectorMultipliers;
+    private supportImpulse;
+    private appliedImpulse;
+    private dragImpulse;
+    private currentTick;
+    private disposed;
+    private failed;
+    private externalWork;
+    private dragDissipation;
+    private maxResidual;
+    private maxImplicitForceResidual;
+    private unconvergedSubsteps;
+    private maxIterationsUsed;
+    private constraintProjections;
+    private residualEvaluations;
+    private maxConstraintForceResidual;
+    constructor(input: CableDefinition);
+    get tick(): number;
+    private alive;
+    private command;
+    step(request: CableStepRequest): CableSnapshot;
+    private residual;
+    private substep;
+    private solveProximal;
+    inspect(): CableSnapshot;
+    checkpoint(): CableCheckpoint;
+    static fromCheckpoint(value: unknown): CompliantCableRuntime;
+    destroy(): void;
+}
+export declare function hangingCableDefinition(input: {
+    segments: number;
+    length: number;
+    linearDensity: number;
+    tipMass: number;
+    axialRigidity: number;
+    config: CableConfig;
+}): CableDefinition;
+export {};
+
+// ==== core/contracts.d.ts ====
+export interface ModelIdentity {
+    readonly id: string;
+    readonly name: string;
+    readonly implementation: 'javascript' | 'wasm' | 'wasm-simd' | 'webgpu-f32' | 'unknown';
+    readonly calibration: 'authored-comparative' | 'uncalibrated-physical';
+}
+export interface EngineCapabilities {
+    readonly adapter: 'studio' | 'workbench' | 'water-field' | 'particle-network' | 'frame-network';
+    readonly models: readonly ModelIdentity[];
+    readonly fixedDt: number;
+    readonly deterministicCommands: true;
+    readonly checkpoint: boolean;
+    readonly worker: boolean;
+    readonly gpuReadback: boolean;
+    readonly snapshotOwnership: 'explicit-loan' | 'numeric-copy' | 'gpu-borrow';
+}
+export interface FixedTickCommand {
+    readonly tick: number;
+    readonly type: string;
+}
+export interface FixedTickStep<C extends FixedTickCommand> {
+    readonly ticks: number;
+    readonly commands?: readonly C[];
+}
+export interface EngineRuntime<Request, Result> {
+    readonly capabilities: EngineCapabilities;
+    readonly tick: number;
+    step(request: Request): Result;
+    inspect(): Result;
+    destroy(): void;
+}
+export declare class EngineError extends Error {
+    readonly code: string;
+    constructor(code: string, message: string);
+}
+export declare function record(value: unknown, label: string): Record<string, unknown>;
+export declare function onlyKeys(value: Record<string, unknown>, keys: readonly string[], label: string): void;
+export declare function finite(value: unknown, label: string, min?: number, max?: number): number;
+export declare function integer(value: unknown, label: string, min?: number, max?: number): number;
+export declare function validateTickBatch<C extends FixedTickCommand>(tick: number, ticksValue: unknown, commandsValue: unknown, validateCommand: (value: unknown) => C): {
+    ticks: number;
+    commands: C[];
+};
+
+// ==== core/frame-element.d.ts ====
+export interface FrameElement {
+    a: number;
+    b: number;
+    youngModulus: number;
+    shearModulus: number;
+    area: number;
+    iy: number;
+    iz: number;
+    torsionConstant: number;
+    density: number;
+    up: readonly [number, number, number];
+}
+export interface FrameElementMatrices {
+    definition: FrameElement;
+    length: number;
+    mass: number;
+    dofs: Uint32Array;
+    basis: Float64Array;
+    localStiffness: Float64Array;
+    stiffness: Float64Array;
+    massMatrix: Float64Array;
+}
+export declare function frameTransverseSlope(local: ArrayLike<number>, length: number): number;
+export declare function frameElementMatrices(value: unknown, positions: ArrayLike<number>): FrameElementMatrices;
+
+// ==== core/frame-runtime.d.ts ====
+import { type EngineCapabilities, type EngineRuntime, type FixedTickCommand, type FixedTickStep } from './contracts.js';
+import { type FrameElement } from './frame-element.js';
+export declare const FRAME_BACKEND = "frame-eb-midpoint-js-f64-v1";
+export interface FrameConfig {
+    dt: number;
+    substeps: number;
+    maxIterations: number;
+    drag: number;
+    gravity: readonly [number, number, number];
+    forceTolerance: number;
+    momentTolerance: number;
+    impulseTolerance: number;
+    angularImpulseTolerance: number;
+}
+export interface FrameDefinition {
+    config: FrameConfig;
+    positions: ArrayLike<number>;
+    elements: readonly FrameElement[];
+    fixed?: ArrayLike<number>;
+    displacements?: ArrayLike<number>;
+    velocities?: ArrayLike<number>;
+    forces?: ArrayLike<number>;
+    pointMasses?: ArrayLike<number>;
+    pointInertias?: ArrayLike<number>;
+}
+export interface FrameCommand extends FixedTickCommand {
+    type: 'force' | 'impulse';
+    node: number;
+    value: readonly [number, number, number, number, number, number];
+}
+export type FrameStepRequest = FixedTickStep<FrameCommand>;
+interface SolveStats {
+    iterations: number;
+    converged: boolean;
+    forceResidual: number;
+    momentResidual: number;
+    reason: 'converged' | 'iteration-limit' | 'singular-or-indefinite';
+}
+interface Work {
+    matrixProducts: number;
+    elementVisits: number;
+}
+export interface FrameKinematics {
+    maxRotation: number;
+    maxAxialStrain: number;
+    maxTransverseSlope: number;
+    linearKinematicsExceeded: boolean;
+}
+export interface FrameDiagnostics extends Work, FrameKinematics {
+    time: number;
+    mass: number;
+    kineticEnergy: number;
+    elasticEnergy: number;
+    gravitationalEnergy: number;
+    externalWork: number;
+    dragDissipation: number;
+    linearMomentum: [number, number, number];
+    linearizedAngularMomentum: [number, number, number];
+    maxForceResidual: number;
+    maxMomentResidual: number;
+    maxImpulseResidual: number;
+    maxAngularImpulseResidual: number;
+    maxIterationsUsed: number;
+    unconvergedSolves: number;
+}
+export interface FrameSnapshot {
+    backend: typeof FRAME_BACKEND;
+    tick: number;
+    positions: Float64Array;
+    displacements: Float64Array;
+    velocities: Float64Array;
+    supportReactions: Float64Array;
+    reactionTime: number;
+    elementElasticForces: Float64Array;
+    impulses: {
+        support: Float64Array;
+        applied: Float64Array;
+        drag: Float64Array;
+    };
+    diagnostics: FrameDiagnostics;
+}
+export interface FrameStaticSolution extends SolveStats, Work, FrameKinematics {
+    displacements: Float64Array;
+    positions: Float64Array;
+    supportReactions: Float64Array;
+    elasticEnergy: number;
+    elementEndForces: Float64Array;
+}
+export interface FrameCheckpoint {
+    format: 'box3d-frame-checkpoint';
+    version: 1;
+    backend: typeof FRAME_BACKEND;
+    definition: {
+        config: FrameConfig;
+        positions: number[];
+        elements: FrameElement[];
+        fixed: number[];
+        pointMasses: number[];
+        pointInertias: number[];
+    };
+    state: {
+        tick: number;
+        displacements: number[];
+        velocities: number[];
+        forces: number[];
+        reactions: number[];
+        reactionTime: number;
+        supportImpulse: number[];
+        appliedImpulse: number[];
+        dragImpulse: number[];
+        externalWork: number;
+        dragDissipation: number;
+        maxForceResidual: number;
+        maxMomentResidual: number;
+        maxImpulseResidual: number;
+        maxAngularImpulseResidual: number;
+        maxIterationsUsed: number;
+        unconvergedSolves: number;
+        matrixProducts: number;
+        elementVisits: number;
+    };
+}
+export declare class FrameRuntime implements EngineRuntime<FrameStepRequest, FrameSnapshot> {
+    readonly capabilities: EngineCapabilities;
+    readonly config: FrameConfig;
+    private initial;
+    private elements;
+    private fixed;
+    private pointMass;
+    private pointInertia;
+    private u;
+    private v;
+    private forces;
+    private gravityForce;
+    private diagonalMass;
+    private diagonalStiffness;
+    private reactions;
+    private supportImpulse;
+    private appliedImpulse;
+    private dragImpulse;
+    private rhs;
+    private mid;
+    private product;
+    private temp;
+    private residual;
+    private direction;
+    private preconditioned;
+    private ap;
+    private currentTick;
+    private disposed;
+    private failed;
+    private reactionTime;
+    private totalMass;
+    private externalWork;
+    private dragDissipation;
+    private maxForceResidual;
+    private maxMomentResidual;
+    private maxImpulseResidual;
+    private maxAngularImpulseResidual;
+    private maxIterationsUsed;
+    private unconvergedSolves;
+    private lastWork;
+    constructor(input: FrameDefinition);
+    get tick(): number;
+    private alive;
+    private checkWork;
+    private multiply;
+    private dot;
+    private norms;
+    private solve;
+    private command;
+    step(request: FrameStepRequest): FrameSnapshot;
+    private impulse;
+    private substep;
+    solveStatic(forces?: ArrayLike<number>): FrameStaticSolution;
+    private positions;
+    private localDisplacement;
+    private elasticElementForces;
+    private kinematics;
+    inspect(): FrameSnapshot;
+    checkpoint(): FrameCheckpoint;
+    static fromCheckpoint(value: unknown): FrameRuntime;
+    destroy(): void;
+}
+export {};
+
+// ==== core/linear-water.d.ts ====
+export interface LinearWaterConfig {
+    cols: number;
+    rows: number;
+    dt: number;
+    gravity: number;
+    meanDepth: number;
+    drag: number;
+    dx: number;
+    dz: number;
+}
+export interface LinearWaterArrays {
+    eta: Float32Array;
+    u: Float32Array;
+    v: Float32Array;
+    nextEta: Float32Array;
+    nextU: Float32Array;
+    nextV: Float32Array;
+}
+export declare const LINEAR_WATER_MAX_CELLS = 1048576;
+export declare function validateLinearWaterConfig(input: LinearWaterConfig): Readonly<LinearWaterConfig>;
+export declare function createLinearWaterArrays(config: LinearWaterConfig, initial?: Partial<LinearWaterArrays>): LinearWaterArrays;
+export declare function stepLinearWaterCpu(s: LinearWaterArrays, c: Readonly<LinearWaterConfig>): void;
+
+// ==== core/native-world.d.ts ====
+import type { PhysicsBackend } from '../backend-types.js';
+import type { ScenePreset } from '../backend-types.js';
+export declare const NATIVE_WORLD_API_VERSION = 1;
+declare const BODY_OWNER: unique symbol;
+export interface NativeBodyHandle {
+    readonly token: bigint;
+    readonly [BODY_OWNER]: object;
+}
+export type NativeQueryVector = readonly [number, number, number];
+export interface NativeQueryFilter {
+    readonly bodies?: 'all' | 'static' | 'dynamic' | 'none';
+    readonly categoryBits?: bigint;
+    readonly maskBits?: bigint;
+    readonly ignoreBody?: NativeBodyHandle;
+}
+interface NativeQueryBase {
+    readonly origin: NativeQueryVector;
+    readonly limit?: number;
+    readonly filter?: NativeQueryFilter;
+}
+export type NativeSpatialQuery = NativeQueryBase & ({
+    readonly kind: 'ray';
+    readonly translation: NativeQueryVector;
+} | {
+    readonly kind: 'sphere-cast';
+    readonly translation: NativeQueryVector;
+    readonly radius: number;
+} | {
+    readonly kind: 'box-cast';
+    readonly translation: NativeQueryVector;
+    readonly halfExtents: NativeQueryVector;
+} | {
+    readonly kind: 'sphere-overlap';
+    readonly radius: number;
+} | {
+    readonly kind: 'box-overlap' | 'aabb-candidates';
+    readonly halfExtents: NativeQueryVector;
+});
+export interface NativeQueryBodyHit {
+    readonly body: NativeBodyHandle;
+}
+export interface NativeQueryCastHit extends NativeQueryBodyHit {
+    readonly point: NativeQueryVector;
+    readonly normal: NativeQueryVector;
+    readonly fraction: number;
+    readonly material: bigint;
+    readonly triangleIndex: number;
+    readonly childIndex: number;
+}
+export type NativeQueryResult = {
+    readonly totalHits: number;
+    readonly overflow: boolean;
+} & ({
+    readonly kind: 'ray' | 'sphere-cast' | 'box-cast';
+    readonly hits: readonly NativeQueryCastHit[];
+} | {
+    readonly kind: 'sphere-overlap' | 'box-overlap' | 'aabb-candidates';
+    readonly hits: readonly NativeQueryBodyHit[];
+});
+export interface NativeWorldModule {
+    readonly HEAPF32: Float32Array;
+    _b3w_world_api_version(): number;
+    _b3w_world_capacity(): number;
+    _b3w_world_last_create_error(): number;
+    _b3w_world_create(): number;
+    _b3w_world_destroy(handle: number): number;
+    _b3w_world_valid(handle: number): number;
+    _b3w_world_clear(handle: number): number;
+    _b3w_world_create_scene(handle: number, scene: number, stress: number, seed: number): number;
+    _b3w_world_max_bodies(handle: number): number;
+    _b3w_world_body_count(handle: number): number;
+    _b3w_world_dynamic_count(handle: number): number;
+    _b3w_world_matrices_ptr(handle: number): number | bigint;
+    _b3w_world_colors_ptr(handle: number): number | bigint;
+    _b3w_world_transform_version(handle: number): number;
+    _b3w_world_color_version(handle: number): number;
+    _b3w_world_awake_count(handle: number): number;
+    _b3w_world_replay_hash(handle: number): number;
+    _b3w_world_step(handle: number, dt: number, subSteps: number): number;
+    _b3w_world_sync_transforms(handle: number): number;
+    _b3w_world_apply_impulse(handle: number, index: number, ix: number, iy: number, iz: number): number;
+    _b3w_world_kick_stack(handle: number, strength: number): number;
+    _b3w_world_explode(handle: number, x: number, y: number, z: number, strength: number, radius: number): number;
+    _b3w_world_launch_projectile(handle: number, x: number, y: number, z: number, vx: number, vy: number, vz: number, size: number): number;
+    _b3w_world_spawn_rain(handle: number, count: number, spread: number, height: number): number;
+    _b3w_world_reserve?(handle: number, requested: number): number;
+    _b3w_world_buffer_version?(handle: number): number;
+    _b3w_world_storage_bytes?(handle: number): number;
+    _b3w_world_contact_count?(handle: number): number;
+    _b3w_world_body_handle?(world: number, index: number): bigint;
+    _b3w_world_body_index?(world: number, body: bigint): number;
+    _b3w_world_destroy_body?(world: number, body: bigint): number;
+    _b3w_world_apply_body_impulse?(world: number, body: bigint, x: number, y: number, z: number): number;
+    _b3w_world_launch_projectile_handle?(world: number, x: number, y: number, z: number, vx: number, vy: number, vz: number, size: number): bigint;
+    _b3w_world_query_reserve?(world: number, inputs: number, hits: number): number;
+    _b3w_world_query_inputs_ptr?(world: number): number | bigint;
+    _b3w_world_query_status_ptr?(world: number): number | bigint;
+    _b3w_world_query_hits_ptr?(world: number): number | bigint;
+    _b3w_world_query_version?(world: number): number;
+    _b3w_world_query_storage_bytes?(world: number): number;
+    _b3w_world_query_batch?(world: number, count: number, version: number): number;
+}
+export interface NativeBodyCapacityInfo {
+    capacity: number;
+    maxCapacity: number;
+    growable: boolean;
+    bufferVersion: number | null;
+    bridgeBufferBytes: number | null;
+}
+export declare function assertNativeWorldModule(value: unknown): asserts value is NativeWorldModule;
+export declare class NativeWorldBackend implements PhysicsBackend {
+    readonly name = "Box3D WASM \u00B7 isolated world";
+    readonly isWasm = true;
+    readonly handle: number;
+    private readonly mod;
+    private readonly onDispose?;
+    private matricesPtr;
+    private colorsPtr;
+    private bodyCapacity;
+    private bufferVersion;
+    private disposed;
+    private readonly bodyOwner;
+    constructor(module: unknown, onDispose?: () => void);
+    private validateStream;
+    private refreshStreams;
+    private assertAlive;
+    private accepted;
+    get HEAPF32(): Float32Array;
+    get maxBodies(): number;
+    _b3w_matrices_ptr(): number | bigint;
+    _b3w_colors_ptr(): number | bigint;
+    _b3w_body_count(): number;
+    _b3w_max_bodies(): number;
+    frameVersion(): number;
+    colorVersion(): number;
+    awakeCount(): number;
+    contactCount(): number | null;
+    bodyCount(): number;
+    dynamicCount(): number;
+    replayHash(): number;
+    capacityInfo(): NativeBodyCapacityInfo;
+    reserveBodyCapacity(requested: number): number;
+    get supportsBodyLifecycle(): boolean;
+    private requireBodyLifecycle;
+    private wrapBody;
+    private bodyToken;
+    bodyHandle(index: number): NativeBodyHandle;
+    bodyIndex(body: NativeBodyHandle): number | null;
+    destroyBody(body: NativeBodyHandle): boolean;
+    applyBodyImpulse(body: NativeBodyHandle, x: number, y: number, z: number): void;
+    launchProjectileBody(x: number, y: number, z: number, vx: number, vy: number, vz: number, size: number): NativeBodyHandle | null;
+    get supportsSpatialQueries(): boolean;
+    spatialQueryInfo(): {
+        supported: boolean;
+        maxBatch: number;
+        maxHitsPerQuery: number;
+        bridgeBufferBytes: number;
+        version: number;
+    };
+    private validateQuery;
+    private queryStatus;
+    queryBatch(queries: readonly NativeSpatialQuery[]): NativeQueryResult[];
+    createScene(scene: Pick<ScenePreset, 'id'>, stressScale: number, seed: number): number;
+    step(dt: number, subSteps: number): void;
+    syncTransforms(): void;
+    applyImpulse(index: number, ix: number, iy: number, iz: number): void;
+    kick(strength: number): void;
+    explode(x: number, y: number, z: number, strength: number, radius: number): void;
+    launchProjectile(x: number, y: number, z: number, vx: number, vy: number, vz: number, size: number): number;
+    spawnRain(count: number, spread: number, height: number): number;
+    clear(): void;
+    destroy(): void;
+}
+export declare class NativeWorldPool {
+    readonly capacity: number;
+    private readonly mod;
+    private readonly worlds;
+    private disposed;
+    constructor(module: unknown);
+    get size(): number;
+    createWorld(): NativeWorldBackend;
+    destroy(): void;
+}
+export {};
+
+// ==== debug.d.ts ====
+import { type UpAxis } from './axes.js';
+import type { InstanceSource } from './three.js';
+export interface DebugLineOptions {
+    readonly alpha?: number;
+    readonly up?: UpAxis;
+    readonly out?: Float32Array;
+    readonly skipGround?: boolean;
+}
+export interface DebugLines {
+    readonly positions: Float32Array;
+    readonly vertexCount: number;
+}
+export declare const DEBUG_FLOATS_PER_BOX: number;
+export declare function boxOutlines(source: InstanceSource, options?: DebugLineOptions): DebugLines;
+export declare function rayLine(origin: readonly [number, number, number], translation: readonly [number, number, number], hit?: {
+    readonly fraction: number;
+} | null): DebugLines;
+
+// ==== ecs.d.ts ====
+import type { InstanceSource } from './three.js';
+import type { Body, PhysicsWorld } from './world.js';
+export interface PoseArrays {
+    readonly positions: Float32Array;
+    readonly rotations: Float32Array;
+    readonly halfExtents?: Float32Array;
+}
+export declare function readPoses(source: InstanceSource, out: PoseArrays): number;
+export declare function packPoses(source: InstanceSource, out: Float32Array): number;
+export declare function readBodyPoses(world: PhysicsWorld, bodies: readonly (Body | null)[], out: PoseArrays): number;
+
+// ==== frame.d.ts ====
+export * from './core/frame-runtime.js';
+export { frameElementMatrices, frameTransverseSlope, type FrameElement, type FrameElementMatrices } from './core/frame-element.js';
+
+// ==== gameplay.d.ts ====
+import type { NativeQueryFilter } from './core/native-world.js';
+import { type Body, type PhysicsWorld, type Vec3Like } from './world.js';
+export declare const NATIVE_GRAVITY: readonly [number, number, number];
+export declare const MAX_QUERY_HITS = 256;
+export type TriggerShape = {
+    readonly kind: 'box';
+    readonly center: Vec3Like;
+    readonly halfExtents: Vec3Like;
+} | {
+    readonly kind: 'sphere';
+    readonly center: Vec3Like;
+    readonly radius: number;
+};
+export interface TriggerOptions<T = unknown> {
+    readonly shape: TriggerShape;
+    readonly filter?: NativeQueryFilter;
+    readonly data?: T;
+    readonly limit?: number;
+}
+export interface Trigger<T = unknown> {
+    readonly id: number;
+    shape: TriggerShape;
+    readonly filter: NativeQueryFilter;
+    readonly data: T | undefined;
+    readonly limit: number;
+    readonly overflow: boolean;
+}
+export interface TriggerEvent<T = unknown> {
+    readonly type: 'enter' | 'exit';
+    readonly trigger: Trigger<T>;
+    readonly body: Body;
+    readonly alive: boolean;
+}
+export declare class TriggerSet<T = unknown> {
+    private readonly world;
+    private readonly triggers;
+    private nextId;
+    private detach;
+    private readonly listeners;
+    constructor(world: PhysicsWorld, options?: {
+        attach?: boolean;
+    });
+    add(options: TriggerOptions<T>): Trigger<T>;
+    remove(trigger: Trigger<T>): boolean;
+    setShape(trigger: Trigger<T>, shape: TriggerShape): void;
+    bodiesIn(trigger: Trigger<T>): Body[];
+    on(listener: (event: TriggerEvent<T>) => void): () => void;
+    get size(): number;
+    update(): TriggerEvent<T>[];
+    dispose(): void;
+    private state;
+}
+export interface CharacterOptions {
+    readonly position: Vec3Like;
+    readonly halfExtents?: Vec3Like;
+    readonly skin?: number;
+    readonly maxSlopeDegrees?: number;
+    readonly stepHeight?: number;
+    readonly gravity?: number;
+    readonly pushStrength?: number;
+    readonly maxIterations?: number;
+}
+export interface CharacterMoveInput {
+    readonly velocity: Vec3Like;
+    readonly jump?: number;
+}
+export interface CharacterState {
+    readonly position: readonly [number, number, number];
+    readonly verticalSpeed: number;
+    readonly grounded: boolean;
+    readonly groundNormal: readonly [number, number, number] | null;
+    readonly groundBody: Body | null;
+    readonly pushed: readonly Body[];
+    readonly stuck: boolean;
+}
+export declare class CharacterController {
+    private readonly world;
+    readonly halfExtents: readonly [number, number, number];
+    readonly skin: number;
+    readonly stepHeight: number;
+    readonly gravity: number;
+    readonly pushStrength: number;
+    readonly maxIterations: number;
+    private readonly minGroundY;
+    private pos;
+    private vy;
+    private ground;
+    private pushedBodies;
+    private stuckFlag;
+    private dt;
+    constructor(world: PhysicsWorld, options: CharacterOptions);
+    get state(): CharacterState;
+    teleport(position: Vec3Like): void;
+    move(input: CharacterMoveInput, dt: number): CharacterState;
+    private land;
+    private slide;
+    private tryStep;
+    private sweep;
+    private cast;
+    private push;
+    private escapeStatic;
+}
+
+// ==== gpu.d.ts ====
+import { type UpAxis } from './axes.js';
+import type { InstanceSource } from './three.js';
+export interface GpuQueueLike {
+    writeBuffer(buffer: unknown, bufferOffset: number, data: ArrayBufferView, dataOffset?: number, size?: number): void;
+}
+export interface GpuBufferLike {
+    readonly size: number;
+}
+export interface WriteInstancesOptions {
+    readonly offset?: number;
+    readonly alpha?: number;
+    readonly up?: UpAxis;
+    readonly colorBuffer?: GpuBufferLike;
+    readonly colorOffset?: number;
+    readonly changedRowsOnly?: boolean;
+}
+export interface UploadRange {
+    readonly firstRow: number;
+    readonly rows: number;
+}
+export declare function lastUploadRange(): UploadRange;
+export declare function writeInstances(source: InstanceSource, queue: GpuQueueLike, buffer: GpuBufferLike, options?: WriteInstancesOptions): number;
+export declare const INSTANCE_WGSL = "\nstruct Instances { m: array<mat4x4<f32>> };\n@group(0) @binding(0) var<storage, read> instances: Instances;\n
+
+// ==== helpers.d.ts ====
+import type { Body, PhysicsWorld, Vec3Like } from './world.js';
+import { type BuildInfo } from './core/build-info.js';
+export declare function spawnBoxes(world: PhysicsWorld, positions: ArrayLike<number>, options?: {
+    halfSize?: number;
+    impulses?: ArrayLike<number>;
+}): (Body | null)[];
+export declare function applyImpulses(world: PhysicsWorld, bodies: readonly (Body | null)[], impulses: ArrayLike<number>): number;
+export declare class BodyRing {
+    private readonly world;
+    readonly limit: number;
+    private readonly bodies;
+    constructor(world: PhysicsWorld, limit: number);
+    spawn(options: {
+        position: Vec3Like;
+        halfSize?: number;
+        impulse?: Vec3Like;
+    }): Body | null;
+    get size(): number;
+    clear(): void;
+}
+export interface EnvironmentReport {
+    readonly runtime: 'browser' | 'worker' | 'node' | 'other';
+    readonly webAssembly: boolean;
+    readonly wasmSimd: boolean;
+    readonly webgpu: boolean;
+    readonly sharedArrayBuffer: boolean;
+    readonly crossOriginIsolated: boolean;
+    readonly workers: boolean;
+}
+export declare function detectEnvironment(): EnvironmentReport;
+export declare const LICENSE_NOTICE = "Physics: Box3D by Erin Catto (https:
+export interface Capabilities {
+    readonly build: BuildInfo;
+    readonly nativeApiVersion: number;
+    readonly environment: EnvironmentReport;
+    readonly modules: readonly string[];
+    readonly limits: {
+        readonly worldsPerModule: number;
+        readonly bodiesPerWorld: {
+            readonly default: number;
+            readonly max: number;
+        };
+        readonly shapes: readonly string[];
+        readonly joints: boolean;
+        readonly contactEvents: boolean;
+        readonly setPoseOrVelocity: boolean;
+        readonly gravityControl: boolean;
+        readonly threads: number;
+        readonly queryHitsMax: number;
+    };
+}
+export declare function capabilities(): Capabilities;
+
+// ==== index.d.ts ====
+import { type LoadBox3DOptions } from './loader.js';
+import { PhysicsWorld, type WorldOptions } from './world.js';
+export { loadBox3D, type LoadBox3DOptions, type Box3DModuleFactory } from './loader.js';
+export { BUILD_INFO, type BuildInfo } from './core/build-info.js';
+export { PhysicsWorld, toVec3, leakReporting, type Body, type BodyPose, type Vec3, type Vec3Like, type WorldOptions, type SpawnBoxOptions, type QueryOptions, type RaycastOptions, type WorldStats, type ReplayLog, type ReplayCommand, type RecordingOptions, type ReplayReport, } from './world.js';
+export { convertMatrices, convertVector, toBox3DFrame, type UpAxis } from './axes.js';
+export { writeInstances, lastUploadRange, INSTANCE_WGSL, type GpuQueueLike, type GpuBufferLike, type WriteInstancesOptions, type UploadRange } from './gpu.js';
+export { spawnBoxes, applyImpulses, BodyRing, detectEnvironment, capabilities, LICENSE_NOTICE, type EnvironmentReport, type Capabilities } from './helpers.js';
+export { readPoses, packPoses, readBodyPoses, type PoseArrays } from './ecs.js';
+export { boxOutlines, rayLine, DEBUG_FLOATS_PER_BOX, type DebugLines, type DebugLineOptions } from './debug.js';
+export { SnapshotEncoder, SnapshotDecoder } from './net.js';
+export { saveSession, loadSession, type SavedSession } from './session.js';
+export { mountInspector, formatStats, type Inspector, type InspectorOptions, type InspectorSource } from './inspector.js';
+export { SharedFrameReader, SharedFrameWriter, sharedMemoryAvailable } from './shared-frames.js';
+export { WorldScheduler, type SchedulableWorld, type SchedulerOptions, type SchedulerFrame } from './scheduler.js';
+export type { InstanceSource } from './three.js';
+export { FixedStepLoop, pauseOnHidden, type FixedStepOptions, type FixedStepResult } from './loop.js';
+export { EngineError } from './core/contracts.js';
+export { NativeWorldPool, NativeWorldBackend, NATIVE_WORLD_API_VERSION, type NativeBodyHandle, type NativeSpatialQuery, type NativeQueryResult, type NativeQueryCastHit, type NativeQueryBodyHit, type NativeQueryFilter, type NativeBodyCapacityInfo, } from './core/native-world.js';
+export type { InstanceBufferSource, PhysicsBackend } from './backend-types.js';
+export type EngineErrorCode = 'INVALID_PAYLOAD' | 'INVALID_BACKEND' | 'UNSUPPORTED_BACKEND' | 'DISPOSED' | 'STALE_BODY' | 'WORLD_CAPACITY' | 'ALLOCATION_FAILED' | 'STALE_QUERY' | 'QUERY_VERSION_EXHAUSTED' | 'INVALID_STATE' | 'INTERNAL' | 'WASM_UNAVAILABLE' | 'INTEGRITY_MISMATCH' | 'INCOMPATIBLE_SAVE';
+export declare function createWorld(options?: WorldOptions & LoadBox3DOptions): Promise<PhysicsWorld>;
+
+// ==== inspector.d.ts ====
+import type { WorldStats } from './world.js';
+interface ElementLike {
+    textContent: string | null;
+    style: {
+        cssText: string;
+    };
+    remove(): void;
+}
+interface DocumentLike {
+    createElement(tag: string): ElementLike;
+    body?: {
+        appendChild(node: any): unknown;
+    } | null;
+}
+export interface InspectorSource {
+    stats(): WorldStats | Promise<WorldStats>;
+    readonly native?: {
+        readonly HEAPF32: Float32Array;
+    };
+}
+export interface InspectorOptions {
+    readonly parent?: {
+        appendChild(node: any): unknown;
+    };
+    readonly document?: DocumentLike;
+    readonly intervalMs?: number;
+    readonly title?: string;
+}
+export interface Inspector {
+    readonly element: ElementLike;
+    refresh(): Promise<void>;
+    unmount(): void;
+}
+export declare function formatStats(stats: WorldStats, heapBytes?: number, title?: string): string;
+export declare function mountInspector(source: InspectorSource, options?: InspectorOptions): Inspector;
+export {};
+
+// ==== loader.d.ts ====
+import { NativeWorldPool } from './core/native-world.js';
+export type Box3DModuleFactory = (options?: {
+    locateFile?: (path: string, prefix: string) => string;
+    wasmBinary?: ArrayBuffer | Uint8Array;
+}) => Promise<unknown>;
+export interface LoadBox3DOptions {
+    readonly moduleUrl?: string | URL;
+    readonly wasmUrl?: string | URL;
+    readonly wasmBinary?: ArrayBuffer | Uint8Array;
+    readonly factory?: Box3DModuleFactory;
+    readonly integrity?: boolean | string;
+}
+export declare function loadBox3D(options?: LoadBox3DOptions): Promise<NativeWorldPool>;
+
+// ==== loop.d.ts ====
+export interface FixedStepOptions {
+    readonly step?: number;
+    readonly maxSteps?: number;
+}
+export interface FixedStepResult {
+    readonly steps: number;
+    readonly alpha: number;
+    readonly droppedSeconds: number;
+}
+export declare class FixedStepLoop {
+    readonly step: number;
+    readonly maxSteps: number;
+    private accumulator;
+    constructor(options?: FixedStepOptions);
+    advance(frameSeconds: number, tick: (step: number) => void): FixedStepResult;
+    reset(): void;
+}
+export declare function pauseOnHidden(target: FixedStepLoop | {
+    readonly loop: FixedStepLoop;
+}, doc?: {
+    addEventListener(type: string, fn: () => void): void;
+    removeEventListener(type: string, fn: () => void): void;
+} | undefined): () => void;
+
+// ==== net.d.ts ====
+import type { InstanceSource } from './three.js';
+export declare class SnapshotEncoder {
+    private state;
+    private sequence;
+    private fresh;
+    encode(source: InstanceSource, options?: {
+        keyframe?: boolean;
+    }): Uint8Array;
+}
+export declare class SnapshotDecoder implements InstanceSource {
+    private state;
+    private matrixData;
+    private colorData;
+    private sequence;
+    private revision;
+    color: readonly [number, number, number, number];
+    apply(bytes: Uint8Array): void;
+    bodyCount(): number;
+    transformVersion(): number;
+    colorVersion(): number;
+    matrices(): Float32Array;
+    colors(): Float32Array;
+}
+
+// ==== scheduler.d.ts ====
+import type { FixedStepResult } from './loop.js';
+export interface SchedulableWorld {
+    update(frameSeconds: number): FixedStepResult;
+}
+export interface SchedulerOptions {
+    readonly budgetMs?: number;
+    readonly now?: () => number;
+}
+export interface SchedulerFrame {
+    readonly updated: number;
+    readonly deferred: number;
+    readonly steps: number;
+    readonly elapsedMs: number;
+}
+export declare class WorldScheduler<W extends SchedulableWorld = SchedulableWorld> {
+    readonly budgetMs: number;
+    private readonly now;
+    private readonly owed;
+    private order;
+    constructor(options?: SchedulerOptions);
+    add(world: W): this;
+    remove(world: W): boolean;
+    get size(): number;
+    owedSeconds(world: W): number;
+    update(frameSeconds: number): SchedulerFrame;
+}
+
+// ==== session.d.ts ====
+import type { PhysicsWorld, ReplayLog, ReplayReport } from './world.js';
+export interface SavedSession {
+    readonly format: 'box3d-kit-session';
+    readonly version: 1;
+    readonly kitVersion: string;
+    readonly nativeApiVersion: number;
+    readonly wasmSha256: string;
+    readonly savedAt: string;
+    readonly log: ReplayLog;
+}
+export declare function saveSession(log: ReplayLog, savedAt?: string): SavedSession;
+export declare function loadSession(world: PhysicsWorld, saved: unknown, options?: {
+    allowOtherBuild?: boolean;
+}): ReplayReport;
+
+// ==== shared-frames.d.ts ====
+export declare function sharedMemoryAvailable(): boolean;
+export declare class SharedFrameWriter {
+    readonly buffer: SharedArrayBuffer;
+    readonly capacity: number;
+    private readonly view;
+    private colorVersion;
+    private colorCount;
+    constructor(capacity: number);
+    publish(matrices: Float32Array, count: number, colors: Float32Array, colorVersion: number): void;
+}
+export declare class SharedFrameReader {
+    private readonly view;
+    readonly capacity: number;
+    private seen;
+    private colorSeen;
+    count: number;
+    readonly matrices: Float32Array;
+    readonly colors: Float32Array;
+    revision: number;
+    colorRevision: number;
+    constructor(buffer: SharedArrayBuffer);
+    poll(): boolean;
+}
+
+// ==== three.d.ts ====
+export interface InstanceSource {
+    bodyCount(): number;
+    transformVersion(): number;
+    colorVersion(): number;
+    matrices(): Float32Array;
+    colors(): Float32Array;
+    interpolatedMatrices?(alpha: number): Float32Array;
+    readonly capacity?: number;
+    readonly native?: {
+        readonly maxBodies: number;
+    };
+}
+interface BufferAttributeLike {
+    array: ArrayLike<number> & {
+        set(source: ArrayLike<number>, offset?: number): void;
+    };
+    needsUpdate: boolean;
+}
+export interface InstancedMeshLike {
+    count: number;
+    instanceMatrix: BufferAttributeLike;
+    instanceColor: BufferAttributeLike | null;
+}
+interface ThreeLike {
+    BoxGeometry: new (w: number, h: number, d: number) => unknown;
+    MeshStandardMaterial: new (options?: object) => unknown;
+    InstancedMesh: new (geometry: any, material: any, count: number) => InstancedMeshLike;
+    InstancedBufferAttribute: new (array: Float32Array, itemSize: number) => BufferAttributeLike;
+}
+export interface SyncOptions {
+    readonly alpha?: number;
+}
+export declare function createBodyMesh<M extends InstancedMeshLike = InstancedMeshLike>(THREE: ThreeLike, source: InstanceSource, material?: unknown, capacity?: number): M;
+export declare function syncInstancedMesh(source: InstanceSource, mesh: InstancedMeshLike, options?: SyncOptions): number;
+export {};
+
+// ==== water.d.ts ====
+export * from './core/linear-water.js';
+export * from './core/closed-water.js';
+
+// ==== worker.d.ts ====
+import type { LoadBox3DOptions } from './loader.js';
+import type { BodyPose, QueryOptions, ReplayLog, ReplayReport, RecordingOptions, SpawnBoxOptions, Vec3, Vec3Like, WorldOptions, WorldStats } from './world.js';
+import type { InstanceSource } from './three.js';
+export interface MessageEndpoint {
+    postMessage(message: unknown, transfer?: Transferable[]): void;
+    addEventListener?(type: 'message', listener: (event: {
+        data: unknown;
+    }) => void): void;
+    on?(type: 'message', listener: (data: unknown) => void): void;
+    terminate?(): unknown;
+}
+export interface RemoteBody {
+    readonly token: bigint;
+}
+export interface RemoteCastHit {
+    readonly body: RemoteBody;
+    readonly point: Vec3;
+    readonly normal: Vec3;
+    readonly fraction: number;
+}
+export interface RemoteFrame {
+    readonly steps: number;
+    readonly alpha: number;
+    readonly droppedSeconds: number;
+    readonly bodies: number;
+}
+export type RemoteWorldOptions = WorldOptions & Omit<LoadBox3DOptions, 'factory' | 'wasmBinary'> & {
+    readonly interpolateFrames?: boolean;
+    readonly sharedMemory?: boolean | 'auto';
+};
+export declare function serveWorld(endpoint: MessageEndpoint): void;
+export declare class RemoteWorld implements InstanceSource {
+    private readonly endpoint;
+    capacity: number;
+    step: number;
+    private nextId;
+    private readonly pending;
+    private frameMatrices;
+    private frameColors;
+    private count;
+    private transformRevision;
+    private colorRevision;
+    private readonly userData;
+    private disposed;
+    private shared;
+    get usesSharedMemory(): boolean;
+    constructor(endpoint: MessageEndpoint);
+    private receive;
+    private call;
+    init(options: RemoteWorldOptions): Promise<this>;
+    private sync;
+    bodyCount(): number;
+    transformVersion(): number;
+    colorVersion(): number;
+    matrices(): Float32Array;
+    colors(): Float32Array;
+    start(hz?: number): Promise<void>;
+    stop(): Promise<void>;
+    update(frameSeconds: number): Promise<RemoteFrame>;
+    stepOnce(): Promise<void>;
+    spawnBox(options: SpawnBoxOptions): Promise<RemoteBody | null>;
+    destroyBody(body: RemoteBody): Promise<boolean>;
+    isAlive(body: RemoteBody): Promise<boolean>;
+    applyImpulse(body: RemoteBody, impulse: Vec3Like): Promise<void>;
+    explode(center: Vec3Like, strength: number, radius: number): Promise<void>;
+    getPose(body: RemoteBody): Promise<BodyPose | null>;
+    bodyAt(row: number): Promise<RemoteBody>;
+    raycast(origin: Vec3Like, translation: Vec3Like, options?: QueryOptions): Promise<RemoteCastHit | null>;
+    sphereCast(origin: Vec3Like, radius: number, translation: Vec3Like, options?: QueryOptions): Promise<RemoteCastHit | null>;
+    boxCast(origin: Vec3Like, halfExtents: Vec3Like, translation: Vec3Like, options?: QueryOptions): Promise<RemoteCastHit | null>;
+    overlapSphere(center: Vec3Like, radius: number, options?: QueryOptions): Promise<RemoteBody[]>;
+    overlapBox(center: Vec3Like, halfExtents: Vec3Like, options?: QueryOptions): Promise<RemoteBody[]>;
+    resetArena(seed?: number): Promise<void>;
+    loadPreset(id: number, stress?: number, seed?: number): Promise<number>;
+    stats(): Promise<WorldStats>;
+    exactHash(): Promise<number>;
+    replayHash(): Promise<number>;
+    startRecording(options?: RecordingOptions): Promise<void>;
+    stopRecording(): Promise<ReplayLog>;
+    replay(log: ReplayLog): Promise<boolean>;
+    replayDetailed(log: ReplayLog): Promise<ReplayReport>;
+    setUserData(body: RemoteBody, value: unknown): void;
+    getUserData<T = unknown>(body: RemoteBody): T | undefined;
+    dispose(): Promise<void>;
+}
+export declare function connectWorld(endpoint: MessageEndpoint, options?: RemoteWorldOptions): Promise<RemoteWorld>;
+
+// ==== world.d.ts ====
+import type { NativeBodyHandle, NativeQueryCastHit, NativeQueryFilter, NativeWorldBackend, NativeWorldPool } from './core/native-world.js';
+import { FixedStepLoop, type FixedStepOptions, type FixedStepResult } from './loop.js';
+export type Vec3 = readonly [number, number, number];
+export type Vec3Like = Vec3 | {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+};
+export declare function toVec3(value: Vec3Like): [number, number, number];
+export type Body = NativeBodyHandle;
+export interface BodyPose {
+    position: [number, number, number];
+    rotation: [number, number, number, number];
+    halfExtents: [number, number, number];
+}
+export interface WorldOptions extends FixedStepOptions {
+    readonly subSteps?: number;
+    readonly seed?: number;
+    readonly capacity?: number;
+    readonly interpolate?: boolean;
+}
+export interface SpawnBoxOptions {
+    readonly position: Vec3Like;
+    readonly halfSize?: number;
+    readonly impulse?: Vec3Like;
+}
+export interface QueryOptions {
+    readonly filter?: NativeQueryFilter;
+    readonly limit?: number;
+}
+export type RaycastOptions = QueryOptions;
+export interface WorldStats {
+    readonly bodies: number;
+    readonly awake: number;
+    readonly contacts: number | null;
+    readonly capacity: number;
+    readonly tick: number;
+    readonly lastStepMs: number;
+    readonly lastUpdateMs: number;
+    readonly droppedSeconds: number;
+}
+export type ReplayCommand = {
+    readonly t: number;
+    readonly op: 'spawnBox';
+    readonly position: Vec3;
+    readonly halfSize: number;
+    readonly impulse: Vec3;
+} | {
+    readonly t: number;
+    readonly op: 'destroyBody';
+    readonly row: number;
+} | {
+    readonly t: number;
+    readonly op: 'applyImpulse';
+    readonly row: number;
+    readonly impulse: Vec3;
+} | {
+    readonly t: number;
+    readonly op: 'explode';
+    readonly center: Vec3;
+    readonly strength: number;
+    readonly radius: number;
+};
+export interface ReplayLog {
+    readonly version: 1;
+    readonly seed: number;
+    readonly step: number;
+    readonly subSteps: number;
+    readonly ticks: number;
+    readonly commands: readonly ReplayCommand[];
+    readonly finalHash: number;
+    readonly checkpoints?: readonly (readonly [number, number])[];
+}
+export interface RecordingOptions {
+    readonly checkpointEvery?: number;
+}
+export interface ReplayReport {
+    readonly matches: boolean;
+    readonly divergence: {
+        readonly from: number;
+        readonly to: number;
+    } | null;
+    readonly finalHash: number;
+    readonly checkpointsCompared: number;
+}
+export declare class PhysicsWorld {
+    readonly native: NativeWorldBackend;
+    readonly loop: FixedStepLoop;
+    readonly subSteps: number;
+    readonly seed: number;
+    private ownedPool;
+    private readonly userData;
+    private tickCount;
+    private lastStepMs;
+    private lastUpdateMs;
+    private droppedSeconds;
+    private readonly interpolate;
+    private previous;
+    private previousCount;
+    private rowsMoved;
+    private blended;
+    private recording;
+    private readonly stepListeners;
+    constructor(pool: NativeWorldPool, options?: WorldOptions, ownPool?: boolean);
+    resetArena(seed?: number): this;
+    loadPreset(id: number, stress?: number, seed?: number): number;
+    private afterReset;
+    spawnBox(options: SpawnBoxOptions): Body | null;
+    isAlive(body: Body): boolean;
+    destroyBody(body: Body): boolean;
+    applyImpulse(body: Body, impulseLike: Vec3Like): void;
+    explode(centerLike: Vec3Like, strength: number, radius: number): void;
+    setUserData(body: Body, value: unknown): void;
+    getUserData<T = unknown>(body: Body): T | undefined;
+    bodyAt(row: number): Body;
+    step(): void;
+    update(frameSeconds: number): FixedStepResult;
+    private runStep;
+    onStep(listener: (tick: number) => void): () => void;
+    private replayCheck;
+    private capturePrevious;
+    interpolatedMatrices(alpha: number): Float32Array;
+    private cast;
+    private overlap;
+    private static common;
+    raycast(origin: Vec3Like, translation: Vec3Like, options?: QueryOptions): NativeQueryCastHit | null;
+    sphereCast(origin: Vec3Like, radius: number, translation: Vec3Like, options?: QueryOptions): NativeQueryCastHit | null;
+    boxCast(origin: Vec3Like, halfExtents: Vec3Like, translation: Vec3Like, options?: QueryOptions): NativeQueryCastHit | null;
+    overlapSphere(center: Vec3Like, radius: number, options?: QueryOptions | number): Body[];
+    overlapBox(center: Vec3Like, halfExtents: Vec3Like, options?: QueryOptions): Body[];
+    getPose(body: Body, out?: BodyPose): BodyPose | null;
+    matrices(): Float32Array;
+    colors(): Float32Array;
+    bodyCount(): number;
+    awakeCount(): number;
+    get tick(): number;
+    replayHash(): number;
+    exactHash(): number;
+    transformVersion(): number;
+    colorVersion(): number;
+    stats(): WorldStats;
+    startRecording(options?: RecordingOptions): void;
+    stopRecording(): ReplayLog;
+    get isRecording(): boolean;
+    replay(log: ReplayLog): boolean;
+    replayDetailed(log: ReplayLog): ReplayReport;
+    private replayCommands;
+    private record;
+    private stopRecordingIfActive;
+    dispose(): void;
+}
+export declare const leakReporting: {
+    warn: (message: string) => void;
+};

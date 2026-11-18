@@ -1,0 +1,195 @@
+{
+  "recordedAt": "2026-09-08T16:29:25.740222+00:00",
+  "files": [
+    {
+      "file": "evidence/bridge-alpine.jpg",
+      "bytes": 118568,
+      "sha256": "09cbd588a5d926f97d203589f79a3647835a0b75b223a08d324fb161fd68ebbc"
+    },
+    {
+      "file": "evidence/bridge-alpine.json",
+      "bytes": 954,
+      "sha256": "e4204e2c6491bbc0daa9f2c5550e045219f86d4cdb25bffb5991fd5607c89a59"
+    },
+    {
+      "file": "evidence/bridge-connection.jpg",
+      "bytes": 136963,
+      "sha256": "628b681e9d1116539cb19e789ae001bb277f8aae32be8361db4f05597339bddb"
+    },
+    {
+      "file": "evidence/bridge-connection.json",
+      "bytes": 963,
+      "sha256": "ad01feae330a34f2e7ce1d4802bc0b5cc0c2bcd3c8f87c4fcb935914d43b88cf"
+    },
+    {
+      "file": "evidence/bridge-failure-focus.jpg",
+      "bytes": 121675,
+      "sha256": "ee0ffb2f0028af914b810fa9a1d656636234961c49860c90a76a634860af1a40"
+    },
+    {
+      "file": "evidence/bridge-failure-focus.json",
+      "bytes": 952,
+      "sha256": "aa0ad7c0a3189603d0912800428e4d8a4cc47d79bceb28e6215006d51caaf231"
+    },
+    {
+      "file": "evidence/bridge-failure.jpg",
+      "bytes": 125438,
+      "sha256": "464f3fda1b1e7a636beacc553b97f19a6b54f171a90ea440079923ae4f654946"
+    },
+    {
+      "file": "evidence/bridge-failure.json",
+      "bytes": 952,
+      "sha256": "66a4b708492a8f1ebf0428a318eb06a5803bc4e1ab57bff9f3613d38b89ce1ef"
+    },
+    {
+      "file": "evidence/bridge-phone.jpg",
+      "bytes": 43956,
+      "sha256": "a08b2f6adf228359f22c44a750a86bbe5874e88821f3a73a0c78ca09f0450104"
+    },
+    {
+      "file": "evidence/bridge-phone.json",
+      "bytes": 945,
+      "sha256": "8c1fc32271f764985ed963faacdc0356d171431a1c8878d89d607ca4dc921c40"
+    },
+    {
+      "file": "evidence/bridge-ready.jpg",
+      "bytes": 117637,
+      "sha256": "4a095f3d2124edbd2e401cf45364b312d5dd35df6f112517e135c1923627482b"
+    },
+    {
+      "file": "evidence/bridge-ready.json",
+      "bytes": 945,
+      "sha256": "669e3e75ee376cf29fd070c95d843962264aae1da00751a3085fb89058ec70c6"
+    },
+    {
+      "file": "evidence/canopy-connection-before-pin.jpg",
+      "bytes": 116978,
+      "sha256": "0a16dca4093a60d41b36bda0d4079d97976cf03af46d899778b6406d734734aa"
+    },
+    {
+      "file": "evidence/canopy-connection.jpg",
+      "bytes": 115579,
+      "sha256": "a5b663559980619a5af026d586dd169a9fa46cfb8cf268628dfcd320add30eba"
+    },
+    {
+      "file": "evidence/canopy-connection.json",
+      "bytes": 909,
+      "sha256": "962f80d51dce6400c2286ef86c6d3527298cc86461819fa00f4cc031bb7ceff4"
+    },
+    {
+      "file": "evidence/canopy-failure.jpg",
+      "bytes": 129715,
+      "sha256": "4c379c17b840884b32549ddd1801ce494b3edbfebe1fc8a4ed1e5beefab8e494"
+    },
+    {
+      "file": "evidence/canopy-failure.json",
+      "bytes": 935,
+      "sha256": "dadc5153527d251e6cc5374d02708370f2c1c8bdf3147c01f1763887e9bb64af"
+    },
+    {
+      "file": "evidence/canopy-leather.jpg",
+      "bytes": 113529,
+      "sha256": "c1bc8e51bc35f4b3a6327cf55129db8b0ebcbb5f58355ceba9218af7fab99484"
+    },
+    {
+      "file": "evidence/canopy-leather.json",
+      "bytes": 938,
+      "sha256": "6fa43af59c18237964a9e0cfd54bcbf5ffde2eff40a57e7199024fc14a412496"
+    },
+    {
+      "file": "evidence/canopy-phone.jpg",
+      "bytes": 44347,
+      "sha256": "c4f990725181a956c22ecf4c43bafe1ce8e4813acae94164addc885e8c25ee70"
+    },
+    {
+      "file": "evidence/canopy-phone.json",
+      "bytes": 937,
+      "sha256": "42399a795fe943b51a6b27b3609c8b69dd83506a722b1b43ad8a76212cf7af8d"
+    },
+    {
+      "file": "evidence/canopy-ready.jpg",
+      "bytes": 123723,
+      "sha256": "d0c3b9c865a419a8b1c438d8026369498ffdb68269a9408a0e6f28f95eecd64d"
+    },
+    {
+      "file": "evidence/collection-atelier.jpg",
+      "bytes": 93959,
+      "sha256": "601f52da9d5438b1db6773d0a6c18272e8ef126bf0a3bbba19ce59e11f205638"
+    },
+    {
+      "file": "evidence/collection-desktop.jpg",
+      "bytes": 87835,
+      "sha256": "1a4879d0fcb4ab5a8a1143a7af25c4485ce370c11a633d0d7bc1e8c878204f41"
+    },
+    {
+      "file": "evidence/collection-peek.jpg",
+      "bytes": 60989,
+      "sha256": "8ccea723b23cb143f9179dd0a32ec70170fa1b370bcd852b7518605e2842d933"
+    },
+    {
+      "file": "evidence/collection-phone.jpg",
+      "bytes": 41909,
+      "sha256": "795f6dd579eb29584a28a7eaf82657529ee518348d9b856a8e35e7c6f6f5dc39"
+    },
+    {
+      "file": "evidence/console.json",
+      "bytes": 2,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "file": "evidence/plate-brass.jpg",
+      "bytes": 120448,
+      "sha256": "c2fb82ed5b4e4aaf0bd82f3e5da3df18cdf5573e8e8a94a27112795992059e40"
+    },
+    {
+      "file": "evidence/plate-brass.json",
+      "bytes": 914,
+      "sha256": "34586c0e98cf4d9c7e169758cefd89a9eb57d3e6c7ca3d6883079a779e3f6e5b"
+    },
+    {
+      "file": "evidence/plate-connection-obstructed.jpg",
+      "bytes": 123493,
+      "sha256": "71846be555669d2a1adbead885f53f0efa80c6155f1fbec3d5adf35fe79dea28"
+    },
+    {
+      "file": "evidence/plate-connection.jpg",
+      "bytes": 120010,
+      "sha256": "02d5c7fa842442d1a0215d17d5df86407d163dc6fdf88c431cb59efa08f96f42"
+    },
+    {
+      "file": "evidence/plate-connection.json",
+      "bytes": 891,
+      "sha256": "05d160a7a3b6bfd14e8c55baebdf6dd89e6871487c361eef275596234de5f9ea"
+    },
+    {
+      "file": "evidence/plate-copper.jpg",
+      "bytes": 119148,
+      "sha256": "03cbb36dc763aba2036a08e5a3f62ac39747114ffe1a93e7bcccfcc83f78432f"
+    },
+    {
+      "file": "evidence/plate-copper.json",
+      "bytes": 920,
+      "sha256": "74a6069e28e47c66c0ed00adb8cc0a9f72cd50f88bd16ac0b0ea9aec7be2c426"
+    },
+    {
+      "file": "evidence/plate-phone.jpg",
+      "bytes": 50258,
+      "sha256": "cec79e538c6981f44bf079280e8c3443cb96f983cabedfd7b7a45bc883a31315"
+    },
+    {
+      "file": "evidence/plate-phone.json",
+      "bytes": 913,
+      "sha256": "5786f39a9017874bd61d8261ab38cd6fc297ee968d354de0599060b205bd6de2"
+    },
+    {
+      "file": "evidence/plate-unloaded.jpg",
+      "bytes": 126410,
+      "sha256": "a2ef0db7c23dbadd8cd6effd4cce1592334baaecba9b906ee7471fe7c3350255"
+    },
+    {
+      "file": "evidence/plate-unloaded.json",
+      "bytes": 916,
+      "sha256": "e32bd6bcaf120ecd5fd47cd9722ba99c8ef5b350c786fafc93e6ad274ae29986"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "current-bridge-second",
+  "at": "2026-09-08T08:01:02.908Z",
+  "broken": "0",
+  "camera": "reverse",
+  "deflection": "0.000",
+  "draws": "64",
+  "events": "0",
+  "finish": "bridge-weathered",
+  "fps": "84",
+  "frames": "48626",
+  "height": 1058,
+  "horizontalOverflow": false,
+  "lighting": "daylight",
+  "objects": "24030",
+  "productionEntry": "index--Zc_i5BF.js",
+  "ready": "true",
+  "study": "bridge",
+  "time": "0.00 s",
+  "triangles": "958165",
+  "url": "http://127.0.0.1:5174/?studio=bridge&theme=observatory&finish=bridge-weathered&light=daylight&recipe=bridge-collapse&camera=reverse&quality=ultra",
+  "width": 1487
+}

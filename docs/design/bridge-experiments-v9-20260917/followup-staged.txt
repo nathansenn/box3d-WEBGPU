@@ -1,0 +1,186 @@
+Inspect
+Experiments
+Scan setup
+Load scan · 5 cases · 15 s · next scan
+Edit
+Load scan
+Strength scan
+Crosswind scan
+Study preset
+10 starting points
+Load overview
+Low-load response
+High-load response
+Extended load observation
+Strength overview
+Reduced connection strength
+Increased connection strength
+Crosswind overview
+Light crosswind
+Strong crosswind
+Custom range
+
+Evenly spaced settings. All other conditions stay fixed.
+
+From
+To
+Cases
+3 cases
+5 cases
+7 cases
+9 cases
+
+Normalized load · 0–5 · up to 4 decimal places
+
+Duration / model seconds
+15 s
+30 s
+60 s
+120 s
+
+Strength 1.60× · Wind 0.00Held constant in the next scan
+
+Edit held settings
+Custom / retained
+Strength ×
+Crosswind
+Use live scene settings
+
+These settings are held constant across every case. Editing them here leaves the live scene unchanged.
+
+4.375 / 4.5313 / 4.6875 / 4.8438 / 5.00 · 75 total model seconds · fresh bridge per case
+
+Run 5 cases
+
+9 of 9 complete · 15 s per case
+
+9 / 9
+Complete
+1 / 9
+With rupture
+9.59 s
+Earliest · Load 5.00
+Compare responses
+Table
+Chart
+Time probe
+
+Load scan · 15 s · Strength 1.60× · Wind 0.00
+
+Recorded peaks · displacement in model units
+
+Recorded peaks and final lost links. Outcomes cover the full recording.
+Case
+Full-record outcome
+	Peak drop	Peak sideways	Lost links
+
+01
+Load 0.00REF
+No rupture observed
++
+	0.026	0.000	0
+
+02
+Load 0.625
+No rupture observed
++
+	0.259	0.001	0
+
+03
+Load 1.25
+No rupture observed
++
+	0.331	0.001	0
+
+04
+Load 1.875
+No rupture observed
++
+	0.381	0.001	0
+
+05
+Load 2.50
+No rupture observed
++
+	0.418	0.002	0
+
+06
+Load 3.125
+No rupture observed
++
+	0.449	0.002	0
+
+07
+Load 3.75
+No rupture observed
++
+	0.477	0.003	0
+
+08
+Load 4.375
+No rupture observed
++
+	0.502	0.003	0
+
+09
+Load 5.00
+Collapsed
+−
+	6.200	4.068	13
+CASE 09
+Load 5.00
+First rupture
+9.59 s
+Peak recorded drop
+6.200
+Lost links
+13 / 327
+
+15.0 s recorded · peak at 11.70 s
+Lateral peak 4.068 · Collapsed
+
+Load 5.00 · Strength 1.60× · Wind 0.00
+
+First rupture
+Peak drop
+Record end
+Compare with
+Choose a reference
+Load 0.00
+Load 0.625
+Load 1.25
+Load 1.875
+Load 2.50
+Load 3.125
+Load 3.75
+Load 4.375
+Load 5.00
+Pin this case
+Load 5.00 vs Load 0.00
+Peaks & final lost links · 0–15.0 s
+Measurement	Selected	Reference	Difference
+Deck drop	6.200	0.026	+6.174
+Sideways	4.068	0.000	+4.068
+Lost links	13	0	+13
+
+Selected − reference, calculated before rounding. Displacement in model units; lost links in connections. Each displacement peak may occur at a different time.
+
+Load case
+Use as baseline
+Refine an observed transition
+
+Adjacent completed cases had different rupture outcomes. Look closer under the same conditions.
+
+4.375 → 5.00
+No rupture → rupture
+
+Observed for 15 s. This interval is not a safe-load rating or a proven failure threshold.
+
+Summary CSV
+Samples CSV
+JSON
+Clear scan
+
+Follow-up prepared with the original fixed settings and duration. Current results remain available; export them before starting the new scan.
+
+How these experiments work

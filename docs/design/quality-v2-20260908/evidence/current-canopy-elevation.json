@@ -1,0 +1,29 @@
+{
+  "name": "current-canopy-elevation",
+  "at": "2026-09-08T08:22:36.301Z",
+  "broken": "0",
+  "camera": "elevation",
+  "canvas": {
+    "height": 676,
+    "width": 1003
+  },
+  "deflection": "0.000",
+  "draws": "32",
+  "events": "0",
+  "finish": "canopy-linen",
+  "fps": "140",
+  "frames": "4109",
+  "height": 1058,
+  "history": "LIVE HISTORY",
+  "horizontalOverflow": false,
+  "lighting": "daylight",
+  "objects": "554",
+  "productionEntry": "index-DipR682Y.js",
+  "quality": "ultra",
+  "ready": "true",
+  "study": "canopy",
+  "time": "0.00 s",
+  "triangles": "75943",
+  "url": "http://127.0.0.1:5174/?studio=canopy&theme=precision&finish=canopy-linen&light=daylight&recipe=canopy-tear&camera=elevation&quality=ultra",
+  "width": 1487
+}

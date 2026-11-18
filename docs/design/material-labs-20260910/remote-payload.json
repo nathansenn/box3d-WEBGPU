@@ -1,0 +1,186 @@
+{
+  "scope": "Compiled frontend, five needed shared material maps, six generated material-lab images only; no source repository, account data, environment files, browser state or symlinks.",
+  "files": [
+    {
+      "path": "index.html",
+      "bytes": 671,
+      "sha256": "aac92398e8f03519eacc894fadf8b42354ba76b83ea70f820237ef865a705377"
+    },
+    {
+      "path": "assets/main-DAz6IQYJ.js",
+      "bytes": 255725,
+      "sha256": "f92599a2fade2ae8589e8eaa7d98e673fd07cab4b7a284a3a9669c3df261ebb9"
+    },
+    {
+      "path": "assets/Phosphor-BXRFlF4V.svg",
+      "bytes": 2996371,
+      "sha256": "e874e712d3f1b7774b4cba7dafda1eecdb1f075cd5e2ec1109c0553421ecaed3"
+    },
+    {
+      "path": "assets/inter-latin-700-normal-Yt3aPRUw.woff2",
+      "bytes": 24356,
+      "sha256": "6f56409fd3d64bb85f7d070bce20749db2d66b6d63cec586cc22d1c761be2491"
+    },
+    {
+      "path": "assets/inter-latin-700-normal-BLAVimhd.woff",
+      "bytes": 31320,
+      "sha256": "7c5ed5655730de337704d3fc94628515cd7e3d8d32368871709bf56ac0397e7a"
+    },
+    {
+      "path": "assets/RoundedBoxGeometry-DeGLauyl.js",
+      "bytes": 967921,
+      "sha256": "e57948e25f1b30191ff13d21cca4f418d6949f13f5d4ba9972cce111d77bfd61"
+    },
+    {
+      "path": "assets/index-D55lRdiM.js",
+      "bytes": 3630,
+      "sha256": "4eee70f299467b1a53856e595c00cfc07a7c1919b013ef3721a03a7c8b59e9c9"
+    },
+    {
+      "path": "assets/main-CebQdnrI.js",
+      "bytes": 68912,
+      "sha256": "20688a4bf0e1435961db57eb5b59cabcf02e3b7c28251083116ef3a90ecfb16e"
+    },
+    {
+      "path": "assets/inter-latin-500-normal-BL9OpVg8.woff",
+      "bytes": 31284,
+      "sha256": "9b42c108da48b5ed55a3072e815ffee2d271562e6c0dd6998910e8f9c09e0a3d"
+    },
+    {
+      "path": "assets/study-navigation-CGNjdIDP.css",
+      "bytes": 761,
+      "sha256": "49055ca28c8b296e2a5ed6686f7850cae46775e9576e4528b4ecd3f35b432d88"
+    },
+    {
+      "path": "assets/Phosphor-DtdjzkpE.woff2",
+      "bytes": 147380,
+      "sha256": "c2ea45ea05ff5c7df1936770c104725f2a68f43fd343f35f3da23a30b27de32a"
+    },
+    {
+      "path": "assets/Phosphor-CDxgqcPu.ttf",
+      "bytes": 488636,
+      "sha256": "06b91e022b7ee899a63efced879392a74f0bacbda54e4467e9f663220d173a10"
+    },
+    {
+      "path": "assets/ibm-plex-mono-latin-400-normal-CvHOgSBP.woff",
+      "bytes": 13144,
+      "sha256": "328d50b6ece9ca25c46eea3e885ba497f6237f2fb84ef7b92f88e14a1a25e381"
+    },
+    {
+      "path": "assets/Phosphor-BdqudwT5.woff",
+      "bytes": 488716,
+      "sha256": "396c5eae7f2dfb4d1f5432edd87109eda2f92a451b2167e43a26165b82770f75"
+    },
+    {
+      "path": "assets/study-navigation-yKpjwIwl.js",
+      "bytes": 1378,
+      "sha256": "a9ce2f6e68b4410a709574de561c5316da6f137f9be8bb6f73c17ab21afb94e5"
+    },
+    {
+      "path": "assets/main-p_gPE8X0.css",
+      "bytes": 85884,
+      "sha256": "82b9ee010590ed3322384886bd66126c8d0b212d58a6b5b00f30ad1261733fe4"
+    },
+    {
+      "path": "assets/ibm-plex-mono-latin-400-normal-DMJ8VG8y.woff2",
+      "bytes": 14708,
+      "sha256": "08949f728dc52d528e69b1667d15c89a5686a4ee9a296ff90983985f99c380f7"
+    },
+    {
+      "path": "assets/main-CdO9fxmE.css",
+      "bytes": 16963,
+      "sha256": "c5b24e2a8129e8090cc7422f74421cae91d1dfb4bf4c2a92fed88519c0e1bede"
+    },
+    {
+      "path": "assets/studio-worker-CiVNd5Bm.js",
+      "bytes": 38630,
+      "sha256": "80fd3ffeef713fa62e350bcaf3fe1a22f1c71c5b0436f24c583f978d4e837b58"
+    },
+    {
+      "path": "assets/inter-latin-600-normal-CiBQ2DWP.woff",
+      "bytes": 31260,
+      "sha256": "6a9cb3a509b4eeaf12b7dda6c4aacac3e85d07f4201bf4dd716e332e692b87bd"
+    },
+    {
+      "path": "assets/inter-latin-600-normal-LgqL8muc.woff2",
+      "bytes": 24452,
+      "sha256": "f9a06e79cd3a2a20951c0f0e28f66dd0e6d3fda73911d640a2125c8fcb78f21a"
+    },
+    {
+      "path": "assets/inter-latin-400-normal-CyCys3Eg.woff",
+      "bytes": 30696,
+      "sha256": "e20fa0b4fd2dd26e4d14b3ac3cc922509c3a63fa5e910e90c614544aa042dd45"
+    },
+    {
+      "path": "assets/inter-latin-400-normal-C38fXH4l.woff2",
+      "bytes": 23664,
+      "sha256": "8909904ab6c872eb994093482a88a28eca2cd95912d7b6fecd72103b0dc07edc"
+    },
+    {
+      "path": "assets/inter-latin-500-normal-Cerq10X2.woff2",
+      "bytes": 24272,
+      "sha256": "f3779f1efccc4bdcdf9c0a02ab95bf6bd092ed09c48c08cedc725889edd1d19f"
+    },
+    {
+      "path": "assets/RoundedBoxGeometry-BAh20NZY.css",
+      "bytes": 63346,
+      "sha256": "9eb3d0bd056448b859e31e39c5086f823fe5679b941174bbf1bed58318e455ba"
+    },
+    {
+      "path": "studio/materials/cast-concrete.png",
+      "bytes": 3109547,
+      "sha256": "159cb60bb9d150528af34ddc159512b09ecf267e90e6723848b3a6a6a7cc9f7c"
+    },
+    {
+      "path": "studio/materials/iron-basecolor.webp",
+      "bytes": 1983804,
+      "sha256": "d39232b4b74c85d32776377c26cd34231b8d43a8da3c7aa3695ae2a031b0caa7"
+    },
+    {
+      "path": "studio/materials/iron-normal.webp",
+      "bytes": 846020,
+      "sha256": "8458c41e5edf38badf75673ecbe9445cc3b341b6563cbd4dba5c8495bbcc975c"
+    },
+    {
+      "path": "studio/materials/iron-roughness.webp",
+      "bytes": 281674,
+      "sha256": "efe47e20396b06296045dcacac3d0c80f8fd190d3582a7dcd56f9ecc0b2e441e"
+    },
+    {
+      "path": "studio/materials/machined-metal.png",
+      "bytes": 1959641,
+      "sha256": "fd88bd91f8dbe3144ed6164880cb2030cda5cd57a092dacd8908eaff74e33dc0"
+    },
+    {
+      "path": "studio/references/material-labs/liquid.png",
+      "bytes": 2339196,
+      "sha256": "c8c48f8237593837f445974c4448921a319317ec4ccff5bcbf450e4b751e73c8"
+    },
+    {
+      "path": "studio/references/material-labs/rubber.png",
+      "bytes": 1857825,
+      "sha256": "2db4714a44f5bede3df3a73ce16dcd9dc565e439614872020e61aa9506d3f559"
+    },
+    {
+      "path": "studio/references/material-labs/concrete.png",
+      "bytes": 1980007,
+      "sha256": "9ceb15f6c644797c48608e025be4c0372461f995b011d09da09d2eac38baa8a1"
+    },
+    {
+      "path": "studio/references/material-labs/hall-panorama.png",
+      "bytes": 2321245,
+      "sha256": "7caca63e58dc4a645d2848ad2d5d520f45f7d4cb8ca71ee43434ec6b68c1d30c"
+    },
+    {
+      "path": "studio/references/material-labs/granular.png",
+      "bytes": 2218824,
+      "sha256": "075d4b5e0c925cc6e9a2454c8d615faf5ac0994559bd28b102a8ae66269f91c9"
+    },
+    {
+      "path": "studio/references/material-labs/glass.png",
+      "bytes": 2031996,
+      "sha256": "5ebb368ce8a40fb03ac52b83050989b2c3a25868d0efd843fdc0b4164263dcef"
+    }
+  ],
+  "bytes": 26803859
+}

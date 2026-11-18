@@ -1,0 +1,30 @@
+{
+  "at": "2026-09-09T23:57:06.933Z",
+  "provider": "Browserless",
+  "owner": "01a07e7b-23c9-72e1-a62e-b780ac76623f",
+  "study": "concrete",
+  "base": "https://box3d-web-production.up.railway.app/",
+  "publicDeploymentOnly": true,
+  "privateTransport": false,
+  "errors": [],
+  "workers": [],
+  "result": {
+    "title": "BOX3D — Concrete crush",
+    "url": "https://box3d-web-production.up.railway.app/?studio=concrete&material=standard&mode=release&seed=42&load=35&rate=5&size=1&damping=1&experiment=cube-crush",
+    "ready": "true",
+    "renderer": "WebGL renderer · fixed-step model",
+    "phase": "Ready",
+    "studies": 8,
+    "experiments": 8,
+    "canvas": [
+      {
+        "width": 786,
+        "height": 602
+      }
+    ],
+    "overflow": false,
+    "legacyLinks": 0
+  },
+  "cleanup": "Shared helper returned after closing the remote context and browser",
+  "pass": true
+}

@@ -1,0 +1,114 @@
+{
+  "pass": true,
+  "gates": {
+    "schema": {
+      "validator": "structural",
+      "errors": [],
+      "pass": true
+    },
+    "overlap": {
+      "pairs": [
+        [
+          "near-pier",
+          "near-left-grout",
+          "CONTACT",
+          0.0
+        ],
+        [
+          "near-pier",
+          "near-right-grout",
+          "CONTACT",
+          0.0
+        ],
+        [
+          "near-left-grout",
+          "near-left-bearing",
+          "CONTACT",
+          0.0
+        ],
+        [
+          "near-left-bearing",
+          "near-left-column",
+          "CONTACT",
+          0.0
+        ],
+        [
+          "near-right-grout",
+          "near-right-bearing",
+          "CONTACT",
+          0.0
+        ],
+        [
+          "near-right-bearing",
+          "near-right-column",
+          "CONTACT",
+          0.0
+        ],
+        [
+          "far-pier",
+          "far-left-grout",
+          "CONTACT",
+          0.0
+        ],
+        [
+          "far-pier",
+          "far-right-grout",
+          "CONTACT",
+          0.0
+        ],
+        [
+          "far-left-grout",
+          "far-left-bearing",
+          "CONTACT",
+          0.0
+        ],
+        [
+          "far-left-bearing",
+          "far-left-column",
+          "CONTACT",
+          0.0
+        ],
+        [
+          "far-right-grout",
+          "far-right-bearing",
+          "CONTACT",
+          0.0
+        ],
+        [
+          "far-right-bearing",
+          "far-right-column",
+          "CONTACT",
+          0.0
+        ]
+      ],
+      "violations": 0,
+      "pass": true
+    },
+    "consistency": {
+      "notes": [],
+      "pass": true
+    },
+    "projection": {
+      "coverage_fraction": 0.1243,
+      "offscreen_objects": [],
+      "depth_order_far_to_near": [
+        "far-left-column",
+        "far-left-bearing",
+        "far-left-grout",
+        "far-pier",
+        "far-right-column",
+        "far-right-bearing",
+        "far-right-grout",
+        "near-left-column",
+        "near-left-bearing",
+        "near-left-grout",
+        "near-pier",
+        "near-right-column",
+        "near-right-bearing",
+        "near-right-grout"
+      ],
+      "pass": true,
+      "composite_png": "/private/tmp/box3d-studicraft-fidelity-20260909/bearing-composite.png"
+    }
+  }
+}

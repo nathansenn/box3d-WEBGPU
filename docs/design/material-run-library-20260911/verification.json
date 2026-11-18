@@ -1,0 +1,63 @@
+{
+  "verifiedAt": "2026-09-10T20:37:44.525135+00:00",
+  "scope": "Local material-studio run library",
+  "sourceHashes": {
+    "src/studio/material-labs/main.ts": "0b47557a55ae37d6aa559bad45b9adcbe0fa3cdc9206ad30443ab52236e66e0d",
+    "src/studio/material-labs/run-library.ts": "ee4a55f77d7941e4d04f362bf2f971c261a37553cbb9803f2ca8777ed96697fb",
+    "src/studio/material-labs/run-library-view.ts": "d7dea980ada406da03b0a49a06ccf4f3198b00b6ed928c583cac6c26018f020e",
+    "src/studio/material-labs/run-library.css": "3159a3063dbcae7780c45dd663bb3b54f268cc89cb9142296127eea6b04bf4a0",
+    "tests/studio/material-run-library.test.mjs": "46c5e7b8d2b25226ee6686da4326adaf171d8137677632168c11bb97ab1ae804"
+  },
+  "preservedConcurrentPhysics": {
+    "path": "src/studio/material-labs/models.ts",
+    "startSha256": "5af648763f590607f06aa638f947545e94d99f13ced72e1915dca88d7cf4380d",
+    "currentSha256": "8ca2f270d1fa32379140eaf11761c3d7378237529259b124d0cc5cc9cb907487",
+    "editedByThisPhase": false,
+    "note": "An external models.ts update caused a Vite refresh during QA. Preserved it, then rechecked TypeScript and rebuilt. Simulation-model qualification belongs to that change."
+  },
+  "checks": {
+    "unitTests": 9,
+    "typecheck": "passed",
+    "productionBuild": "passed",
+    "desktop": "1280x720, notebook, actual plots and table visually reviewed",
+    "mobile": "390x844, canvas and drawer visually reviewed, document width equals viewport width",
+    "runtimeErrorsObserved": 0,
+    "realRecordings": [
+      "Clear-water release: 18.0083 s, complete (download verified)",
+      "Oil through the gate: 18.0083 s, complete (download verified)",
+      "Radial impact: 5.73 s displayed, partial, fracture displayed",
+      "Cube compression: 16.01 s displayed, complete",
+      "Silicone recovery: 18.0083 s, complete, manual release included in exported JSON",
+      "Sand avalanche: 14.01 s displayed, complete",
+      "Water release early wave: 2.22 s displayed, partial"
+    ],
+    "behaviors": [
+      "Saved results survive reload and study navigation",
+      "Full settings restore through same-study and cross-study Load setup",
+      "Comparison uses recorded time axes; mismatched lengths are labeled",
+      "Unlike studies cannot share a comparison",
+      "Chart metric switch and numerical final-value table",
+      "Downloaded comparison JSON validated against actual frames",
+      "Downloaded result contains manual release events",
+      "Remove then undo restores result",
+      "Rail Material action closes notebook and opens inspector",
+      "Expand viewport closes notebook and hides inspector",
+      "Escape closes the drawer in the frozen production build"
+    ],
+    "stableBuild": "Rendered local production build, 3 liquid results persisted, water/oil comparison rebuilt, no captured console errors; WebGPU renderer displayed"
+  },
+  "localOrigin": "http://127.0.0.1:5173",
+  "publicDeploymentThisPhase": false,
+  "preview": {
+    "mode": "Frozen production build",
+    "origin": "http://127.0.0.1:5173",
+    "artifact": "/private/tmp/box3d-notebook-build-20260911",
+    "binding": "127.0.0.1",
+    "command": "npm run preview -- --host 127.0.0.1 --outDir /private/tmp/box3d-notebook-build-20260911 --port 5173 --strictPort"
+  },
+  "pendingUiAction": {
+    "action": "Tab.markDeliverable",
+    "status": "automatic approval review rejected twice",
+    "reason": "Review classified keeping the tab open as possible finalizing or submitting; no workaround attempted. User confirmation needed to retain this agent-created tab after the turn."
+  }
+}
