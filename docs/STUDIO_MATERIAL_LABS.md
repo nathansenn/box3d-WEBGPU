@@ -334,13 +334,31 @@ Engine rows (`tests/engine/solid-concrete.test.mjs` in `npm run test:solid`; row
 | Lateral pressure 0.05 and 0.2 f_cm, then axial compression | EN 1992-1-1 (3.24), (3.25): 1.250, 1.625 f_cm | 1.2469, 1.6199 f_cm | 1 % |
 | Equal biaxial compression | 1.16 f_c (Kupfer et al. 1969) | 1.1585 f_cm | 1 % (fitted) |
 | Plastic volume change per kappa_c | psi = tan 30° (potential), below the meridian slope 1.71 | psi to 1e-15 | 1e-9 |
+| Strength factors 0.8, 0.9, 1.1 (since 2026-11-18) | f f_cm uniaxial, f f_ctm, 1.16 f f_cm equal-biaxial | 0.998 f f_cm, 1.0001 f f_ctm, 1.1585 f f_cm | 0.5 %, 0.5 %, 1 % |
 | Reinforced tie through cracking to yield | one-dimensional series model | 1.6 % of A_s f_y | 3 % |
 | Reinforced beam: cracking moment; yield moment | 1993 N m; 4515 N m (hand) | 1950 to 2112 N m; 4553 N m | 6 %; 5 % |
 | Return mapping in every regime; checkpoint resume (local, nonlocal, reinforced) | derivative of the energy; bit-identical | pass | 1e-6; exact |
 
 Misses: Kupfer's 1.27 f_c at sigma_2 / sigma_1 = 0.5 (the law gives 1.39). Since 2026-11-17 the engine's crack band is per element and compressive softening localises in one band of elements (SOLID_MECHANICS.md, section Crack band and the mesh study); the lab does not use that softening surface (below).
 
-**Crack band and the lab (2026-11-17).** The engine's default after the compressive peak is now the softening surface of the crack band (`postPeak: 'band'`): no lateral plastic strain, so a crushed band stays one element thick, and G_c per unit area. The lab keeps `postPeak: 'lagged'` (`CONCRETE_POST_PEAK` in `concrete-si.ts`), the law it was validated with, because the softening surface moves its peaks: the elements of the strength scatter pass their own peak before the cube does, and whether they then dilate changes the cube's peak. Each preset's full program (`duration` 14 s at 1/120 s), before the change, with the lab as it is now, and with `'band'` (Node 22, the shared machine at a load average of 25 to 35):
+**Strength factors (2026-11-18, a bug fix).** The lab's strength scatter (`setStrengthFactors`, one factor per element) scaled the compression surface's k but read the meridian at xi / f_cm instead of xi / (f f_cm), so an element of factor 0.9 peaked at 0.794 f_cm in uniaxial compression and one of 1.1 at 1.27 f_cm: the scatter was about 2.3 times as wide in compression as its stated coefficient of variation (8 %, 15 % for the weathered mix, 5 % for C60/75 and ceramic), while tension and the fracture energies scaled by f exactly. The factor now scales the whole surface in stress space (`q r = f k Psi(xi / (f f_cm))`): a cell of factor 0.8, 0.9 and 1.1 peaks at 0.998 f f_cm in uniaxial compression (rows `solid.concrete.strength-factor-*`, 0.5 %; before: 0.788, 0.881, 1.151), at f f_ctm in tension (1.00008) and at 1.1585 f f_cm in equal-biaxial compression (1.050 before at 0.9). Every preset's full program (`duration` 14 s at 1/120 s, `postPeak: 'lagged'`, Node 22, three runs at a time on the shared machine at a load average of about 12):
+
+| Preset | Before: peak, strain at peak, stress at the end | After | Peak |
+|---|---|---|---|
+| Cube compression | 49.109 MPa, 2.750 ‰, 34.83 MPa at 7.0 ‰ | 49.258 MPa, 2.767 ‰, 35.42 MPa | +0.30 % |
+| Reinforced core | 58.473 MPa, 3.533 ‰, 47.10 MPa | 58.610 MPa, 3.533 ‰, 47.39 MPa | +0.23 % |
+| High-strength cube | 87.580 MPa, 3.267 ‰, 69.06 MPa at 6.0 ‰ | 87.739 MPa, 3.283 ‰, 69.36 MPa | +0.18 % |
+| Lightweight crush | 41.349 MPa, 2.417 ‰, 24.87 MPa | 41.499 MPa, 2.400 ‰, 25.55 MPa | +0.36 % |
+| Weathered spall | 35.683 MPa, 2.500 ‰, 23.03 MPa | 35.916 MPa, 2.467 ‰, 25.00 MPa | +0.65 % |
+| Fibre bridging | 49.109 MPa, 2.750 ‰, 34.84 MPa | 49.258 MPa, 2.767 ‰, 35.42 MPa | +0.30 % |
+| Low-strain comparison (stops at 1.5 ‰, before the peak) | 40.481 MPa | 40.620 MPa | +0.34 % |
+| Ceramic comparison | 2062.0 MPa, 6.20 ‰; no equilibrium past the peak, 327 spalled | 2141.8 MPa, 6.43 ‰; no equilibrium past the peak, 293 spalled | +3.87 % |
+| Cube / cylinder (the test's program, 1 ‰/s to 3.4 ‰) | 49.149 / 40.836 MPa = 1.2036 (cube at 2.63 ‰, cylinder at 2.53 ‰) | 49.325 / 40.951 MPa = 1.2045 (2.70 ‰, 2.23 ‰) | ratio +0.07 % |
+| Short cylinder / cylinder | 47.532 / 40.836 = 1.1640 | 47.627 / 40.951 = 1.1630 | -0.09 % |
+
+The concrete peaks move by +0.2 to +0.7 %: at the cube's peak 473 of its 625 elements are past their own peak (kappa_c), so the peak is that of the mean strength, and a narrower scatter in compression raises it a little (fewer weak elements yield early and shed load). The ceramic, elastic to its peak and brittle, is governed by its weakest elements, and gains 3.9 %. The cube-to-cylinder ratio stays at 1.20 against EN 1992-1-1 Table 3.1's 37 / 30 = 1.233 (-2.3 %, tolerance 5 %): the explanation below (platen friction 0.2 confining the 5-cell cube) is unchanged. (Table 3.1 gives 1.25 for C20/25 and C60/75; the row checks C30/37 only.) The cylinder's peak moved from 2.53 to 2.23 ‰: its curve is within 0.5 % of the peak from about 2.2 to 2.6 ‰, so the step that carries the largest load moves with small changes. The cost is unchanged (cube program 26.9 s of CPU before, 28.5 s after, same load).
+
+**Crack band and the lab (2026-11-17).** The engine's default after the compressive peak is now the softening surface of the crack band (`postPeak: 'band'`): no lateral plastic strain, so a crushed band stays one element thick, and G_c per unit area. The lab keeps `postPeak: 'lagged'` (`CONCRETE_POST_PEAK` in `concrete-si.ts`), the law it was validated with, because the softening surface moves its peaks: the elements of the strength scatter pass their own peak before the cube does, and whether they then dilate changes the cube's peak. Each preset's full program (`duration` 14 s at 1/120 s), before the change, with the lab as it is now, and with `'band'` (Node 22, the shared machine at a load average of 25 to 35; measured before the strength-factor fix above):
 
 | Preset | Before: peak, strain at peak, stress at the end, how it ended | Now (`'lagged'`) | With `'band'` |
 |---|---|---|---|
@@ -355,34 +373,34 @@ Misses: Kupfer's 1.27 f_c at sigma_2 / sigma_1 = 0.5 (the law gives 1.39). Since
 
 "Identical" is to the printed digits of peak, strain at the peak, the stress at 1.5 and 2 times that strain, the post-peak area of the curve and the end state. With `'band'` every C30/37-family preset crushes and the machine stops on the load drop within the program (before: softening to the end, no stop, no spalling); the post-peak area of the curve falls to a fifth (cube: 3.82 against 18.72 MPa·%). A dilatancy after the peak that keeps the peaks does not localise in a band: psi kept at tan 30° moves them by -0.4 % to -5.3 % (lightweight) but the prism of SOLID_MECHANICS.md then dissipates 1.6 to 3.3 times G_c. The lab's cylinder (the cube-to-cylinder rows) gives no `bandWidth`, so its tension band is now per element; the cube's is the cell size as before.
 
-Studio rows (`tests/studio/concrete-si.test.mjs` in `npm run test:studio:materials`, 8 tests; the cube, cylinder and short-cylinder runs take 3, 9 and 3 minutes of CPU on the loaded shared machine):
+Studio rows (`tests/studio/concrete-si.test.mjs` in `npm run test:studio:materials`, 8 tests; the cube, cylinder and short-cylinder runs take 29 s of CPU together at a load average of about 12):
 
 | Check | Reference | Measured |
 |---|---|---|
-| Cube with frictionless platens | f_cm at eps_c1 | 37.55 MPa at 2.20 ‰ |
-| Cube against the 150 × 300 mm cylinder (O-grid, 1260 tetrahedra), platen friction 0.2 (row `solid.concrete.cube-cylinder`) | f_ck,cube / f_ck = 37 / 30 = 1.233 (EN 1992-1-1 Table 3.1) | 49.15 / 40.84 MPa = **1.204** (-2.4 %, tolerance 5 %); every step of both converges |
-| A 150 × 150 mm cylinder against the 150 × 300 mm one, friction 0.2 (row `solid.concrete.cylinder-slenderness`) | 1.17: the slenderness-1 correction of ČSN EN 12390-3/Z1 as quoted by Středulová and Eliáš (2023), who measure and compute about 1.23 on 50 mm cylinders | 47.53 / 40.84 MPa = **1.164** (-0.5 % of 1.17, tolerance 3 %; 5 % below their 1.23) |
+| Cube with frictionless platens | f_cm at eps_c1 | 37.82 MPa at 2.20 ‰ (37.55 before the strength-factor fix) |
+| Cube against the 150 × 300 mm cylinder (O-grid, 1260 tetrahedra), platen friction 0.2 (row `solid.concrete.cube-cylinder`) | f_ck,cube / f_ck = 37 / 30 = 1.233 (EN 1992-1-1 Table 3.1) | 49.33 / 40.95 MPa = **1.2045** (-2.3 %, tolerance 5 %); every step of both converges |
+| A 150 × 150 mm cylinder against the 150 × 300 mm one, friction 0.2 (row `solid.concrete.cylinder-slenderness`) | 1.17: the slenderness-1 correction of ČSN EN 12390-3/Z1 as quoted by Středulová and Eliáš (2023), who measure and compute about 1.23 on 50 mm cylinders | 47.63 / 40.95 MPa = **1.163** (-0.6 % of 1.17, tolerance 3 %; 5 % below their 1.23) |
 | The same cube and cylinder at friction 0.57 (not a row) | 1.233 | 60.02 / 41.88 MPa = 1.433, a miss (+16 %) |
-| Default program (friction 0.2) | peak above f_cm (EN 1992-1-1's mean cube strength is about 38 × 37 / 30 = 46.9 MPa), softening | 49.15 MPa (1.29 f_cm) at 2.63 ‰ at 1 ‰/s; then stable softening to 25.7 MPa at 8 ‰ with every step in equilibrium: the machine does not stop and no element spalls within the program |
-| Reinforced core at 1.2 ‰ | stiffer than plain; corner bars in compression | 849 kN against 775 kN; 36 of 84 bar segments in compression, the most stressed at 50 % of f_yk |
+| Default program (friction 0.2) | peak above f_cm (EN 1992-1-1's mean cube strength is about 38 × 37 / 30 = 46.9 MPa), softening | 49.33 MPa (1.30 f_cm) at 2.70 ‰ at 1 ‰/s; then stable softening to 27.3 MPa at 8 ‰ with every step in equilibrium: the machine does not stop and no element spalls within the program |
+| Reinforced core at 1.2 ‰ | stiffer than plain; corner bars in compression | 852 kN against 779 kN; 36 of 84 bar segments in compression, the most stressed at 50 % of f_yk |
 | Cylinder mesh | volume of the 12-sided prism; no flat element | exact to 1e-12; smallest volume over the cube of the longest edge 0.05 or more |
 
 **The cube-to-cylinder ratio depends on the platen friction, and the row is conditional on it.** With the EN 1992-1-1 3.1.9 meridian, platen friction confines the 5-cell cube strongly: 1.58 f_cm at friction 0.57 against 1.29 f_cm at 0.2, while the cylinder (slenderness 2) gains 10 % and 7 %. The measured friction coefficients opened for steel on concrete (0.43 to 0.70, above) would make the cube 1.4 times the cylinder; the code's 37 / 30 is met within 2.4 % with 0.2, the value another model of the same test was calibrated to, and that value also gives the slenderness correction of ČSN EN 12390-3/Z1 within 0.5 %. So the row `solid.concrete.cube-cylinder`, withdrawn on 2026-11-12, is back with friction 0.2, and says so: it does not show that a machined platen has a friction of 0.2, only that the law and the lab reproduce the two ratios with a friction a published compression-test model uses. The first version compared the cube with a square prism (1.17) because the mapped cylinder mesh of the elastomer lab did not converge at its first contact; the O-grid mesh (`cylinderMeshOgrid`: an inner square and four blended blocks, triangular prisms split by node order so neighbours agree) converges from the first step.
 
 ### Presets and real time
 
-Re-measured with platen friction 0.2, the `ldl` preconditioner, the faster return mapping and the principal-axes consistent tangent of 2026-11-16 (`node scripts/fem-preset-benchmark.mjs concrete`: the first 14 s of each program at its own rate, Node 22, single runs on the shared 4-core machine at a load average of about 15):
+Re-measured with platen friction 0.2, the `ldl` preconditioner, the faster return mapping and the principal-axes consistent tangent of 2026-11-16 (`node scripts/fem-preset-benchmark.mjs concrete`: the first 14 s of each program at its own rate, Node 22, single runs on the shared 4-core machine at a load average of about 15); peaks, strains and spalled elements since the strength-factor fix of 2026-11-18 (above), real-time factors of 2026-11-16:
 
 | Preset | Peak stress | at | State at 14 s | Spalled | Real-time factor | Worst tick |
 |---|---|---|---|---|---|---|
-| Cube compression (C30/37, 0.5 ‰/s) | 49.1 MPa | 2.75 ‰ | softening, no stop | 0 | 0.61 | 0.72 s |
-| Reinforced core (C30/37, B500B bars) | 58.5 MPa | 3.53 ‰ | softening, no stop | 0 | 0.58 | 0.42 s |
-| High-strength cube (C60/75) | 87.6 MPa | 3.27 ‰ | softening, no stop | 0 | 0.98 | 0.45 s |
-| Lightweight crush (LC25/28) | 41.3 MPa | 2.42 ‰ | softening, no stop | 0 | 0.68 | 0.25 s |
-| Weathered spall (C20/25) | 35.7 MPa | 2.50 ‰ | softening, no stop | 0 | 0.49 | 0.52 s |
-| Fibre bridging | 49.1 MPa | 2.75 ‰ | softening, no stop | 0 | 0.70 | 0.36 s |
-| Low-strain comparison (1.5 ‰) | 40.5 MPa | 1.50 ‰ | holding | 0 | 3.3 | 0.28 s |
-| Ceramic comparison (alumina) | 2062 MPa | 6.20 ‰ | stopped: no equilibrium past the peak | 327 | 2.7 | 2.8 s |
+| Cube compression (C30/37, 0.5 ‰/s) | 49.3 MPa | 2.77 ‰ | softening, no stop | 0 | 0.61 | 0.72 s |
+| Reinforced core (C30/37, B500B bars) | 58.6 MPa | 3.53 ‰ | softening, no stop | 0 | 0.58 | 0.42 s |
+| High-strength cube (C60/75) | 87.7 MPa | 3.28 ‰ | softening, no stop | 0 | 0.98 | 0.45 s |
+| Lightweight crush (LC25/28) | 41.5 MPa | 2.40 ‰ | softening, no stop | 0 | 0.68 | 0.25 s |
+| Weathered spall (C20/25) | 35.9 MPa | 2.47 ‰ | softening, no stop | 0 | 0.49 | 0.52 s |
+| Fibre bridging | 49.3 MPa | 2.77 ‰ | softening, no stop | 0 | 0.70 | 0.36 s |
+| Low-strain comparison (1.5 ‰) | 40.6 MPa | 1.50 ‰ | holding | 0 | 3.3 | 0.28 s |
+| Ceramic comparison (alumina) | 2142 MPa | 6.43 ‰ | stopped: no equilibrium past the peak | 293 | 2.7 | 2.8 s |
 
 **Speed.** The same peaks and strains as before the change, to the printed digits. A profile of the cube across its peak (`--cpu-prof`) put 88 % of the time in the Willam-Warnke deviatoric return: its Lode-angle Newton used a finite-difference r'' (three section evaluations per iteration) and a stopping test tighter than the rounding of its own residual, so most returns bisected down to 1e-16 (26 iterations on average). With the exact r'', a stopping test at that rounding and a warm start from the previous multiplier of the same trial it takes 2.1 iterations; the finite-difference tangent reuses the base return of the evaluation and brackets the six perturbed multipliers. The first 3.5 s of the cube at 1 ‰/s (through the peak), old and new interleaved on the same machine: 128.0 and 130.6 s of CPU before, 14.5 and 14.0 s after, **9.0 times faster**, with the same Newton and inner iteration counts (3287 and 12,583) and the same peak (49.1488 MPa) and end stress (48.3308 MPa); the state agrees to rounding, not to the bit. The 14 s cube program: 606 s of CPU before (load 17 to 20) and 61 s after (load about 12). **Tangent (later on 2026-11-16).** The finite-difference tangent (six tensor returns per yielded element and Newton iteration, half the time after the change above) is replaced by the consistent tangent in the principal axes (`ConcreteReturn.tangent`, [`SOLID_MECHANICS.md`](SOLID_MECHANICS.md#concrete-law)): closed form for a compression return, three principal returns where Rankine flows, the rotation part exact, the evaluation's principal data reused. Old and new back to back (`scripts/fem-preset-benchmark.mjs concrete`, load about 15): every C30/37-family preset 2.1 to 2.4 times faster, the same peaks and strains to the printed digits and no failed step (cube 0.27 → 0.61 times real time, reinforced core 0.26 → 0.58, high strength 0.42 → 0.98, lightweight 0.29 → 0.68, weathered 0.23 → 0.49, fibre 0.29 → 0.70, low strain 1.4 → 3.3); the first 3.5 s of the cube at 1 ‰/s: 11.1 / 11.2 s of CPU before, 5.2 / 5.8 s after, the same Newton iterations (3287) and inner iterations within 4 of 12,583. The ceramic comparison peaks at the same 2062 MPa at 6.20 ‰ and stops the same way, but after the stop it sheds 327 elements instead of 229 and runs at 2.7 instead of 4.1 times real time: its brittle collapse past the peak follows a different path with a different tangent. The concrete presets are now at about 0.5 to 1 times real time on this loaded machine; what is left is the return mapping of the evaluations and about 30 Newton iterations per step while elements soften.
 

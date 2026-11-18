@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 752,
-  "passed": 752,
+  "cases": 757,
+  "passed": 757,
   "failed": 0,
   "domains": 23
  },
@@ -322,11 +322,11 @@
     "Plasticity is small-strain J2 (additive in the Green-Lagrange strain for large rotations), isotropic linear hardening only: no kinematic hardening, rate dependence, necking or anisotropy. Fully plastic bending is 3.2% (3-D) to 6.8% (plane strain, 4 cells) too strong with tet4 and 4.8% with tet4-nodal: what remains is the bending error of linear tetrahedra. Ductile erosion uses one failure strain, independent of stress triaxiality, and the press brake's limit load is 1.23 times beam theory.",
     "Self-contact, plasticity combined with viscoelasticity (refused), anisotropy, and more than one material per body. Crack growth is a separate solver on the linear model of this element (the fracture domain); `SolidBody` erodes plastic elements at a failure strain but has no crack-growth law of its own.",
     "No two-way coupling to the rigid-body, water, cable or frame solvers, and no contact with rigid bodies. The one-way thermal and dead-load links are in the simulation domain.",
-    "Concrete: the crack band holds G_c per unit area for a band of elements, but the peak at which a compressive band starts to soften depends on its confinement: in the 0.2 m prism with a 10 % weaker zone the dilatant hardening of the zone draws confinement from the stronger ends, so against the nominal 0.9 G_c A the energy is 0.97 to 1.06 on 10 to 40 cells (1.059 on 10 cells, outside 5 %); against G_c times the band's peak stress over f_cm it is within 1.6 %. After the compressive peak the confinement is frozen, a crushed element does not dilate, and its residual frictional strength is lost. setStrengthFactors() scales k but not the meridian's argument, so a factor 0.9 gives 0.794 f_cm in uniaxial compression (not changed: it would move the Studio peaks). The crack band was validated for bands across the load on box meshes only; an inclined band crosses elements whose projections overlap. The optional nonlocal average (`nonlocalLength`) dissipates about twice G_c A and is unchanged. The section through the EN 1992-1-1 meridian and Kupfer's equal-biaxial point overshoots Kupfer's 1.27 f_c at sigma_2 / sigma_1 = 0.5 (1.39 f_c). The confinement and dilatancy work with the pressure of the last committed step (an error of the order of one step). Imran and Pantazopoulou's triaxial data were not opened. The cube-to-cylinder and slenderness rows hold for a platen friction of 0.2, a calibrated input of another model of the compression test (Stredulova and Elias 2023), not a measurement: with 0.57, inside the range measured for steel plate on concrete or grout (0.43 to 0.70, Gomez et al. 2011), the cube is 1.43 times the 150 x 300 mm cylinder (60.0 and 41.9 MPa) against 37 / 30 = 1.23. Cracks unload elastically (plasticity, not damage) and do not close; no rate, size (beyond the crack band), creep or shrinkage. Bars have perfect bond (no slip, no dowel action, no rupture); tension stiffening then depends on the cell size.",
+    "Concrete: the crack band holds G_c per unit area for a band of elements, but the peak at which a compressive band starts to soften depends on its confinement: in the 0.2 m prism with a 10 % weaker zone the dilatant hardening of the zone draws confinement from the stronger ends (peaks 35.4 to 37.6 MPa against 34.2 MPa for the factor 0.9), so against the nominal 0.9 G_c A the energy is 1.04 to 1.11 on 10 to 40 cells (outside 5 % on all but the 40 x 2 x 2 mesh); against G_c times the band's peak stress over f_cm it is within 4.5 %. After the compressive peak the confinement is frozen, a crushed element does not dilate, and its residual frictional strength is lost. The crack band was validated for bands across the load on box meshes only; an inclined band crosses elements whose projections overlap. The optional nonlocal average (`nonlocalLength`) dissipates about twice G_c A and is unchanged. The section through the EN 1992-1-1 meridian and Kupfer's equal-biaxial point overshoots Kupfer's 1.27 f_c at sigma_2 / sigma_1 = 0.5 (1.39 f_c). The confinement and dilatancy work with the pressure of the last committed step (an error of the order of one step). Imran and Pantazopoulou's triaxial data were not opened. The cube-to-cylinder and slenderness rows hold for a platen friction of 0.2, a calibrated input of another model of the compression test (Stredulova and Elias 2023), not a measurement: with 0.57, inside the range measured for steel plate on concrete or grout (0.43 to 0.70, Gomez et al. 2011), the cube is 1.43 times the 150 x 300 mm cylinder (60.0 and 41.9 MPa) against 37 / 30 = 1.23. Cracks unload elastically (plasticity, not damage) and do not close; no rate, size (beyond the crack band), creep or shrinkage. Bars have perfect bond (no slip, no dowel action, no rupture); tension stiffening then depends on the cell size.",
     "Uniform states are exact, so the tension, shear, pressure and rubber rows say nothing about accuracy under stress gradients."
    ],
-   "cases": 73,
-   "passed": 73
+   "cases": 78,
+   "passed": 78
   },
   {
    "id": "solid-contact",
@@ -17411,15 +17411,15 @@
    "unit": "1",
    "formula": "G_c = f_cm w_d / 2, w_d = 0.5 mm (the law's default, after the ATENA crack band model; from memory), anchored at the band's peak",
    "reference": 1,
-   "measured": 1.00436069,
-   "error": 0.00436068597,
-   "relativeError": 0.00436068597,
+   "measured": 1.01114308,
+   "error": 0.0111430778,
+   "relativeError": 0.0111430778,
    "tolerance": {
     "kind": "relative",
     "value": 0.05
    },
    "pass": true,
-   "note": "One band of elements crushes. Against 0.9 G_c A (the zone's strength factor) the ratio is 0.96 to 1.06: the zone's pre-peak dilatancy draws confinement from the stronger ends, by an amount that depends on the mesh, and the softening starts from that peak.",
+   "note": "One band of elements crushes. Against 0.9 G_c A (the zone's strength factor) the ratio is 1.08 to 1.11 on these meshes: the zone's pre-peak dilatancy draws confinement from the stronger ends (peaks 35.9 to 37.6 MPa against 34.2 MPa), by an amount that depends on the mesh, and the softening starts from that peak.",
    "source": {
     "file": "tests/engine/solid-concrete.test.mjs",
     "test": "crack band per element: bars of 10, 20 and 40 cells and a 3-D mesh crush in one band of elements that dissipates G_c per unit area, scaled by the peak stress of the band",
@@ -17427,8 +17427,8 @@
    },
    "text": {
     "reference": "1",
-    "measured": "1.004361",
-    "error": "+0.436%",
+    "measured": "1.011143",
+    "error": "+1.11%",
     "tolerance": "±5%"
    }
   },
@@ -17440,15 +17440,15 @@
    "unit": "1",
    "formula": "G_c = f_cm w_d / 2, w_d = 0.5 mm (the law's default, after the ATENA crack band model; from memory), anchored at the band's peak",
    "reference": 1,
-   "measured": 0.997619904,
-   "error": -0.00238009622,
-   "relativeError": -0.00238009622,
+   "measured": 1.02486649,
+   "error": 0.0248664937,
+   "relativeError": 0.0248664937,
    "tolerance": {
     "kind": "relative",
     "value": 0.05
    },
    "pass": true,
-   "note": "One band of elements crushes. Against 0.9 G_c A (the zone's strength factor) the ratio is 0.96 to 1.06: the zone's pre-peak dilatancy draws confinement from the stronger ends, by an amount that depends on the mesh, and the softening starts from that peak.",
+   "note": "One band of elements crushes. Against 0.9 G_c A (the zone's strength factor) the ratio is 1.08 to 1.11 on these meshes: the zone's pre-peak dilatancy draws confinement from the stronger ends (peaks 35.9 to 37.6 MPa against 34.2 MPa), by an amount that depends on the mesh, and the softening starts from that peak.",
    "source": {
     "file": "tests/engine/solid-concrete.test.mjs",
     "test": "crack band per element: bars of 10, 20 and 40 cells and a 3-D mesh crush in one band of elements that dissipates G_c per unit area, scaled by the peak stress of the band",
@@ -17456,8 +17456,8 @@
    },
    "text": {
     "reference": "1",
-    "measured": "0.9976199",
-    "error": "-0.238%",
+    "measured": "1.024866",
+    "error": "+2.49%",
     "tolerance": "±5%"
    }
   },
@@ -17469,15 +17469,15 @@
    "unit": "1",
    "formula": "G_c = f_cm w_d / 2, w_d = 0.5 mm (the law's default, after the ATENA crack band model; from memory), anchored at the band's peak",
    "reference": 1,
-   "measured": 0.993996206,
-   "error": -0.0060037939,
-   "relativeError": -0.0060037939,
+   "measured": 1.04536184,
+   "error": 0.0453618367,
+   "relativeError": 0.0453618367,
    "tolerance": {
     "kind": "relative",
     "value": 0.05
    },
    "pass": true,
-   "note": "One band of elements crushes. Against 0.9 G_c A (the zone's strength factor) the ratio is 0.96 to 1.06: the zone's pre-peak dilatancy draws confinement from the stronger ends, by an amount that depends on the mesh, and the softening starts from that peak.",
+   "note": "One band of elements crushes. Against 0.9 G_c A (the zone's strength factor) the ratio is 1.08 to 1.11 on these meshes: the zone's pre-peak dilatancy draws confinement from the stronger ends (peaks 35.9 to 37.6 MPa against 34.2 MPa), by an amount that depends on the mesh, and the softening starts from that peak.",
    "source": {
     "file": "tests/engine/solid-concrete.test.mjs",
     "test": "crack band per element: bars of 10, 20 and 40 cells and a 3-D mesh crush in one band of elements that dissipates G_c per unit area, scaled by the peak stress of the band",
@@ -17485,8 +17485,8 @@
    },
    "text": {
     "reference": "1",
-    "measured": "0.9939962",
-    "error": "-0.6%",
+    "measured": "1.045362",
+    "error": "+4.54%",
     "tolerance": "±5%"
    }
   },
@@ -17498,15 +17498,15 @@
    "unit": "1",
    "formula": "G_c = f_cm w_d / 2, w_d = 0.5 mm (the law's default, after the ATENA crack band model; from memory), anchored at the band's peak",
    "reference": 1,
-   "measured": 0.983926259,
-   "error": -0.0160737408,
-   "relativeError": -0.0160737408,
+   "measured": 1.00861688,
+   "error": 0.00861688037,
+   "relativeError": 0.00861688037,
    "tolerance": {
     "kind": "relative",
     "value": 0.05
    },
    "pass": true,
-   "note": "One band of elements crushes. Against 0.9 G_c A (the zone's strength factor) the ratio is 0.96 to 1.06: the zone's pre-peak dilatancy draws confinement from the stronger ends, by an amount that depends on the mesh, and the softening starts from that peak.",
+   "note": "One band of elements crushes. Against 0.9 G_c A (the zone's strength factor) the ratio is 1.08 to 1.11 on these meshes: the zone's pre-peak dilatancy draws confinement from the stronger ends (peaks 35.9 to 37.6 MPa against 34.2 MPa), by an amount that depends on the mesh, and the softening starts from that peak.",
    "source": {
     "file": "tests/engine/solid-concrete.test.mjs",
     "test": "crack band per element: bars of 10, 20 and 40 cells and a 3-D mesh crush in one band of elements that dissipates G_c per unit area, scaled by the peak stress of the band",
@@ -17514,8 +17514,8 @@
    },
    "text": {
     "reference": "1",
-    "measured": "0.9839263",
-    "error": "-1.61%",
+    "measured": "1.008617",
+    "error": "+0.862%",
     "tolerance": "±5%"
    }
   },
@@ -17635,6 +17635,150 @@
    }
   },
   {
+   "id": "solid.concrete.strength-factor-80",
+   "domain": "solid",
+   "title": "Concrete law: strength factor 0.8 in uniaxial compression",
+   "quantity": "peak nominal stress of one C30/37 cell of band width L_c whose elements have the strength factor 0.8 (setStrengthFactors), over 0.8 f_cm",
+   "unit": "1",
+   "formula": "a factor f scales the surface in stress space: q r(theta) = f k Psi(xi / (f f_cm)), so the uniaxial strength is f f_cm",
+   "reference": 1,
+   "measured": 0.998115895,
+   "error": -0.00188410455,
+   "relativeError": -0.00188410455,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.005
+   },
+   "pass": true,
+   "note": "Before 2026-11-18 the meridian was read at xi / f_cm, not xi / (f f_cm): the factor 0.8 gave 0.788 of f f_cm. The factor 1 row (solid.concrete.peak) is 0.2 % low in the same way (nominal stress, Green-Lagrange kinematics).",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "strength factors scale the whole surface: a factor f gives f f_cm in uniaxial compression, f f_ctm in tension and 1.16 f f_cm in equal-biaxial compression",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.9981159",
+    "error": "-0.188%",
+    "tolerance": "±0.5%"
+   }
+  },
+  {
+   "id": "solid.concrete.strength-factor-90",
+   "domain": "solid",
+   "title": "Concrete law: strength factor 0.9 in uniaxial compression",
+   "quantity": "peak nominal stress of one C30/37 cell of band width L_c whose elements have the strength factor 0.9 (setStrengthFactors), over 0.9 f_cm",
+   "unit": "1",
+   "formula": "a factor f scales the surface in stress space: q r(theta) = f k Psi(xi / (f f_cm)), so the uniaxial strength is f f_cm",
+   "reference": 1,
+   "measured": 0.99802648,
+   "error": -0.0019735204,
+   "relativeError": -0.0019735204,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.005
+   },
+   "pass": true,
+   "note": "Before 2026-11-18 the meridian was read at xi / f_cm, not xi / (f f_cm): the factor 0.9 gave 0.881 of f f_cm. The factor 1 row (solid.concrete.peak) is 0.2 % low in the same way (nominal stress, Green-Lagrange kinematics).",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "strength factors scale the whole surface: a factor f gives f f_cm in uniaxial compression, f f_ctm in tension and 1.16 f f_cm in equal-biaxial compression",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.9980265",
+    "error": "-0.197%",
+    "tolerance": "±0.5%"
+   }
+  },
+  {
+   "id": "solid.concrete.strength-factor-110",
+   "domain": "solid",
+   "title": "Concrete law: strength factor 1.1 in uniaxial compression",
+   "quantity": "peak nominal stress of one C30/37 cell of band width L_c whose elements have the strength factor 1.1 (setStrengthFactors), over 1.1 f_cm",
+   "unit": "1",
+   "formula": "a factor f scales the surface in stress space: q r(theta) = f k Psi(xi / (f f_cm)), so the uniaxial strength is f f_cm",
+   "reference": 1,
+   "measured": 0.99778189,
+   "error": -0.00221810991,
+   "relativeError": -0.00221810991,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.005
+   },
+   "pass": true,
+   "note": "Before 2026-11-18 the meridian was read at xi / f_cm, not xi / (f f_cm): the factor 1.1 gave 1.151 of f f_cm. The factor 1 row (solid.concrete.peak) is 0.2 % low in the same way (nominal stress, Green-Lagrange kinematics).",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "strength factors scale the whole surface: a factor f gives f f_cm in uniaxial compression, f f_ctm in tension and 1.16 f f_cm in equal-biaxial compression",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.9977819",
+    "error": "-0.222%",
+    "tolerance": "±0.5%"
+   }
+  },
+  {
+   "id": "solid.concrete.strength-factor-tension-90",
+   "domain": "solid",
+   "title": "Concrete law: strength factor 0.9 in uniaxial tension",
+   "quantity": "peak stress of the same cell in uniaxial tension, over 0.9 f_ctm",
+   "unit": "1",
+   "formula": "Rankine: sigma_1 <= f f_t",
+   "reference": 1,
+   "measured": 1.00007523,
+   "error": 0.0000752347495,
+   "relativeError": 0.0000752347495,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.005
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "strength factors scale the whole surface: a factor f gives f f_cm in uniaxial compression, f f_ctm in tension and 1.16 f f_cm in equal-biaxial compression",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.000075",
+    "error": "+7.52e-5 rel.",
+    "tolerance": "±0.5%"
+   }
+  },
+  {
+   "id": "solid.concrete.strength-factor-biaxial-90",
+   "domain": "solid",
+   "title": "Concrete law: strength factor 0.9 in equal-biaxial compression",
+   "quantity": "peak stress of one cell of strength factor 0.9 compressed equally along two axes, over 0.9 f_cm",
+   "unit": "1",
+   "formula": "1.16 (Kupfer, Hilsdorf and Rusch 1969, the fitted equal-biaxial point), scaled by the factor",
+   "reference": 1.16,
+   "measured": 1.15853478,
+   "error": -0.00146521906,
+   "relativeError": -0.00126311988,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "note": "Before 2026-11-18: 1.050 (the meridian read at xi / f_cm).",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "strength factors scale the whole surface: a factor f gives f f_cm in uniaxial compression, f f_ctm in tension and 1.16 f f_cm in equal-biaxial compression",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1.16",
+    "measured": "1.158535",
+    "error": "-0.126%",
+    "tolerance": "±1%"
+   }
+  },
+  {
    "id": "solid.concrete.cube-cylinder",
    "domain": "solid",
    "title": "Concrete: cube strength over cylinder strength between steel platens",
@@ -17642,9 +17786,9 @@
    "unit": "1",
    "formula": "f_ck,cube / f_ck = 37 / 30 (EN 1992-1-1 Table 3.1, C30/37)",
    "reference": 1.23333333,
-   "measured": 1.20355318,
-   "error": -0.0297801553,
-   "relativeError": -0.0241460719,
+   "measured": 1.20450762,
+   "error": -0.028825713,
+   "relativeError": -0.0233721997,
    "tolerance": {
     "kind": "relative",
     "value": 0.05
@@ -17658,8 +17802,8 @@
    },
    "text": {
     "reference": "1.233333",
-    "measured": "1.203553",
-    "error": "-2.41%",
+    "measured": "1.204508",
+    "error": "-2.34%",
     "tolerance": "±5%"
    }
   },
@@ -17671,9 +17815,9 @@
    "unit": "1",
    "formula": "1.17: the correction of CSN EN 12390-3/Z1 for slenderness 1, as quoted by Stredulova and Elias (2023)",
    "reference": 1.17,
-   "measured": 1.16396558,
-   "error": -0.00603441515,
-   "relativeError": -0.00515761978,
+   "measured": 1.1630356,
+   "error": -0.0069644029,
+   "relativeError": -0.00595248111,
    "tolerance": {
     "kind": "relative",
     "value": 0.03
@@ -17687,8 +17831,8 @@
    },
    "text": {
     "reference": "1.17",
-    "measured": "1.163966",
-    "error": "-0.516%",
+    "measured": "1.163036",
+    "error": "-0.595%",
     "tolerance": "±3%"
    }
   },

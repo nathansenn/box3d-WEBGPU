@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 2026-11-18 — Concrete: a strength factor scales the whole surface
+
+- **Bug fix (`src/engine/concrete-law.ts`, `ConcreteReturn` set-up):** `setStrengthFactors()` multiplied the compression surface's k but read the EN 1992-1-1 meridian at xi / f_cm instead of xi / (f f_cm), so an element of factor 0.9 peaked at 0.794 f_cm in uniaxial compression and one of 1.1 at 1.27 f_cm: the Studio's strength scatter was 2.3 times as wide in compression as stated. The factor now scales the surface in stress space: f times the law's uniaxial, equal-biaxial, confined and tensile strengths.
+- **Validation:** five rows `solid.concrete.strength-factor-*` (757 cases): one cell of factor 0.8, 0.9, 1.1 peaks at 0.9981, 0.9980, 0.9978 of f f_cm (0.5 %; before 0.788, 0.881, 1.151), 1.00008 of f f_ctm in tension (0.5 %), 1.1585 f f_cm in equal-biaxial compression at 0.9 (1 %; before 1.050). The compression crack-band rows move from 1.004, 0.998, 0.994, 0.984 to 1.011, 1.025, 1.045, 1.009 of G_c A sigma_peak / f_cm (5 %): the weak zone's peaks rise from 33.5–36.1 to 35.9–37.6 MPa (its factor 0.9 alone now gives 34.2 MPa, 30.2 before).
+- **Studio concrete lab** (`postPeak: 'lagged'`, full 14 s programs): peaks +0.30 % (cube, fibre: 49.109 → 49.258 MPa), +0.23 % (reinforced core), +0.18 % (C60/75), +0.36 % (lightweight), +0.65 % (weathered), +0.34 % (low strain), +3.87 % (ceramic, 2062 → 2142 MPa, governed by its weakest elements). Cube over cylinder 1.2036 → 1.2045 (EN 1992-1-1 Table 3.1: 1.233); frictionless cube 37.55 → 37.82 MPa at 2.20 ‰. Table in docs/STUDIO_MATERIAL_LABS.md.
+
 ## Unreleased — 2026-11-17 — Glass study: finer cracks on a grid refined around the impact
 
 - **Plate (`src/engine/plate.ts`):** graded grids (`lines: {x, y}`, the node columns and rows). Second differences between unequal spacings, a twist and a bilinear membrane cell of each cell's own size, node areas and bridging widths of the node's strip; `xs`, `ys`, `dx`, `dy`, `dualX`, `dualY`. On an equal grid every row of `test:plate` keeps its digits.
