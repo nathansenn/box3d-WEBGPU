@@ -241,7 +241,22 @@ function testAllocationFreeCameraMatrices(): void {
     const view = mat4LookAt(frameEye, frameRig.target, [0, 1, 0]);
     const shadowExtent = clamp(frameRig.distance * 1.35, 34, 86);
     const lightEye = vec3Sub(frameRig.target, vec3Scale(lightDirection, 92));
-    const lightView = mat4LookAt(lightEye, frameRig.target, [0, 1, 0]);
+    let lightView = mat4LookAt(lightEye, frameRig.target, [0, 1, 0]);
+    // Light-space origin snaps to the 1024-map texel grid (see camera.ts).
+    const texel = (2 * shadowExtent) / 1024;
+    const t = frameRig.target;
+    const lx = t[0] * lightView[0] + t[1] * lightView[4] + t[2] * lightView[8];
+    const ly = t[0] * lightView[1] + t[1] * lightView[5] + t[2] * lightView[9];
+    const sx = Math.round(lx / texel) * texel - lx;
+    const sy = Math.round(ly / texel) * texel - ly;
+    if (sx !== 0 || sy !== 0) {
+      const shift = [0, 1, 2].map((i) => sx * lightView[i * 4] + sy * lightView[i * 4 + 1]);
+      lightView = mat4LookAt(
+        [lightEye[0] + shift[0], lightEye[1] + shift[1], lightEye[2] + shift[2]],
+        [t[0] + shift[0], t[1] + shift[1], t[2] + shift[2]],
+        [0, 1, 0],
+      );
+    }
     const lightProjection = mat4Orthographic(-shadowExtent, shadowExtent, -shadowExtent, shadowExtent, 0.1, 190);
     return {
       viewProjection: mat4Multiply(projection, view),
@@ -270,6 +285,21 @@ function testAllocationFreeCameraMatrices(): void {
     deepEqual(actual.eye, expected.eye, 'camera eye must remain bit-identical');
     if (resultIdentity) equal(actual, resultIdentity, 'camera cache must retain its result object');
     resultIdentity = actual;
+  }
+
+  // Panning the target by sub-texel amounts must move the light origin only in whole texels.
+  const panRig = { ...SCENES[0].camera, target: [1, 2, 3] as [number, number, number] };
+  const panExtent = clamp(panRig.distance * 1.35, 34, 86);
+  const panTexel = (2 * panExtent) / 1024;
+  const panLight = (dx: number): number => {
+    const frame = cache.resolve({ ...panRig, target: [1 + dx, 2, 3] }, noShake, 16 / 9, lightDirection);
+    return frame.lightViewProjection[12] * panExtent; // ortho x scale is 1/extent
+  };
+  const base = panLight(0);
+  for (const dx of [0.1 * panTexel, 0.4 * panTexel]) {
+    const moved = panLight(dx);
+    const steps = (moved - base) / panTexel;
+    ok(Math.abs(steps - Math.round(steps)) < 1e-3, `light origin must move in whole texels, got ${steps}`);
   }
 
   const finalCase = cases[cases.length - 1];

@@ -639,6 +639,8 @@ class ClothSimulation implements SoftSimulation {
   private time = 0;
   private brokenCountValue = 0;
   private energyValue = 0;
+  private energyDirty = false;
+  private energyDt = 0;
   private hashValue = 0;
   private hashCountdown = TELEMETRY_INTERVAL_STEPS;
   private frameVersion = 1;
@@ -1269,7 +1271,7 @@ class ClothSimulation implements SoftSimulation {
         const dz = this.positions[o + 2] - this.sphereCenter[2];
         const distanceSquared = dx * dx + dy * dy + dz * dz;
         if (distanceSquared >= sphereTargetSquared || distanceSquared <= 1e-12) continue;
-        const dist = Math.hypot(dx, dy, dz);
+        const dist = Math.sqrt(distanceSquared);
         if (dist < sphereTarget && dist > 1e-6) {
           const scale = sphereTarget / dist;
           this.positions[o] = this.sphereCenter[0] + dx * scale;
@@ -1335,7 +1337,22 @@ class ClothSimulation implements SoftSimulation {
     }
   }
 
+  // Kinetic energy is only read by telemetry, so step() just records dt and
+  // the O(particles) sum runs when a frame asks for it.
   private computeEnergy(dt: number): void {
+    this.energyDt = dt;
+    this.energyDirty = true;
+  }
+
+  private currentEnergy(): number {
+    if (this.energyDirty) {
+      this.energyDirty = false;
+      this.computeEnergyNow(this.energyDt);
+    }
+    return this.energyValue;
+  }
+
+  private computeEnergyNow(dt: number): void {
     let energy = 0;
     const invDt = 1 / Math.max(dt, 1e-5);
     for (let i = 0; i < this.count; i++) {
@@ -1372,7 +1389,7 @@ class ClothSimulation implements SoftSimulation {
       const dz = this.positions[o + 2] - center[2];
       const distanceSquared = dx * dx + dy * dy + dz * dz;
       if (distanceSquared >= rSquared || distanceSquared < 1e-12) continue;
-      const dist = Math.hypot(dx, dy, dz);
+      const dist = Math.sqrt(distanceSquared);
       if (dist >= r || dist < 1e-6) continue;
       const falloff = 1 - dist / r;
       const impulse = strength * falloff * 0.012;
@@ -1610,7 +1627,7 @@ class ClothSimulation implements SoftSimulation {
       frame.surface = this.gpuSurfaceResult;
     }
     frame.brokenCount = this.brokenCountValue;
-    frame.energy = this.energyValue;
+    frame.energy = this.currentEnergy();
     frame.hash = this.hashValue;
     frame.frameVersion = this.frameVersion;
     this.builtFrameVersion = this.frameVersion;

@@ -53,6 +53,14 @@ struct SceneUniforms {
   viewportBloomShadow : vec4<f32>,
   qualityModes : vec4<f32>,
 };
+
+fn srgbToLinear(c : vec3<f32>) -> vec3<f32> {
+  return select(pow((c + vec3<f32>(0.055)) / 1.055, vec3<f32>(2.4)), c / 12.92, c <= vec3<f32>(0.04045));
+}
+
+fn linearToSrgb(c : vec3<f32>) -> vec3<f32> {
+  return select(1.055 * pow(c, vec3<f32>(1.0 / 2.4)) - vec3<f32>(0.055), c * 12.92, c <= vec3<f32>(0.0031308));
+}
 `;
 
 const packedSurfaceDecode = /* wgsl */ `
@@ -390,7 +398,7 @@ fn fsMain(input : VertexOut) -> @location(0) vec4<f32> {
   let detailNormal = atlasSurface.rgb * 2.0 - vec3<f32>(1.0);
 
   let encodedColor = clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0));
-  let authoredColor = pow(encodedColor, vec3<f32>(2.2));
+  let authoredColor = srgbToLinear(encodedColor);
   var baseColor = select(authoredColor, atlasAlbedo * mix(vec3<f32>(0.76), authoredColor * 1.45, 0.36), usesAtlas);
   // For conductors the atlas texel represents colored specular reflectance,
   // not a diffuse layer to be multiplied down by the authored swatch.
@@ -542,7 +550,7 @@ fn fsTransparent(input : VertexOut) -> @location(0) vec4<f32> {
       clamp(reflected.y * 0.5 + 0.5, 0.0, 1.0)
     );
     let environment = mix(outdoorEnvironment, studioEnvironment(reflected), studioMix);
-    let tint = pow(clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(2.2));
+    let tint = srgbToLinear(clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)));
     var color = tint * (0.11 + variation * 0.035) + environment * (0.22 + fresnel * 0.78);
     color = mix(color, scene.fogColorDensity.xyz, fogAmount);
     return vec4<f32>(color, clamp(0.10 + fresnel * 0.48 + variation * 0.025, 0.10, 0.62));
@@ -553,7 +561,7 @@ fn fsTransparent(input : VertexOut) -> @location(0) vec4<f32> {
   // hiding the rebar and aggregate behind opaque glowing cubes.
   let lightDirection = normalize(scene.lightDirExposure.xyz);
   let diffuse = 0.38 + max(dot(normal, -lightDirection), 0.0) * 0.28;
-  let dustBase = pow(clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(2.2));
+  let dustBase = srgbToLinear(clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)));
   var dustColor = dustBase * (diffuse + variation * 0.16);
   dustColor = mix(dustColor, scene.fogColorDensity.xyz, fogAmount);
   return vec4<f32>(dustColor, clamp(0.10 + variation * 0.16, 0.10, 0.30));
@@ -718,7 +726,7 @@ fn fsMain(input : VertexOut, @builtin(front_facing) frontFacing : bool) -> @loca
   let weave = mix(0.82, 1.12, warp * weft);
   let stress = clamp(input.color.a, 0.0, 1.0);
   let textile = textureSample(materialAlbedoAtlas, materialAtlasSampler, materialTileUv(2u, input.uv * vec2<f32>(5.0, 4.0))).rgb;
-  let tint = pow(clamp(input.color.rgb * weave, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(2.2));
+  let tint = srgbToLinear(clamp(input.color.rgb * weave, vec3<f32>(0.0), vec3<f32>(1.0)));
   let baseColor = tint * mix(vec3<f32>(1.0), textile * 1.55, 0.48);
   let nDotL = max(dot(normal, toLight), 0.0);
   let nDotV = max(dot(normal, viewDirection), 0.0);
@@ -835,7 +843,7 @@ fn fsMain(input : VertexOut, @builtin(front_facing) frontFacing : bool) -> @loca
   ).rgb;
   let millUv = vec2<f32>(input.uv.x * 2.4, input.uv.y * 56.0);
   let millGrain = textureSample(materialNoise, materialNoiseSampler, millUv).r;
-  let authoredColor = pow(clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(2.2));
+  let authoredColor = srgbToLinear(clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)));
   let zinc = mix(vec3<f32>(0.52, 0.55, 0.58), mix(atlasAlbedo, authoredColor, 0.46), 0.42);
   var baseColor = clamp(zinc * mix(0.96, 1.03, millGrain), vec3<f32>(0.08), vec3<f32>(0.72));
   let overlay = clamp(input.color.a, 0.0, 1.0);
@@ -1048,7 +1056,7 @@ fn fsMain(input : GpuSurfaceVertexOut, @builtin(front_facing) frontFacing : bool
   let weave = mix(0.82, 1.12, warp * weft);
   let stress = clamp(input.color.a, 0.0, 1.0);
   let textile = textureSample(materialAlbedoAtlas, materialAtlasSampler, materialTileUv(2u, input.uv * vec2<f32>(5.0, 4.0))).rgb;
-  let tint = pow(clamp(input.color.rgb * weave, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(2.2));
+  let tint = srgbToLinear(clamp(input.color.rgb * weave, vec3<f32>(0.0), vec3<f32>(1.0)));
   let baseColor = tint * mix(vec3<f32>(1.0), textile * 1.55, 0.48);
   let nDotL = max(dot(normal, toLight), 0.0);
   let nDotV = max(dot(normal, viewDirection), 0.0);
@@ -1158,7 +1166,7 @@ fn fsMain(input : GpuSurfaceVertexOut, @builtin(front_facing) frontFacing : bool
   let fresnel = 0.025 + 0.975 * pow(1.0 - nDotV, 5.0);
   let foam = clamp(input.color.a, 0.0, 1.0);
   let visibility = mix(1.0, sampleGpuSurfaceShadow(input.shadowPosition, normal, lightDirection), scene.viewportBloomShadow.w * 0.7);
-  let depthTint = pow(clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(2.2));
+  let depthTint = srgbToLinear(clamp(input.color.rgb, vec3<f32>(0.0), vec3<f32>(1.0)));
   let skyReflection = mix(vec3<f32>(0.05, 0.18, 0.34), vec3<f32>(0.34, 0.58, 0.92), clamp(normal.y * 0.5 + 0.5, 0.0, 1.0));
   let sunGlint = pow(nDotH, 230.0) * vec3<f32>(14.0, 10.5, 7.0) * visibility;
   let broadSpecular = pow(nDotH, 42.0) * vec3<f32>(1.4, 1.8, 2.4) * visibility;
@@ -1450,7 +1458,11 @@ fn fsMain(input : VertexOut) -> @location(0) vec4<f32> {
 
   // No time-driven film grain: paused simulations and deterministic captures
   // must resolve to identical pixels.
-  color = pow(clamp(color, vec3<f32>(0.0), vec3<f32>(1.0)), vec3<f32>(1.0 / 2.2));
+  color = linearToSrgb(clamp(color, vec3<f32>(0.0), vec3<f32>(1.0)));
+  // Static interleaved-gradient dither (+-0.5/255, no time term) hides 8-bit
+  // banding in sky and fog gradients while keeping captures deterministic.
+  let ign = fract(52.9829189 * fract(dot(floor(input.clipPosition.xy), vec2<f32>(0.06711056, 0.00583715))));
+  color = clamp(color + vec3<f32>((ign - 0.5) / 255.0), vec3<f32>(0.0), vec3<f32>(1.0));
   return vec4<f32>(color, 1.0);
 }
 `;
@@ -1747,6 +1759,9 @@ export class WebGPURenderer {
   private shadowMapSize: 1024 | 2048 = DEFAULT_SHADOW_MAP_SIZE;
   private lastUploadedBytes = 0;
   private uniformScratch = new Float32Array(SCENE_UNIFORM_FLOATS);
+  // Last uploaded uniforms (NaN-filled so the first write always happens); a paused scene skips the queue write.
+  private uniformUploaded = new Float32Array(SCENE_UNIFORM_FLOATS).fill(Number.NaN);
+  uniformWriteCount = 0;
   private readonly lineScratch = new Float32Array(MAX_DEBUG_LINE_VERTICES * 7);
   private readonly surfaceIndexUploadScratch = new Uint8Array(MAX_DYNAMIC_SURFACE_INDICES * Uint16Array.BYTES_PER_ELEMENT + 4);
   private readonly clothParamsScratch = new ArrayBuffer(SURFACE_PARAMS_BYTES);
@@ -2548,6 +2563,13 @@ export class WebGPURenderer {
     data[49] = state.quality.sampleCount;
     data[50] = state.quality.shadowMapSize;
     data[51] = state.studioMode ? 1 : 0;
+    let changed = false;
+    for (let i = 0; i < SCENE_UNIFORM_FLOATS; i++) {
+      if (data[i] !== this.uniformUploaded[i]) { changed = true; break; }
+    }
+    if (!changed) return;
+    this.uniformUploaded.set(data);
+    this.uniformWriteCount++;
     writeFloatBuffer(this.device.queue, this.uniformBuffer, 0, data);
   }
 
