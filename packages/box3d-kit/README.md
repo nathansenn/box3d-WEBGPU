@@ -480,6 +480,7 @@ camera.follow(hero.state.position);
 | `box3d-webgpu-kit/shallow-water` | Depth-averaged water on terrain: dam breaks, rivers and floods with Manning friction, rain and Green-Ampt infiltration, inflow, outflow and stage sides, and floating rigid bodies (see below). |
 | `box3d-webgpu-kit/materials` | A material library with sources: steels, aluminium, copper, cast iron, glass, concrete, granite, wood, polymers, rubber, ice, water, air, glass beads and sand, each value with its conditions and citation, and helpers that build the inputs of the solvers above (see below). |
 | `box3d-webgpu-kit/simulation` | One stepping loop: a `Simulation` that steps the world, the water and structure couplings, heat and solids in a fixed order, with one clock, energy ledger and event stream (see below). |
+| `box3d-webgpu-kit/gpu` | WebGPU compute backends (float32) of the grains, the shallow water and the flow, each with a float32 CPU reference that runs the same program, and the scene sections that say `"backend": "gpu"` (see [Scene sections on the GPU](#scene-sections-on-the-gpu)). |
 
 Cable, water, frame and solid are the same model code the Box3D WebGPU app runs; the build copies it from the app. The app's own test suites (68 tests: 11 cable, 11 proximal cable, 2 linear water, 6 closed water, 16 frame, 22 solid) run against the packaged copies in `npm test`. Heat and solid are independent of the rigid-body world. Water is coupled to it by `box3d-webgpu-kit/coupling`, and cables and frames by `box3d-webgpu-kit/structure`. The WebGPU water solver is not packaged yet.
 
@@ -875,6 +876,27 @@ attachments.get('mooring:0').force;                    // the cable's pull on th
 - **Your own solver.** Anything with `{id, kind, stage, timeStep, step(ctx)}` can be registered; `prepare`, `finish`, `energy`, `diagnostics` and `dispose` are optional, and `checkpoint()` / `restore(state)` let `simulation.checkpoint()` include it.
 - **Exact checkpoints.** `simulation.checkpoint()` / `restore(bytes)` and `resumeSimulation(world, bytes)` ([Exact checkpoints](#exact-checkpoints)).
 - **Coupled across modules:** a rigid body collides with a deformable solid through `box3d-webgpu-kit/solid-contact` (node against body; two solids do not collide). A floating body on a cable is solved with the water's force in the cable's interface solve (`linkWaterToStructure(water, structure)`, which `loadScene` calls): on the moored buoy the tension is right to 0.001 N of 1338 N and the draught to 0.5 µm, where they were 0.73 N and 0.4 mm off; the hydrostatic stiffness is not in that solve, and a floating body on a frame is unchecked. **Not in the loop:** rope contact, granular media, GPU water and the app's own cloth. See the repository's `docs/SIMULATION.md` for the contract, the measured numbers and the limits.
+
+### Scene sections on the GPU
+
+A `grains` or `shallowWater` section of a scene may say `"backend": "gpu"`. `box3d-webgpu-kit/gpu` builds those sections as WebGPU compute backends; the simulation then steps with `await stepAsync()`:
+
+```ts
+import {loadSimulationScene} from 'box3d-webgpu-kit/simulation';
+import {acquireGpuCompute, gpuSceneBackends} from 'box3d-webgpu-kit/gpu';
+
+let backends;
+try { backends = gpuSceneBackends(await acquireGpuCompute()); }   // GPU_UNAVAILABLE without WebGPU compute
+catch { backends = gpuSceneBackends('reference'); }               // the same float32 program on the CPU
+const loaded = loadSimulationScene(world, scene, {gpu: backends});
+await loaded.simulation.stepAsync();                              // step() and checkpoint() are refused
+const saved = await loaded.simulation.checkpointAsync();          // restores on the GPU or on the reference
+await loaded.simulation.pullAsync();                              // the GPU state into loaded.grains and .shallowWater
+```
+
+- **What runs where.** The grains' coupling to rigid bodies runs on the CPU around the GPU's steps (the walls' sums are read back before the rigid step). Shallow water on the GPU has no bodies.
+- **Numbers.** float32: the results are the float32 reference's bits where the repository's `docs/GPU_COMPUTE.md` says "identical", not the float64 solvers'. A run repeats bit for bit on the same device; a checkpoint resumes bit-exactly and restores on either the GPU or the reference. `test/v23-gpu-scene.test.mjs` runs the sections on the reference and encodes them on Dawn's null device.
+- **TypeScript.** The declarations of this entry name the WebGPU types: add `@webgpu/types` to your project when you import it. It loads the grain, flow and shallow-water solvers (about 151 KiB of gzip).
 
 ### No build step
 

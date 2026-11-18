@@ -29,6 +29,7 @@ export type FluidCommand=
   |{readonly type:'clear';readonly offset:number;readonly length:number}
   |{readonly type:'sync'};
 
+/** Options of a flow backend (GpuFluid, FluidF32): the stopping rules of its solves and the room for obstacle faces. */
 export interface FluidBackendOptions {
   /** max |div u| h / max |u| the projection stops at. Default the fluid's, but not below 2e-6 (float32 cannot do better). */
   readonly pressureTolerance?:number;

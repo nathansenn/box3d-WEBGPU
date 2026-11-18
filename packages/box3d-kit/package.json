@@ -104,6 +104,10 @@
       "types": "./dist/fracture.d.ts",
       "default": "./dist/fracture.js"
     },
+    "./gpu": {
+      "types": "./dist/gpu-compute.d.ts",
+      "default": "./dist/gpu-compute.js"
+    },
     "./single": {
       "types": "./dist/index.d.ts",
       "default": "./dist/single.js"

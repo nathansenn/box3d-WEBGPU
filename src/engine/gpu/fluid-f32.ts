@@ -7,8 +7,10 @@ import {Fluid,type FluidObstacleBand} from '../fluid.ts';
 import {FLUID_PASS,KERNELS,runKernelF32,type KernelName,type PassValues} from './fluid-kernels.ts';
 import {BLOCK_STRIDE,FluidProgram,fluidStepStats,readFluidProgramCheckpoint,writeFluidProgramCheckpoint,type FluidBackendOptions,type FluidCommand} from './fluid-program.ts';
 
+/** The solver id of the float32 CPU reference of the flow program. */
 export const FLUID_F32_SOLVER_ID='fluid-mac-projection-jacobi-pcg-f32-reference-v1';
 
+/** The flow program run on the CPU in float32, kernel by kernel: the GPU's bits where the two agree; synchronous. */
 export class FluidF32 {
   readonly solver=FLUID_F32_SOLVER_ID;
   readonly program:FluidProgram;readonly fluid:Fluid;

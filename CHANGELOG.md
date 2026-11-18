@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — 2026-11-18 — GPU scene sections in the kit
+
+- **Kit (`box3d-webgpu-kit/gpu`, new entry):** the WebGPU backends of the grains, the shallow water and the flow, their float32 CPU references and `gpuSceneBackends`, copied from `src/engine/gpu/` by `scripts/sync-core.mjs` into `core/gpu/`; `loadSimulationScene` and `resumeSimulation` take `{gpu}`. 150.8 KiB of gzip with the solvers it loads (budget 174 KiB in `test:pack`, which also loads a GPU grain section from the tarball and type-checks a consumer with `@webgpu/types`).
+- **Kit gate (`test/v23-gpu-scene.test.mjs`):** a scene with grains over a see-saw and a valley of water on the GPU, run on the float32 reference with the kit's WebAssembly world: two runs bit-identical, a checkpoint at step 9 resumed in a fresh world reaches step 24 with the straight run's bits; on Dawn's null device the scene's pipelines build from the kit's shader copies and two steps and a checkpoint encode without a validation error. docs/GPU_COMPUTE.md.
+
 ## Unreleased — 2026-11-17 — Glass study: finer cracks on a grid refined around the impact
 
 - **Plate (`src/engine/plate.ts`):** graded grids (`lines: {x, y}`, the node columns and rows). Second differences between unequal spacings, a twist and a bilinear membrane cell of each cell's own size, node areas and bridging widths of the node's strip; `xs`, `ys`, `dx`, `dy`, `dualX`, `dualY`. On an equal grid every row of `test:plate` keeps its digits.

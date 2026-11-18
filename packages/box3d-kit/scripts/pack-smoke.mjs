@@ -68,6 +68,9 @@ const BUDGET = {
     './cable': 28 * KiB, './water': 4 * KiB, './coupling': 29 * KiB, './frame': 27 * KiB, './structure': 32 * KiB, './heat': 28 * KiB,
     './solid': 80 * KiB, './fracture': 138 * KiB, './solid-contact': 135 * KiB, './cloth': 72 * KiB, './granular': 65 * KiB, './fluid': 57 * KiB, './shallow-water': 38 * KiB,
     './materials': 40 * KiB, './geometry': 33 * KiB, './scene-format': 92 * KiB, './robot': 74 * KiB, './scene': 447 * KiB, './simulation': 446 * KiB,
+    // Added 2026-11-18: the GPU backends with their float32 references and the scene sections on the GPU. It loads the
+    // grain, flow and shallow-water solvers they are built from (the scene loader is in ./simulation). Measured 150.8 KiB.
+    './gpu': 174 * KiB,
   },
 };
 const size = {
@@ -106,7 +109,7 @@ try {
   if (measureOnly) console.log(`${'packed'.padEnd(26)} ${(packed.size / KiB).toFixed(1).padStart(8)} KiB`);
   const over = [...Object.entries(size).filter(([k, v]) => v > BUDGET[k]).map(([k, v]) => `${k} ${v} > ${BUDGET[k]}`), ...Object.entries(entrySize).filter(([k, v]) => v > BUDGET.entry[k]).map(([k, v]) => `import '${k}' ${v} > ${BUDGET.entry[k]}`)];
   if (over.length && !measureOnly) throw new Error(`size budget exceeded (bytes): ${over.join(', ')}`);
-  for (const required of ['dist/index.js', 'dist/index.d.ts', 'dist/three.js', 'dist/worker.js', 'dist/worker.d.ts', 'dist/babylon.js', 'dist/core/build-info.js', 'dist/shared-frames.js', 'dist/session.js', 'dist/inspector.js', 'api/API.md', 'CHANGELOG.md', 'dist/single.js', 'dist/cable.js', 'dist/water.js', 'dist/coupling.js', 'dist/frame.js', 'dist/heat.js', 'dist/gameplay.js', 'bin/box3d-kit.mjs', 'templates/three/main.js', 'wasm/box3d.js', 'wasm/box3d.wasm', 'LICENSE', 'wasm/BOX3D_LICENSE.txt', 'THIRD_PARTY_NOTICES.md', 'dist/geometry.js', 'dist/solid.js', 'dist/scene.js', 'dist/robot.js', 'dist/robot.d.ts', 'dist/core/robot-import.js', 'dist/fracture.js', 'dist/fracture.d.ts', 'dist/core/solid-fracture.js', 'dist/cloth.js', 'dist/solid-contact.js', 'dist/cloth.d.ts', 'dist/core/cloth.js']) {
+  for (const required of ['dist/index.js', 'dist/index.d.ts', 'dist/three.js', 'dist/worker.js', 'dist/worker.d.ts', 'dist/babylon.js', 'dist/core/build-info.js', 'dist/shared-frames.js', 'dist/session.js', 'dist/inspector.js', 'api/API.md', 'CHANGELOG.md', 'dist/single.js', 'dist/cable.js', 'dist/water.js', 'dist/coupling.js', 'dist/frame.js', 'dist/heat.js', 'dist/gameplay.js', 'bin/box3d-kit.mjs', 'templates/three/main.js', 'wasm/box3d.js', 'wasm/box3d.wasm', 'LICENSE', 'wasm/BOX3D_LICENSE.txt', 'THIRD_PARTY_NOTICES.md', 'dist/geometry.js', 'dist/solid.js', 'dist/scene.js', 'dist/robot.js', 'dist/robot.d.ts', 'dist/core/robot-import.js', 'dist/fracture.js', 'dist/fracture.d.ts', 'dist/core/solid-fracture.js', 'dist/cloth.js', 'dist/solid-contact.js', 'dist/cloth.d.ts', 'dist/core/cloth.js', 'dist/gpu-compute.js', 'dist/gpu-compute.d.ts', 'dist/core/gpu/scene-backends.js', 'dist/core/gpu/fluid-gpu.js']) {
     if (!files.includes(required)) throw new Error(`tarball is missing ${required}`);
   }
   const leaked = files.filter(f => f.startsWith('src/') || f.startsWith('test/') || f.endsWith('.tgz') || f.endsWith('.map')); // maps would point at src/, which is not shipped
@@ -187,6 +190,35 @@ void [events, moved, g, unsubscribe];
 `);
   const tsc = resolve(pkg, '../../node_modules/typescript/bin/tsc');
   sh('node', [tsc, '--noEmit', '--strict', '--target', 'es2022', '--module', 'nodenext', '--moduleResolution', 'nodenext', '--lib', 'es2022,dom', 'types.ts'], app);
+  // box3d-webgpu-kit/gpu: a scene section with backend 'gpu' loads from the tarball and steps on the float32 reference
+  // (no device in Node); its declarations resolve for a strict consumer that has the WebGPU types.
+  writeFileSync(join(app, 'gpu.mjs'), `
+import {createWorld} from 'box3d-webgpu-kit';
+import {loadSimulationScene} from 'box3d-webgpu-kit/simulation';
+import {gpuSceneBackends, GpuCompute} from 'box3d-webgpu-kit/gpu';
+import {hopperSeesawScene, sceneWorldOptions} from 'box3d-webgpu-kit/scene-format';
+const hopper = hopperSeesawScene({count: 12});
+const scene = {...hopper, grains: hopper.grains.map(g => ({...g, backend: 'gpu'}))};
+const world = await createWorld(sceneWorldOptions(scene));
+const loaded = loadSimulationScene(world, scene, {gpu: gpuSceneBackends('reference')});
+for (let i = 0; i < 12; i++) await loaded.simulation.stepAsync();
+await loaded.simulation.pullAsync();
+const id = scene.grains[0].id, d = loaded.simulation.diagnostics().subsystems[id], dem = loaded.grains.get(id).granular;
+const moved = dem.velocities.some(v => v !== 0);
+loaded.simulation.dispose(); world.dispose();
+if (d.backend !== 'gpu-reference' || d.steps <= 0 || !moved || typeof GpuCompute !== 'function') { console.error(JSON.stringify({d, moved})); process.exit(1); }
+console.log(JSON.stringify({gpu: 'ok', steps: d.steps}));
+`);
+  writeFileSync(join(app, 'gpu-types.ts'), `/// <reference path="${resolve(pkg, '../../node_modules/@webgpu/types/dist/index.d.ts').replace(/\\/g, '/')}" />
+import {acquireGpuCompute, gpuSceneBackends, GpuFluid, FluidF32, type GpuSceneSubsystem} from 'box3d-webgpu-kit/gpu';
+import type {SceneGpuBackends} from 'box3d-webgpu-kit/simulation';
+const backends: SceneGpuBackends = gpuSceneBackends('reference');
+const later: Promise<unknown> = acquireGpuCompute().then(compute => gpuSceneBackends(compute));
+void [backends, later, GpuFluid, FluidF32, null as unknown as GpuSceneSubsystem<unknown, unknown>];
+`);
+  sh('node', [tsc, '--noEmit', '--strict', '--target', 'es2022', '--module', 'nodenext', '--moduleResolution', 'nodenext', '--lib', 'es2022,dom', 'gpu-types.ts'], app);
+  const gpuOut = sh('node', ['gpu.mjs'], app).trim();
+  if (!gpuOut.includes('"gpu":"ok"')) throw new Error(`the ./gpu consumer failed: ${gpuOut}`);
   const out = sh('node', ['game.mjs'], app).trim();
 
   // Tree shaking: a bundle of a program that uses only the rigid world holds no solver code. Vite (Rolldown) builds it

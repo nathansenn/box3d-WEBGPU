@@ -10,7 +10,7 @@
  * src/engine/simulation.ts. This module publishes them and pins the scene
  * loader to the kit's PhysicsWorld. See docs/SIMULATION.md in the repository.
  */
-import {Simulation, loadSimulationScene as coreLoadSimulationScene, resumeSimulationScene as coreResumeSimulationScene, type LoadedSimulationScene as CoreLoadedSimulationScene, type SimulationOptions} from './core/simulation.js';
+import {Simulation, loadSimulationScene as coreLoadSimulationScene, resumeSimulationScene as coreResumeSimulationScene, type LoadedSimulationScene as CoreLoadedSimulationScene, type SceneSimulationOptions, type SimulationOptions} from './core/simulation.js';
 import type {Body, PhysicsWorld} from './world.js';
 
 export * from './core/simulation.js';
@@ -33,14 +33,14 @@ export function createSimulation(world: PhysicsWorld, options: SimulationOptions
  * in `world`, and return them with a ready Simulation. `loadScene` of
  * `box3d-webgpu-kit/scene` does the same and returns the kit's SceneBuilder.
  */
-export function loadSimulationScene(world: PhysicsWorld, scene: unknown): LoadedSimulationScene {
-  return coreLoadSimulationScene(world, scene);
+export function loadSimulationScene(world: PhysicsWorld, scene: unknown, options: SceneSimulationOptions = {}): LoadedSimulationScene {
+  return coreLoadSimulationScene(world, scene, options);
 }
 
 /**
  * Resume a simulation checkpoint (`simulation.checkpoint()`) in `world`, in this page or a fresh one: the scene it
  * carries is loaded (the world is reset to it) and the checkpoint restored, so the run continues bit-identically.
  */
-export function resumeSimulation(world: PhysicsWorld, bytes: Uint8Array): LoadedSimulationScene {
-  return coreResumeSimulationScene(world, bytes);
+export function resumeSimulation(world: PhysicsWorld, bytes: Uint8Array, options: SceneSimulationOptions = {}): LoadedSimulationScene {
+  return coreResumeSimulationScene(world, bytes, options);
 }

@@ -21,6 +21,7 @@ Updated 2026-11-17.
 | Shallow water with coupled rigid bodies or point sources on the GPU | **not done** (the float64 solver has both) |
 | Checkpoints of the GPU backends (`checkpoint()`, `restoreCheckpoint()`) | done for the three backends, a format shared with each float32 reference; bit-exact on resume (gate: references, and the fluid across GPU and reference; SwiftShader: the GPU backends) |
 | `backend: 'gpu'` in the scene format (grains, shallow water), `Simulation.stepAsync()` | done (`src/engine/gpu/scene-backends.ts`); tested in the gate on the float32 reference standing in for the GPU, not through the Lab |
+| The GPU backends in the kit (`box3d-webgpu-kit/gpu`) | done: the three backends, their float32 references and `gpuSceneBackends`; the kit's gate loads a GPU scene on the reference (repeat and resume bit-exact) and encodes it on Dawn's null device |
 | The Studio's granular tray and river tabs on the GPU | **not done**: the Studio's solvers run inside its synchronous step |
 | Speed on a real GPU | **not measured**: this machine has no GPU. The command is below |
 
@@ -521,6 +522,13 @@ The Simulation loop has an opt-in asynchronous stage for them:
 - `gpuSceneBackends('reference')` runs the same float32 programs on the CPU instead (slower than the float64 solvers).
   The gate runs the scene sections that way: two runs give the same bits, a checkpoint taken at step 15 and resumed with
   `resumeSimulationScene` in a fresh world carries on to step 40 with the bits of the straight run.
+- The kit publishes the same code as `box3d-webgpu-kit/gpu` (`gpuSceneBackends`, `acquireGpuCompute`, the backends and their
+  references); its `loadSimulationScene` and `resumeSimulation` take `{gpu}`. `packages/box3d-kit/test/v23-gpu-scene.test.mjs`
+  (kit gate) loads the grains-and-valley scene through the published files with the kit's WebAssembly world: two runs of
+  24 steps give the same bits, a checkpoint at step 9 resumed in a fresh world reaches step 24 with them; and on Dawn's
+  null device the same scene builds its pipelines from the kit's copies of the shaders and takes two steps and a
+  checkpoint without a validation error (the null device runs nothing, so its readbacks are replaced by what the host
+  wrote). The entry is 150.8 KiB of gzip with the solvers it loads; its declarations need `@webgpu/types`.
 - The state lives on the device. `await simulation.pullAsync()` writes it into the float64 objects the loader made (the
   `grains` and `shallowWater` maps); saving the scene is refused until a section has been pulled since its last step.
 
@@ -661,7 +669,7 @@ SwiftShader result; the closed-form rows have margin for that.
   float64; many moving obstacles would make the host the bottleneck).
 - The fluid coupling rows through the kit's WebAssembly world (they ran through a float64 stand-in world).
 - **`backend: 'gpu'` for the fluid and in the Lab.** Only grains and shallow water take it; the Lab does not load scenes
-  with GPU backends (its frame loop calls `step()`), and the GPU scene backends are not in the kit.
+  with GPU backends (its frame loop calls `step()`).
 - **The Studio's granular tray and river tabs on the GPU (`?gpu=1`).** The Studio's SI solvers run inside
   its synchronous step and its saved runs are exact.
 - **Shallow water with bodies and point sources** on the GPU.

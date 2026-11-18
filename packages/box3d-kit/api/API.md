@@ -9625,7 +9625,7 @@ in `world`, and return them with a ready Simulation. `loadScene` of
 `box3d-webgpu-kit/scene` does the same and returns the kit's SceneBuilder.
 
 ```ts
-export declare function loadSimulationScene(world: PhysicsWorld, scene: unknown): LoadedSimulationScene;
+export declare function loadSimulationScene(world: PhysicsWorld, scene: unknown, options?: SceneSimulationOptions): LoadedSimulationScene;
 ```
 
 ### ReactionLoad · interface
@@ -9683,7 +9683,7 @@ Resume a simulation checkpoint (`simulation.checkpoint()`) in `world`, in this p
 carries is loaded (the world is reset to it) and the checkpoint restored, so the run continues bit-identically.
 
 ```ts
-export declare function resumeSimulation(world: PhysicsWorld, bytes: Uint8Array): LoadedSimulationScene;
+export declare function resumeSimulation(world: PhysicsWorld, bytes: Uint8Array, options?: SceneSimulationOptions): LoadedSimulationScene;
 ```
 
 ### resumeSimulationScene · function
@@ -14076,4 +14076,629 @@ Thermal diffusivity k / (rho c_p), m^2/s.
 
 ```ts
 export declare function thermalDiffusivity(id: string, options?: MaterialOptions): number;
+```
+
+## `box3d-webgpu-kit/gpu`
+
+### acquireGpuCompute · function
+
+An adapter and a device for compute, with the limits `needs` asks for. Throws GPU_UNAVAILABLE with the reason.
+
+```ts
+export declare function acquireGpuCompute(options?: GpuAcquireOptions): Promise<GpuCompute>;
+```
+
+### demMemory · function
+
+Bytes of each storage buffer a set of `capacity` grains needs, and the largest (what the device must be able to bind).
+
+```ts
+export declare function demMemory(capacity: number, options?: {
+    readonly historySlots?: number;
+    readonly bucketSlots?: number;
+    readonly tableSize?: number;
+    readonly rolling?: boolean;
+    readonly walls?: number;
+}): {
+    grains: number;
+    forces: number;
+    history: number;
+    grid: number;
+    sums: number;
+    total: number;
+    largest: number;
+};
+```
+
+### DemOptions · interface
+
+Capacities of a grain backend: contact-history slots per grain, grains per hash bucket, the hash table size (a power of two).
+
+```ts
+export interface DemOptions {
+    readonly historySlots?: number;
+    readonly bucketSlots?: number;
+    readonly tableSize?: number;
+}
+```
+
+### DemStats · interface
+
+Counters of a grain backend after its last step: contacts, the largest overlap, grains removed, and the overflows (history slots, hash buckets).
+
+```ts
+export interface DemStats {
+    steps: number;
+    contacts: number;
+    wallContacts: number;
+    overlap: number;
+    maxOverlap: number;
+    removed: number;
+    bucketOverflow: number;
+    historyOverflow: number;
+}
+```
+
+### FLUID_F32_SOLVER_ID · const
+
+The solver id of the float32 CPU reference of the flow program.
+
+```ts
+export declare const FLUID_F32_SOLVER_ID = "fluid-mac-projection-jacobi-pcg-f32-reference-v1";
+```
+
+### FLUID_GPU_SOLVER_ID · const
+
+The solver id of the flow on WebGPU compute (float32).
+
+```ts
+export declare const FLUID_GPU_SOLVER_ID = "fluid-mac-projection-jacobi-pcg-webgpu-f32-v1";
+```
+
+### FLUID_MAX_OBSTACLES · const
+
+At most this many obstacles on the GPU (the per-obstacle sums take 36 scalars each).
+
+```ts
+export declare const FLUID_MAX_OBSTACLES = 1024;
+```
+
+### FLUID_PROGRAM_CHECKPOINT · const
+
+Checkpoints of the fluid program (GpuFluid and FluidF32 write and read the same bytes): the face velocities with their
+ghosts, the previous advection (Adams-Bashforth), the pressure, whether the next step uses Adams-Bashforth, the time
+and the statistics. Everything else in F is rewritten by a step before it is read, or constant. A checkpoint of one
+restores into the other; the obstacles' poses and forces belong to the Fluid the backend was built from (its own
+saveState).
+
+```ts
+export declare const FLUID_PROGRAM_CHECKPOINT = "fluid-program-f32-v1";
+```
+
+### FluidBackendOptions · interface
+
+Options of a flow backend (GpuFluid, FluidF32): the stopping rules of its solves and the room for obstacle faces.
+
+```ts
+export interface FluidBackendOptions {
+    readonly pressureTolerance?: number;
+    readonly viscousReduction?: number;
+    readonly viscousFloor?: number;
+    readonly obstacleCapacity?: number;
+}
+```
+
+### FluidF32 · class
+
+The flow program run on the CPU in float32, kernel by kernel: the GPU's bits where the two agree; synchronous.
+
+```ts
+export declare class FluidF32 {
+  readonly solver = "fluid-mac-projection-jacobi-pcg-f32-reference-v1";
+  readonly program: FluidProgram;
+  readonly fluid: Fluid;
+  readonly F: Float32Array;
+  readonly I: Uint32Array;
+  readonly S: Float32Array;
+  obstacleSums: { J: Float64Array; M: Float64Array; Mstart: Float64Array | null; } | null;
+  readonly stats: { steps: number; pressureIterations: number; viscousIterations: number; divergence: number; unconverged: number; };
+  time: number;
+  setObstacles(band: FluidObstacleBand): void;
+  run(program: Generator<FluidCommand, void, Float32Array>): void;
+  step(count?: number): void;
+  project(): void;
+  checkpoint(): Uint8Array;
+  restoreCheckpoint(bytes: Uint8Array): void;
+  reload(): void;
+  velocity(c: number): Float32Array;
+  pressure(): Float32Array;
+}
+```
+
+### fluidMemory · function
+
+Bytes of the three buffers a fluid of this description needs (the largest must fit one storage binding).
+
+```ts
+export declare function fluidMemory(source: Fluid | FluidProgramSource): {
+    data: number;
+    indices: number;
+};
+```
+
+### FluidRunner · class
+
+A fluid run that starts on the GPU and carries on with the float64 solver when the device is lost (or was never
+there): `fluid` receives a snapshot every `snapshotEvery` steps; on a loss it is stepped from the last snapshot to
+where the GPU run had got to (its Adams-Bashforth history restarts, as after any restore).
+
+```ts
+export declare class FluidRunner {
+  backend: 'gpu' | 'cpu';
+  fallback: { reason: string; atTime: number; resumedFrom: number; stepsRerun: number; } | null;
+  readonly fluid: Fluid;
+  gpu: GpuFluid | null;
+  static create(fluid: Fluid, compute: GpuCompute | null, options?: FluidBackendOptions & { readonly snapshotEvery?: number; }): Promise<FluidRunner>;
+  get steps(): number;
+  get time(): number;
+  step(count?: number): Promise<void>;
+  destroy(): void;
+}
+```
+
+### GPU_SCENE_BACKEND · const
+
+The tag of a GPU section's state in a simulation checkpoint.
+
+```ts
+export declare const GPU_SCENE_BACKEND = "scene-section-gpu-f32-v1";
+```
+
+### GpuAcquireOptions · interface
+
+What `acquireGpuCompute` needs: the limits to check, and the GPU object to ask (default navigator.gpu).
+
+```ts
+export interface GpuAcquireOptions extends GpuComputeNeeds {
+    readonly gpu?: GPU;
+    readonly powerPreference?: GPUPowerPreference;
+    readonly label?: string;
+}
+```
+
+### GpuCompute · class
+
+A WebGPU device for compute: buffers, shader modules and pipelines inside error scopes, readback, and device loss as GPU_DEVICE_LOST.
+
+```ts
+export declare class GpuCompute {
+  readonly info: GpuComputeInfo;
+  readonly device: GPUDevice;
+  get lost(): boolean;
+  get lossReason(): string | null;
+  onLost(listener: (reason: string) => void): void;
+  assertAlive(): void;
+  buffer(label: string, size: number, usage: GPUBufferUsageFlags, data?: ArrayBufferView | ArrayBuffer): GPUBuffer;
+  storage(label: string, size: number, data?: ArrayBufferView | ArrayBuffer): GPUBuffer;
+  write(buffer: GPUBuffer, data: ArrayBufferView | ArrayBuffer, offset?: number): void;
+  release(buffer: GPUBuffer): void;
+  scoped<T>(label: string, work: () => T | Promise<T>): Promise<T>;
+  module(label: string, code: string): Promise<GPUShaderModule>;
+  pipeline(label: string, module: GPUShaderModule, entryPoint: string, layout?: GPUPipelineLayout | 'auto'): Promise<GPUComputePipeline>;
+  layout(label: string, bindings: readonly ('uniform' | 'uniform-dynamic' | 'read' | 'write')[]): GPUBindGroupLayout;
+  bind(label: string, layout: GPUBindGroupLayout, buffers: readonly (GPUBuffer | { readonly buffer: GPUBuffer; readonly size: number; })[]): GPUBindGroup;
+  read(sources: readonly { readonly buffer: GPUBuffer; readonly offset?: number; readonly size?: number; }[]): Promise<ArrayBuffer[]>;
+  readTyped<T extends TypedArray>(buffer: GPUBuffer, Type: { new (buffer: ArrayBuffer): T; }, offset?: number, size?: number): Promise<T>;
+  destroy(): void;
+}
+```
+
+### GpuComputeInfo · interface
+
+The adapter a GpuCompute runs on (vendor, architecture, device, whether it is a software adapter) and its limits.
+
+```ts
+export interface GpuComputeInfo {
+    readonly vendor: string;
+    readonly architecture: string;
+    readonly device: string;
+    readonly description: string;
+    readonly software: boolean;
+    readonly limits: {
+        readonly storageBuffers: number;
+        readonly storageBytes: number;
+        readonly bufferBytes: number;
+        readonly workgroups: number;
+        readonly invocations: number;
+    };
+}
+```
+
+### GpuComputeNeeds · interface
+
+Limits a backend needs of a device: storage buffers per stage, the largest storage binding, workgroups per dimension, invocations per workgroup.
+
+```ts
+export interface GpuComputeNeeds {
+    readonly storageBuffers?: number;
+    readonly storageBytes?: number;
+    readonly workgroups?: number;
+    readonly invocations?: number;
+}
+```
+
+### gpuComputeSupported · const
+
+True when this JavaScript environment has a WebGPU entry point (a device may still be refused).
+
+```ts
+export declare const gpuComputeSupported: () => boolean;
+```
+
+### GpuFluid · class
+
+Incompressible flow on the MAC grid on WebGPU compute, in float32, with fixed and moving obstacles (geometry on the host).
+
+```ts
+export declare class GpuFluid {
+  readonly solver = "fluid-mac-projection-jacobi-pcg-webgpu-f32-v1";
+  readonly compute: GpuCompute;
+  readonly program: FluidProgram;
+  readonly dataBuffer: GPUBuffer;
+  readonly stats: { steps: number; pressureIterations: number; viscousIterations: number; divergence: number; unconverged: number; };
+  obstacleSums: { J: Float64Array; M: Float64Array; Mstart: Float64Array | null; } | null;
+  time: number;
+  readonly dt: number;
+  static create(compute: GpuCompute, fluid: Fluid | FluidProgramSource, state?: { velocity: readonly ArrayLike<number>[]; pressure: ArrayLike<number>; time: number; } | null, options?: FluidBackendOptions): Promise<GpuFluid>;
+  setObstacles(band: FluidObstacleBand): void;
+  get regions(): Readonly<Record<string, number>>;
+  get padded(): number;
+  step(count?: number): Promise<void>;
+  project(): Promise<void>;
+  load(velocity: readonly ArrayLike<number>[], pressure: ArrayLike<number>): void;
+  read(): Promise<{ u: Float32Array; v: Float32Array; w: Float32Array; p: Float32Array; }>;
+  checkpoint(): Promise<Uint8Array>;
+  restoreCheckpoint(bytes: Uint8Array): void;
+  pull(target: Fluid): Promise<void>;
+  destroy(): void;
+}
+```
+
+### GpuGranular · class
+
+Discrete-element grains on WebGPU compute, in float32: hash-grid neighbours, contact histories, walls of every shape.
+
+```ts
+export declare class GpuGranular {
+  readonly solver = "granular-dem-hash-grid-webgpu-f32-v1";
+  readonly compute: GpuCompute;
+  readonly setup: DemSetup;
+  readonly positionBuffer: GPUBuffer;
+  readonly stats: DemStats;
+  time: number;
+  static fromGranular(compute: GpuCompute, granular: Granular, options?: DemOptions): Promise<GpuGranular>;
+  static create(compute: GpuCompute, setup: DemSetup): Promise<GpuGranular>;
+  get count(): number;
+  get capacity(): number;
+  step(count?: number): Promise<void>;
+  upload(what?: { readonly grains?: boolean; readonly walls?: boolean; }): void;
+  uploadWalls(): void;
+  readWalls(): Promise<Float32Array>;
+  sync(): Promise<void>;
+  read(): Promise<GpuGranularSnapshot>;
+  checkpoint(): Promise<Uint8Array>;
+  restoreCheckpoint(bytes: Uint8Array): void;
+  pull(target: Granular, snapshot?: GpuGranularSnapshot): Promise<GpuGranularSnapshot>;
+  destroy(): void;
+}
+```
+
+### GpuGranularCoupling · class
+
+Two-way coupling of GPU grains with a rigid world, on the CPU: `coupling` is the float64 solver's GranularCoupling on
+the Granular the GPU backend was built from (the "mirror"). Each rigid step: the bodies are copied into the mirror's
+walls and uploaded (a few hundred bytes per wall), the GPU takes the grain substeps with the dynamic bodies integrated
+alongside as in the float64 solver, the walls' impulses are read back (the per-wall sums are reduced on the GPU) and
+the bodies are handed the mean force and torque.
+
+`latency: 0` (default) waits for that readback before `world.step()`: the bodies get the forces of this step, as in the
+float64 coupling. `latency: 1` does not wait: the bodies get the forces of the previous rigid step. That is a delayed
+feedback on a stiff contact and is stable only for a heavy body: with the contact stiffness k under the body (the sum
+over its touching grains) and the rigid step h, the body's mass must be well above k h^2 (a body of 0.06 kg on a bed of
+k = 1e5 N/m at 240 Hz, k h^2 = 1.7 kg, is thrown off the bed; one of 6 kg rests as with latency 0). Use latency 0 unless
+the frame loop must not wait: the readback is 288 bytes per wall.
+
+```ts
+export declare class GpuGranularCoupling<B> {
+  readonly coupling: GranularCoupling<B>;
+  readonly gpu: Pick<GpuGranular, 'setup' | 'uploadWalls' | 'step' | 'readWalls'>;
+  readonly latency: 0 | 1;
+  steps: number;
+  step(): Promise<void>;
+}
+```
+
+### gpuGranularSubsystem · function
+
+A GPU (or float32 reference) grain section: the coupling's begin and finish on the CPU, the grain steps on the backend; couple stage, as granularSubsystem of a coupling.
+
+```ts
+export declare function gpuGranularSubsystem<W, B>(compute: GpuCompute | 'reference', coupling: GranularCoupling<B>, options?: {
+    readonly id?: string;
+    readonly order?: number;
+}): GpuSceneSubsystem<W, B>;
+```
+
+### GpuProgram · class
+
+Dispatches that run in list order.
+
+```ts
+export declare class GpuProgram {
+  readonly dispatches: GpuDispatch[];
+  add(dispatch: GpuDispatch): this;
+  encode(encoder: GPUCommandEncoder, label?: string): void;
+}
+```
+
+### gpuSceneBackends · function
+
+The `gpu` option of the scene loaders: GPU subsystems for the sections that say backend: 'gpu'.
+
+```ts
+export declare function gpuSceneBackends<W, B>(compute: GpuCompute | 'reference'): SceneGpuBackends<W, B>;
+```
+
+### GpuSceneSubsystem · interface
+
+What `pullAsync` and the scene save need of a GPU section.
+
+```ts
+export interface GpuSceneSubsystem<W, B> extends Subsystem<W, B> {
+    stale(): boolean;
+    readonly backend: 'gpu' | 'reference';
+}
+```
+
+### GpuShallowWater · class
+
+Shallow water on terrain on WebGPU compute, in float32: the float64 solver's scheme with its sides, rain, soil and friction.
+
+```ts
+export declare class GpuShallowWater {
+  readonly solver = "shallow-water-hr-muscl-hll-webgpu-f32-v1";
+  readonly nx: number;
+  readonly nz: number;
+  readonly dx: number;
+  readonly dz: number;
+  readonly stats: ShallowWaterF32Stats;
+  maxCourant: number;
+  courantExceeded: number;
+  rainVolume: number;
+  initialVolume: number;
+  dt: number;
+  time: number;
+  steps: number;
+  readonly rateLatency: number;
+  readonly safety: number;
+  readonly rateWait: boolean;
+  readonly compute: GpuCompute;
+  readonly water: ShallowWater;
+  readonly setup: ShallowWaterSetup;
+  readonly stateBuffer: GPUBuffer;
+  readonly fixedBuffer: GPUBuffer;
+  static create(compute: GpuCompute, water: ShallowWater, options?: GpuShallowWaterOptions): Promise<GpuShallowWater>;
+  get cells(): number;
+  step(count?: number): Promise<void>;
+  advance(duration: number): Promise<void>;
+  sync(): Promise<void>;
+  checkpoint(): Promise<Uint8Array>;
+  restoreCheckpoint(bytes: Uint8Array): void;
+  read(): Promise<GpuShallowWaterSnapshot>;
+  budget(snapshot: GpuShallowWaterSnapshot): { volume: number; inflow: number; rain: number; infiltrated: number; clipped: number; error: number; };
+  pull(target?: ShallowWater, snapshot?: GpuShallowWaterSnapshot): Promise<GpuShallowWaterSnapshot>;
+  destroy(): void;
+}
+```
+
+### GpuShallowWaterOptions · interface
+
+Options of GpuShallowWater: how old the face speeds that set the substeps may be (rateLatency), the margin, and whether to wait for them.
+
+```ts
+export interface GpuShallowWaterOptions {
+    readonly rateLatency?: number;
+    readonly safety?: number;
+    readonly rateWait?: boolean;
+}
+```
+
+### gpuShallowWaterSubsystem · function
+
+A GPU (or float32 reference) shallow-water section: post stage, commensurate step, as shallowWaterSubsystem without bodies.
+
+```ts
+export declare function gpuShallowWaterSubsystem<W, B>(compute: GpuCompute | 'reference', water: ShallowWater, options?: {
+    readonly id?: string;
+    readonly order?: number;
+}): GpuSceneSubsystem<W, B>;
+```
+
+### GRANULAR_CHECKPOINT · const
+
+Checkpoints of the float32 grain program (GpuGranular and GranularF32 write and read the same bytes): per grain the
+position and radius, velocity and mass, spin and inverse inertia, force and torque, the contact histories the next
+step reads, the walls with their sums, the cumulative counters (bucket and history overflows, removed grains), the
+time and the statistics. A checkpoint of one restores into the other.
+
+```ts
+export declare const GRANULAR_CHECKPOINT = "granular-f32-v1";
+```
+
+### GRANULAR_GPU_SOLVER_ID · const
+
+The solver id of the grains on WebGPU compute (float32).
+
+```ts
+export declare const GRANULAR_GPU_SOLVER_ID = "granular-dem-hash-grid-webgpu-f32-v1";
+```
+
+### GranularF32 · class
+
+The grain program run on the CPU in float32, pass by pass over the shaders' buffer layouts: the GPU's bits where the two agree.
+
+```ts
+export declare class GranularF32 {
+  readonly solver = "granular-dem-hash-grid-f32-reference-v1";
+  readonly setup: DemSetup;
+  readonly pos: Float32Array;
+  readonly vel: Float32Array;
+  readonly spin: Float32Array;
+  readonly ft: Float32Array;
+  readonly wallF: Float32Array;
+  readonly wallU: Uint32Array;
+  readonly stats: DemStats;
+  time: number;
+  get count(): number;
+  checkpoint(): Uint8Array;
+  restoreCheckpoint(bytes: Uint8Array): void;
+  refresh(): void;
+  step(count?: number): void;
+}
+```
+
+### GranularRunner · class
+
+A grain run that starts on the GPU and carries on with the float64 solver when the device is lost (or was never
+there). `granular` is the Granular the run was built from; while the GPU runs it only receives the snapshots.
+
+```ts
+export declare class GranularRunner {
+  backend: 'gpu' | 'cpu';
+  fallback: { reason: string; atTime: number; resumedFrom: number; stepsRerun: number; } | null;
+  readonly granular: Granular;
+  gpu: GpuGranular | null;
+  static create(granular: Granular, compute: GpuCompute | null, options?: GranularRunnerOptions): Promise<GranularRunner>;
+  get steps(): number;
+  get time(): number;
+  step(count?: number): Promise<void>;
+  snapshot(): Promise<void>;
+  destroy(): void;
+}
+```
+
+### GranularRunnerOptions · interface
+
+Options of GranularRunner: the backend's capacities and how often a snapshot is kept in the float64 solver for a fall back.
+
+```ts
+export interface GranularRunnerOptions extends DemOptions {
+    readonly snapshotEvery?: number;
+}
+```
+
+### SHALLOW_WATER_CHECKPOINT · const
+
+Checkpoints of the float32 shallow-water scheme (GpuShallowWater and ShallowWaterF32 write and read the same bytes):
+per cell (h, hu, hv, carry) and (infiltrated, scratch, side volume, its carry), the time, the step count, the length of
+the last substep (the leading half of the friction uses it), the rain added, the statistics and the volumes the budget
+is taken from. A checkpoint of one restores into the other.
+
+```ts
+export declare const SHALLOW_WATER_CHECKPOINT = "shallow-water-f32-v1";
+```
+
+### SHALLOW_WATER_GPU_SOLVER_ID · const
+
+The solver id of the shallow water on WebGPU compute (float32).
+
+```ts
+export declare const SHALLOW_WATER_GPU_SOLVER_ID = "shallow-water-hr-muscl-hll-webgpu-f32-v1";
+```
+
+### ShallowWaterF32 · class
+
+The shallow-water program run on the CPU in float32, pass by pass: the GPU's bits where the two agree.
+
+```ts
+export declare class ShallowWaterF32 {
+  readonly solver = "shallow-water-hr-muscl-hll-f32-reference-v1";
+  readonly setup: ShallowWaterSetup;
+  readonly water: ShallowWater;
+  readonly nx: number;
+  readonly nz: number;
+  readonly dx: number;
+  readonly dz: number;
+  readonly state: Float32Array;
+  readonly aux: Float32Array;
+  readonly fixed: Float32Array;
+  readonly stats: ShallowWaterF32Stats;
+  rainVolume: number;
+  initialVolume: number;
+  dt: number;
+  time: number;
+  steps: number;
+  safety: number;
+  secondX: number;
+  secondZ: number;
+  get cells(): number;
+  depth(c: number): number;
+  volume(): number;
+  ledger(): { inflow: number; rain: number; infiltrated: number; clipped: number; };
+  volumeError(): number;
+  checkpoint(): Uint8Array;
+  restoreCheckpoint(bytes: Uint8Array): void;
+  step(count?: number): void;
+  measure(): [number, number];
+  advance(duration: number): void;
+  substep(sub: number, last: boolean, led?: boolean): void;
+}
+```
+
+### ShallowWaterF32Stats · interface
+
+What a float32 backend reports of a run; the names follow ShallowWater.
+
+```ts
+export interface ShallowWaterF32Stats {
+    substeps: number;
+    totalSubsteps: number;
+    courant: number;
+    maxWaveSpeed: number;
+    wetCells: number;
+}
+```
+
+### ShallowWaterRunner · class
+
+A shallow-water run that starts on the GPU and carries on with the float64 solver when the device is lost.
+
+`water` is the ShallowWater the run was built from. While the GPU runs it only receives the snapshots (every
+`snapshotEvery` steps). When the device is lost, or was never there, `water` is advanced on the CPU from the last
+snapshot to the time the run had reached and takes over: `backend` becomes 'cpu' and `fallback` says why, when, and
+how much simulated time was run again.
+
+```ts
+export declare class ShallowWaterRunner {
+  backend: 'gpu' | 'cpu';
+  fallback: { reason: string; atTime: number; resumedFrom: number; stepsRerun: number; } | null;
+  readonly water: ShallowWater;
+  gpu: GpuShallowWater | null;
+  static create(water: ShallowWater, compute: GpuCompute | null, options?: ShallowWaterRunnerOptions): Promise<ShallowWaterRunner>;
+  get time(): number;
+  get steps(): number;
+  step(count?: number): Promise<void>;
+  snapshot(): Promise<void>;
+  destroy(): void;
+}
+```
+
+### ShallowWaterRunnerOptions · interface
+
+Options of ShallowWaterRunner: those of GpuShallowWater and how often a snapshot is kept in the float64 solver for a fall back.
+
+```ts
+export interface ShallowWaterRunnerOptions extends GpuShallowWaterOptions {
+    readonly snapshotEvery?: number;
+}
 ```

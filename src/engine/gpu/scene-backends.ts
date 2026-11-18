@@ -28,6 +28,7 @@ import {GranularF32,demSetup,readDemWall} from './granular-f32.ts';
 import {GpuShallowWater} from './shallow-water-gpu.ts';
 import {ShallowWaterF32} from './shallow-water-f32.ts';
 
+/** The tag of a GPU section's state in a simulation checkpoint. */
 export const GPU_SCENE_BACKEND='scene-section-gpu-f32-v1';
 
 /** What `pullAsync` and the scene save need of a GPU section. */
