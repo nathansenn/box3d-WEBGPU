@@ -13164,12 +13164,21 @@ export declare const SOLID_CONTACT_SUBSYSTEM_ORDER = 170;
 export declare const SOLID_COUPLING_BACKEND = "rigid-solid-coupling-monolithic-js-f64-v1";
 ```
 
-### SOLID_SOLID_CONTACT_SOLVER_ID · const
+### SOLID_SOLID_CONTACT_NODE_FACE_SOLVER_ID · const
 
-The solver id recorded in results and checkpoints: node-to-face penalty contact solved with the solids in one Newton solve (PCG), float64.
+The solver id of `method: 'node-face'`: node-to-face penalty contact (the first version).
 
 ```ts
-export declare const SOLID_SOLID_CONTACT_SOLVER_ID = "solid-solid-contact-node-face-penalty-newton-pcg-js-f64-v1";
+export declare const SOLID_SOLID_CONTACT_NODE_FACE_SOLVER_ID = "solid-solid-contact-node-face-penalty-newton-pcg-js-f64-v1";
+```
+
+### SOLID_SOLID_CONTACT_SOLVER_ID · const
+
+The solver id of the default (mortar) method recorded in results and checkpoints: segment-to-segment mortar penalty
+contact with edge-to-edge contact, solved with the solids in one Newton solve (PCG), float64.
+
+```ts
+export declare const SOLID_SOLID_CONTACT_SOLVER_ID = "solid-solid-contact-mortar-penalty-newton-pcg-js-f64-v2";
 ```
 
 ### SOLID_SOLID_CONTACT_SUBSYSTEM_ORDER · const
@@ -13403,13 +13412,16 @@ export interface SolidCouplingOptions extends SolidContactOptions {
 
 ### SolidSolidContact · class
 
-Contact between deformable solids, of a solid with itself and with planes: node against face both ways, with Coulomb friction, solved together with the solids in one Newton solve. See docs/SOLID_CONTACT.md.
+Contact between deformable solids, of a solid with itself and with planes: mortar (or node-face) contact both ways and
+edge-to-edge contact, with Coulomb friction, solved together with the solids in one Newton solve. See docs/SOLID_CONTACT.md.
 
 ```ts
 export declare class SolidSolidContact {
   saveState(): StateObject;
   restoreState(state: StateValue): void;
-  readonly solver = "solid-solid-contact-node-face-penalty-newton-pcg-js-f64-v1";
+  readonly solver: string;
+  readonly method: SolidSolidContactMethod;
+  readonly edges: boolean;
   readonly solids: SolidBody[];
   readonly dt: number;
   readonly stiffnessScale: number;
@@ -13433,12 +13445,22 @@ export declare class SolidSolidContact {
 }
 ```
 
+### SolidSolidContactMethod · type
+
+How a contact between two surfaces is discretised: `mortar` (segment to segment) or `node-face` (node against face).
+
+```ts
+export type SolidSolidContactMethod = 'mortar' | 'node-face';
+```
+
 ### SolidSolidContactOptions · interface
 
-Settings of a SolidSolidContact: contact stiffness, skin, friction, which bodies collide with themselves, and the friction passes.
+Settings of a SolidSolidContact: method, contact stiffness, skin, friction, which bodies collide with themselves, and the friction passes.
 
 ```ts
 export interface SolidSolidContactOptions {
+    readonly method?: SolidSolidContactMethod;
+    readonly edges?: boolean;
     readonly stiffnessScale?: number;
     readonly skin?: number;
     readonly friction?: number;
@@ -13462,6 +13484,7 @@ export interface SolidSolidContactStats {
     frictionPasses: number;
     unconvergedSteps: number;
     contacts: number;
+    edgeContacts: number;
 }
 ```
 

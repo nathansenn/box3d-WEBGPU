@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 752,
-  "passed": 752,
+  "cases": 767,
+  "passed": 767,
   "failed": 0,
   "domains": 23
  },
@@ -347,8 +347,8 @@
     "The integrator is backward Euler: it damps (36% of the kinetic energy is left after the impact case). Restitution is not a parameter and impact speeds after a bounce are not validated.",
     "Welds are stiff springs: a welded face is held in all three directions, like a clamped end. Large rotations of a welded solid are not checked against a reference."
    ],
-   "cases": 40,
-   "passed": 40
+   "cases": 55,
+   "passed": 55
   },
   {
    "id": "fracture",
@@ -18505,15 +18505,15 @@
    "unit": "1",
    "formula": "F = delta A / (L1 / E1 + L2 / E2 + 1 / (2 k)), k the contact stiffness per area of one search direction",
    "reference": 0,
-   "measured": 2.18395109e-8,
-   "error": 2.18395109e-8,
+   "measured": 7.29495508e-9,
+   "error": 7.29495508e-9,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
     "value": 0.000001
    },
    "pass": true,
-   "note": "The uniform state is the answer when the two surface meshes match; the springs' compliance (7.8e-4 of the total) is in the reference.",
+   "note": "The uniform state is the answer when the two surface meshes match; the springs' compliance (7.8e-4 of the total) is in the reference. Mortar (the default since v2): 7.3e-9; node to face 2.2e-8.",
    "source": {
     "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
     "test": "two elastic blocks pressed together are springs in series: delta A / (L1 / E1 + L2 / E2 + contact springs)",
@@ -18521,8 +18521,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "2.183951e-8",
-    "error": "+2.18e-8",
+    "measured": "7.294955e-9",
+    "error": "+7.29e-9",
     "tolerance": "±1e-6"
    }
   },
@@ -18534,15 +18534,15 @@
    "unit": "1",
    "formula": "as above",
    "reference": 0,
-   "measured": -0.000239515354,
-   "error": -0.000239515354,
+   "measured": 1.0111026e-8,
+   "error": 1.0111026e-8,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
     "value": 0.0005
    },
    "pass": true,
-   "note": "A node against a face does not pass the contact patch test on meshes that do not match: the interface pressure is uneven (element stress within 5.5 % of uniform), the total force is 2.4e-4 low.",
+   "note": "Mortar (the default since v2): 1.0e-8. Node to face (version 1) does not pass the contact patch test on meshes that do not match: the total force was 2.4e-4 low.",
    "source": {
     "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
     "test": "two elastic blocks pressed together are springs in series: delta A / (L1 / E1 + L2 / E2 + contact springs)",
@@ -18550,8 +18550,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "-0.0002395154",
-    "error": "-0.00024",
+    "measured": "1.011103e-8",
+    "error": "+1.01e-8",
     "tolerance": "±0.0005"
    }
   },
@@ -18563,15 +18563,15 @@
    "unit": "1",
    "formula": "as above",
    "reference": 0,
-   "measured": -0.000107731032,
-   "error": -0.000107731032,
+   "measured": 3.38277184e-10,
+   "error": 3.38277184e-10,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
     "value": 0.0005
    },
    "pass": true,
-   "note": "Element stress within 30 % of uniform at the interface.",
+   "note": "Mortar: 3.4e-10, element stress within 4e-4 of uniform; node to face -1.1e-4 with element stress within 30 % of uniform at the interface.",
    "source": {
     "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
     "test": "two elastic blocks pressed together are springs in series: delta A / (L1 / E1 + L2 / E2 + contact springs)",
@@ -18579,8 +18579,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "-0.000107731",
-    "error": "-0.000108",
+    "measured": "3.382772e-10",
+    "error": "+3.38e-10",
     "tolerance": "±0.0005"
    }
   },
@@ -18592,15 +18592,15 @@
    "unit": "1",
    "formula": "0 (a uniform pressure across the interface)",
    "reference": 0,
-   "measured": 0.0548822243,
-   "error": 0.0548822243,
+   "measured": 0.000179475583,
+   "error": 0.000179475583,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
-    "value": 0.08
+    "value": 0.001
    },
    "pass": true,
-   "note": "Not passed: 5.5 % here, 5.9 % on 5 against 7 cells (it does not fall with the mesh), 42 % for coincident nodes with crossed surface diagonals. The bound keeps the measured value from growing.",
+   "note": "Passed by the mortar (the default since v2): 1.8e-4, the rest at the rim where the blocks spread sideways by different Poisson strains. Node to face (version 1) failed it: 5.5 % here (the old bound was 0.08), 5.9 % on 5 against 7 cells, 42 % for coincident nodes with crossed surface diagonals. See the solid-contact.mortar rows.",
    "source": {
     "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
     "test": "two elastic blocks pressed together are springs in series: delta A / (L1 / E1 + L2 / E2 + contact springs)",
@@ -18608,9 +18608,9 @@
    },
    "text": {
     "reference": "0",
-    "measured": "0.05488222",
-    "error": "+0.0549",
-    "tolerance": "±0.08"
+    "measured": "0.0001794756",
+    "error": "+0.000179",
+    "tolerance": "±0.001"
    }
   },
   {
@@ -18621,15 +18621,15 @@
    "unit": "1",
    "formula": "F = (4/3) E* sqrt(R*) delta^1.5, 1 / E* = sum (1 - nu^2) / E, 1 / R* = 1 / R1 + 1 / R2, times the factor of a layer on a rigid base (Dimitriadis et al. 2002)",
    "reference": 0,
-   "measured": 0.153050289,
-   "error": 0.153050289,
+   "measured": 0.157903777,
+   "error": 0.157903777,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
     "value": 0.18
    },
    "pass": true,
-   "note": "Measured +15.3 % (+20.6 % against plain Hertz): linear tetrahedra and one spring per node are too stiff.",
+   "note": "Measured +15.8 % with the mortar (+21.1 % against plain Hertz; node to face +15.3 %): linear tetrahedra are too stiff.",
    "source": {
     "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
     "test": "Hertz: two elastic caps pressed together, with the mesh study",
@@ -18637,8 +18637,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "0.1530503",
-    "error": "+0.153",
+    "measured": "0.1579038",
+    "error": "+0.158",
     "tolerance": "±0.18"
    }
   },
@@ -18650,15 +18650,15 @@
    "unit": "1",
    "formula": "as above",
    "reference": 0,
-   "measured": 0.0848707743,
-   "error": 0.0848707743,
+   "measured": 0.0865468765,
+   "error": 0.0865468765,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
     "value": 0.11
    },
    "pass": true,
-   "note": "Measured +8.5 % (+13.5 % against plain Hertz).",
+   "note": "Measured +8.7 % with the mortar (+13.7 % against plain Hertz; node to face +8.5 %).",
    "source": {
     "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
     "test": "Hertz: two elastic caps pressed together, with the mesh study",
@@ -18666,8 +18666,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "0.08487077",
-    "error": "+0.0849",
+    "measured": "0.08654688",
+    "error": "+0.0865",
     "tolerance": "±0.11"
    }
   },
@@ -18679,15 +18679,15 @@
    "unit": "1",
    "formula": "as above",
    "reference": 0,
-   "measured": 0.0591505718,
-   "error": 0.0591505718,
+   "measured": 0.0568121397,
+   "error": 0.0568121397,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
     "value": 0.08
    },
    "pass": true,
-   "note": "Measured +5.9 % (+10.8 % against plain Hertz). The error falls with the mesh at the rate of the rigid-sphere rows above.",
+   "note": "Measured +5.7 % with the mortar (+10.5 % against plain Hertz; node to face +5.9 %). The error falls with the mesh at the rate of the rigid-sphere rows above.",
    "source": {
     "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
     "test": "Hertz: two elastic caps pressed together, with the mesh study",
@@ -18695,8 +18695,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "0.05915057",
-    "error": "+0.0592",
+    "measured": "0.05681214",
+    "error": "+0.0568",
     "tolerance": "±0.08"
    }
   },
@@ -18708,8 +18708,8 @@
    "unit": "1",
    "formula": "the same error as equal caps: the modulus ratio enters only through E*",
    "reference": 0,
-   "measured": 0.00285077973,
-   "error": 0.00285077973,
+   "measured": 0.00280071745,
+   "error": 0.00280071745,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
@@ -18723,8 +18723,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "0.00285078",
-    "error": "+0.00285",
+    "measured": "0.002800717",
+    "error": "+0.0028",
     "tolerance": "±0.01"
    }
   },
@@ -18736,8 +18736,8 @@
    "unit": "1",
    "formula": "0: the contact forces sum to zero term by term",
    "reference": 0,
-   "measured": 1.09267284e-9,
-   "error": 1.09267284e-9,
+   "measured": 2.08049195e-9,
+   "error": 2.08049195e-9,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
@@ -18752,8 +18752,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "1.092673e-9",
-    "error": "+1.09e-9",
+    "measured": "2.080492e-9",
+    "error": "+2.08e-9",
     "tolerance": "±1e-8"
    }
   },
@@ -18765,15 +18765,15 @@
    "unit": "1",
    "formula": "conserved: change 0",
    "reference": 0,
-   "measured": 0.00135555056,
-   "error": 0.00135555056,
+   "measured": 0.00137798323,
+   "error": 0.00137798323,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
     "value": 0.003
    },
    "pass": true,
-   "note": "Measured 1.4e-3 (6.5e-4 with friction 0.3): the contact points are frozen during a step, so the pair of contact forces has a small arm.",
+   "note": "Measured 1.4e-3 (6.6e-4 with friction 0.3), node to face and mortar alike: the contact points are frozen during a step, so the pair of contact forces has a small arm.",
    "source": {
     "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
     "test": "momentum in a free impact of two solids",
@@ -18781,8 +18781,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "0.001355551",
-    "error": "+0.00136",
+    "measured": "0.001377983",
+    "error": "+0.00138",
     "tolerance": "±0.003"
    }
   },
@@ -18795,8 +18795,8 @@
    "formula": "the weight above: 2 m g",
    "reference": 19.62,
    "measured": 19.6199999,
-   "error": -6.38955662e-8,
-   "relativeError": -3.25665475e-9,
+   "error": -6.38695923e-8,
+   "relativeError": -3.2553309e-9,
    "tolerance": {
     "kind": "relative",
     "value": 0.000001
@@ -18851,8 +18851,8 @@
    "formula": "m g sin(theta); the block stays",
    "reference": 1.26950742,
    "measured": 1.26950742,
-   "error": -2.41260345e-11,
-   "relativeError": -1.90042486e-11,
+   "error": -4.8525628e-11,
+   "relativeError": -3.82239815e-11,
    "tolerance": {
     "kind": "relative",
     "value": 0.000001
@@ -18866,7 +18866,7 @@
    "text": {
     "reference": "1.269507 N",
     "measured": "1.269507",
-    "error": "-1.9e-11 rel.",
+    "error": "-3.82e-11 rel.",
     "tolerance": "±1e-6 rel."
    }
   },
@@ -18878,9 +18878,9 @@
    "unit": "m/s^2",
    "formula": "g (sin(theta) - mu cos(theta))",
    "reference": 1.47862133,
-   "measured": 1.47863255,
-   "error": 0.0000112204238,
-   "relativeError": 0.00000758843635,
+   "measured": 1.47863302,
+   "error": 0.0000116902998,
+   "relativeError": 0.00000790621615,
    "tolerance": {
     "kind": "relative",
     "value": 0.001
@@ -18894,7 +18894,7 @@
    "text": {
     "reference": "1.478621 m/s^2",
     "measured": "1.478633",
-    "error": "+7.59e-6 rel.",
+    "error": "+7.91e-6 rel.",
     "tolerance": "±0.1%"
    }
   },
@@ -18906,15 +18906,15 @@
    "unit": "m",
    "formula": "the arms rest on each other: far below the 5.2 mm by which they cross without self-contact",
    "reference": 0.00005,
-   "measured": 0.0000191212331,
-   "error": -0.0000308787669,
-   "relativeError": -0.617575338,
+   "measured": 0.000033392937,
+   "error": -0.000016607063,
+   "relativeError": -0.332141259,
    "tolerance": {
     "kind": "upper",
     "value": 0
    },
    "pass": true,
-   "note": "No closed form: a functional check.",
+   "note": "No closed form: a functional check. Mortar 33 um (node to face 19 um): a weighted gap of the mortar rows.",
    "source": {
     "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
     "test": "self-contact: the arms of a slotted block stop at each other",
@@ -18922,8 +18922,442 @@
    },
    "text": {
     "reference": "5e-5 m",
-    "measured": "1.912123e-5",
-    "error": "-3.09e-5",
+    "measured": "3.339294e-5",
+    "error": "-1.66e-5",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "solid-contact.mortar.patch",
+   "domain": "solid-contact",
+   "title": "Contact patch test, mortar: 3 on 4 cells",
+   "quantity": "the largest difference, over the interface nodes of both blocks, of the contact force over the node's share of the interface from the applied pressure, over that pressure; a 0.1 m block (E = 1 GPa, nu = 0.3, 3 x 3 x 3 cells) under a 0.08 m block (E = 3 GPa, nu = 0.2, 4 x 4 x 4 cells), p = 0.1 MPa",
+   "unit": "1",
+   "formula": "0: a uniform pressure is carried as a uniform pressure",
+   "reference": 0,
+   "measured": 0.000231294243,
+   "error": 0.000231294243,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "Measured 2.3e-4 (node to face: 8.6 %). What is left sits at the rim: the blocks spread sideways by different Poisson strains and a strip a few micrometres wide of the lower block is not covered; with nu = 0 the row below is exact.",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "contact patch test: a uniform pressure crosses an interface whose meshes do not match, as the monolithic answer",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.0002312942",
+    "error": "+0.000231",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "solid-contact.mortar.patch-5on7",
+   "domain": "solid-contact",
+   "title": "Contact patch test, mortar: 5 on 7 x 6 x 7 cells",
+   "quantity": "the same, 5 x 5 x 5 against 7 x 6 x 7 cells",
+   "unit": "1",
+   "formula": "as above",
+   "reference": 0,
+   "measured": 0.000440666139,
+   "error": 0.000440666139,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "Measured 4.4e-4 (node to face: 10.0 %).",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "contact patch test: a uniform pressure crosses an interface whose meshes do not match, as the monolithic answer",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.0004406661",
+    "error": "+0.000441",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "solid-contact.mortar.patch-crossed",
+   "domain": "solid-contact",
+   "title": "Contact patch test, mortar: coincident nodes, crossed diagonals",
+   "quantity": "the same, 3 x 3 x 3 cells on both (the surface triangles cross)",
+   "unit": "1",
+   "formula": "as above",
+   "reference": 0,
+   "measured": 0.000163222059,
+   "error": 0.000163222059,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "Measured 1.6e-4; node to face, the worst case found for it: 77 %.",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "contact patch test: a uniform pressure crosses an interface whose meshes do not match, as the monolithic answer",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.0001632221",
+    "error": "+0.000163",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "solid-contact.mortar.patch-stiff",
+   "domain": "solid-contact",
+   "title": "Contact patch test, mortar: moduli 1 : 100",
+   "quantity": "the same with E = 0.1 GPa under 10 GPa",
+   "unit": "1",
+   "formula": "as above",
+   "reference": 0,
+   "measured": 0.00426824688,
+   "error": 0.00426824688,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.01
+   },
+   "pass": true,
+   "note": "Measured 4.3e-3 (node to face: 72 %): the uncovered strip at the rim grows with the difference of the Poisson strains.",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "contact patch test: a uniform pressure crosses an interface whose meshes do not match, as the monolithic answer",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.004268247",
+    "error": "+0.00427",
+    "tolerance": "±0.01"
+   }
+  },
+  {
+   "id": "solid-contact.mortar.patch-distorted",
+   "domain": "solid-contact",
+   "title": "Contact patch test, mortar: distorted upper mesh",
+   "quantity": "the same with the upper block's nodes moved sideways by up to 4 % of its width (the interface mesh distorted too)",
+   "unit": "1",
+   "formula": "as above",
+   "reference": 0,
+   "measured": 0.000213700245,
+   "error": 0.000213700245,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "Measured 2.1e-4 (node to face: 15.8 %).",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "contact patch test: a uniform pressure crosses an interface whose meshes do not match, as the monolithic answer",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.0002137002",
+    "error": "+0.000214",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "solid-contact.mortar.monolithic",
+   "domain": "solid-contact",
+   "title": "Contact patch test, mortar: displacements",
+   "quantity": "largest difference of a nodal displacement (3 on 4 cells) from the monolithic answer (one body of two materials, plus the springs' depth p / 2 k at the interface), over the total shortening",
+   "unit": "1",
+   "formula": "u_y = -p y / E1 in the lower block, -p L1 / E1 - p / (2 k) - p (y - L1) / E2 in the upper; u_x = nu p x / E",
+   "reference": 0,
+   "measured": 0.0000413983564,
+   "error": 0.0000413983564,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0001
+   },
+   "pass": true,
+   "note": "Measured 4.1e-5 (node to face: 4.9e-3).",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "contact patch test: a uniform pressure crosses an interface whose meshes do not match, as the monolithic answer",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "4.139836e-5",
+    "error": "+4.14e-5",
+    "tolerance": "±0.0001"
+   }
+  },
+  {
+   "id": "solid-contact.mortar.patch-turned",
+   "domain": "solid-contact",
+   "title": "Contact patch test, mortar: the set-up turned in space",
+   "quantity": "the same pressure measure with the two blocks (3 on 4 cells, nu = 0, end faces held) turned by 0.7 rad about (1, 2, 3)",
+   "unit": "1",
+   "formula": "0: uniform stress, displacements linear along the turned axis",
+   "reference": 0,
+   "measured": 1.0126866e-10,
+   "error": 1.0126866e-10,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-8
+   },
+   "pass": true,
+   "note": "Measured 1.0e-10: with nothing spreading sideways the mortar is exact to the solve (node to face: 8.5 %).",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "contact patch test: a uniform pressure crosses an interface whose meshes do not match, as the monolithic answer",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "1.012687e-10",
+    "error": "+1.01e-10",
+    "tolerance": "±1e-8"
+   }
+  },
+  {
+   "id": "solid-contact.mortar.hertz.coarse",
+   "domain": "solid-contact",
+   "title": "Hertz, sphere on block, meshes that do not match: 2.5 and 1.9 elements per contact radius",
+   "quantity": "force between an elastic sphere (R = 1 m) and an elastic block (E = 1 MPa, nu = 0.3) pressed 0.625 mm together, over Hertz times the bonded-layer factor, minus 1",
+   "unit": "1",
+   "formula": "F = (4/3) E* sqrt(R) delta^1.5, 1 / E* = sum (1 - nu^2) / E (Wikipedia, Contact mechanics, sphere on a half-space), times the factor of a layer on a rigid base (Dimitriadis et al. 2002)",
+   "reference": 0,
+   "measured": 0.110758523,
+   "error": 0.110758523,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.14
+   },
+   "pass": true,
+   "note": "Measured +11.1 % (+16.2 % against plain Hertz; node to face +11.9 %). Linear tetrahedra are too stiff; the error falls with the mesh.",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "Hertz: an elastic sphere on an elastic block, meshes that do not match, with the mesh study",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.1107585",
+    "error": "+0.111",
+    "tolerance": "±0.14"
+   }
+  },
+  {
+   "id": "solid-contact.mortar.hertz.medium",
+   "domain": "solid-contact",
+   "title": "Hertz, sphere on block, meshes that do not match: 3.75 and 3.1 elements per contact radius",
+   "quantity": "the same",
+   "unit": "1",
+   "formula": "as above",
+   "reference": 0,
+   "measured": 0.0929527954,
+   "error": 0.0929527954,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.12
+   },
+   "pass": true,
+   "note": "Measured +9.3 % (+14.3 % against plain Hertz; node to face +10.7 %).",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "Hertz: an elastic sphere on an elastic block, meshes that do not match, with the mesh study",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.0929528",
+    "error": "+0.093",
+    "tolerance": "±0.12"
+   }
+  },
+  {
+   "id": "solid-contact.mortar.stick",
+   "domain": "solid-contact",
+   "title": "Friction threshold on a non-matching interface: sticks at 0.99 of the friction angle",
+   "quantity": "shear across the interface of a block (4 x 4 cells) on a base (9 x 3 cells), tan(theta) = 0.99 mu, mu = 0.3, after 0.5 s",
+   "unit": "N",
+   "formula": "m g sin(theta); the block stays",
+   "reference": 1.39649474,
+   "measured": 1.39649474,
+   "error": 3.26934035e-11,
+   "relativeError": 2.34110467e-11,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.000001
+   },
+   "pass": true,
+   "note": "It stays: speed 0, travel 12 um (the elastic shear of the block).",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "Coulomb friction at the threshold: a block on a non-matching base sticks at tan(theta) = 0.99 mu and slides at 1.01 mu",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "1.396495 N",
+    "measured": "1.396495",
+    "error": "+2.34e-11 rel.",
+    "tolerance": "±1e-6 rel."
+   }
+  },
+  {
+   "id": "solid-contact.mortar.slip",
+   "domain": "solid-contact",
+   "title": "Friction threshold on a non-matching interface: slides at 1.01 of the friction angle",
+   "quantity": "acceleration of the block at tan(theta) = 1.01 mu",
+   "unit": "m/s^2",
+   "formula": "g (sin(theta) - mu cos(theta)) = 0.0282 m/s^2",
+   "reference": 0.0281654651,
+   "measured": 0.0281793282,
+   "error": 0.0000138631188,
+   "relativeError": 0.000492202729,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "note": "Measured 5e-4 off. Together with the row above: the stick/slip threshold is within 1 % of tan(theta) = mu.",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "Coulomb friction at the threshold: a block on a non-matching base sticks at tan(theta) = 0.99 mu and slides at 1.01 mu",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0.02816547 m/s^2",
+    "measured": "0.02817933",
+    "error": "+0.0492%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "solid-contact.edge.balance",
+   "domain": "solid-contact",
+   "title": "Edge-to-edge contact: force balance of two crossed bars",
+   "quantity": "force on the supports of the lower of two square bars on edge (20 mm, E = 10 MPa) crossed at 90 degrees, the upper pushed down 0.5 mm, over the contact force, minus 1",
+   "unit": "1",
+   "formula": "statics: the supports carry the contact force",
+   "reference": 0,
+   "measured": 5.14499554e-12,
+   "error": 5.14499554e-12,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-8
+   },
+   "pass": true,
+   "note": "One edge contact carries 1.913 N; no node of either bar meets a face of the other.",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "edge against edge: two square bars on edge, crossed, pressed together",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "5.144996e-12",
+    "error": "+5.14e-12",
+    "tolerance": "±1e-8"
+   }
+  },
+  {
+   "id": "solid-contact.edge.depth",
+   "domain": "solid-contact",
+   "title": "Edge-to-edge contact: depth of the crossed bars",
+   "quantity": "how far the deformed edges have gone through each other, over the push",
+   "unit": "1",
+   "formula": "the depth of the edge spring, force / k: 2.0e-4 of the push",
+   "reference": 0.001,
+   "measured": 0.000204918961,
+   "error": -0.000795081039,
+   "relativeError": -0.795081039,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "note": "Without edge contact the bars pass through by the whole push (-1).",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "edge against edge: two square bars on edge, crossed, pressed together",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0.001",
+    "measured": "0.000204919",
+    "error": "-0.000795",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "solid-contact.edge.momentum",
+   "domain": "solid-contact",
+   "title": "Edge-to-edge contact in motion: momentum",
+   "quantity": "largest change of the total linear momentum while two crossed bars meet edge first and part (300 steps, friction 0.3), over the momentum",
+   "unit": "1",
+   "formula": "0: the forces of a contact sum to zero",
+   "reference": 0,
+   "measured": 2.27129756e-10,
+   "error": 2.27129756e-10,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-8
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "edge against edge in motion: crossed bars fly at each other edge first and part",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "2.271298e-10",
+    "error": "+2.27e-10",
+    "tolerance": "±1e-8"
+   }
+  },
+  {
+   "id": "solid-contact.edge.impact-depth",
+   "domain": "solid-contact",
+   "title": "Edge-to-edge contact in motion: depth",
+   "quantity": "deepest the edges go through each other in that impact",
+   "unit": "m",
+   "formula": "the spring's depth, far below the 8.5 mm by which they cross without edge contact",
+   "reference": 0.000002,
+   "measured": 0.00000106423252,
+   "error": -9.35767476e-7,
+   "relativeError": -0.467883738,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "note": "Measured 1.06 um.",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "edge against edge in motion: crossed bars fly at each other edge first and part",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "2e-6 m",
+    "measured": "1.064233e-6",
+    "error": "-9.36e-7",
     "tolerance": "not above the reference"
    }
   },

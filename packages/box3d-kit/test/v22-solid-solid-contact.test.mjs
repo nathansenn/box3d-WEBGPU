@@ -6,8 +6,10 @@
 // What sets the tolerances:
 //  - A contact is a spring of stiffness stiffnessScale (lambda + 2 mu) / l per unit of facing area (of the softer body),
 //    and each pair of bodies is searched both ways, so an interface under pressure p closes by p l / (2 scale M).
-//  - A node against a face does not pass the contact patch test on surface meshes that do not match: the interface
-//    pressure is uneven from node to node (5 % in element stress on the default pair below), the total force is not.
+//  - The default method is the mortar (segment to segment): it passes the contact patch test on surface meshes that do
+//    not match (element stress uniform to 4e-4 below). The node-to-face method of version 1 (method: 'node-face') does
+//    not: the interface pressure is uneven from node to node (5.5 % in element stress on the default pair), the total
+//    force is not. v23-solid-solid-mortar.test.mjs has the patch test of both.
 //  - Backward Euler takes (w h)^2 of the energy of a mode per step: impacts lose energy, they never gain it.
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -27,7 +29,7 @@ const sci = x => Number(x).toExponential(2), pct = x => `${(100 * x).toFixed(2)}
 const invalid = fn => assert.throws(fn, error => error instanceof EngineError && error.code === 'INVALID_PAYLOAD');
 
 test('the solver names itself and refuses what it cannot do', () => {
-  assert.equal(SOLID_SOLID_CONTACT_SOLVER_ID, 'solid-solid-contact-node-face-penalty-newton-pcg-js-f64-v1');
+  assert.equal(SOLID_SOLID_CONTACT_SOLVER_ID, 'solid-solid-contact-mortar-penalty-newton-pcg-js-f64-v2');
   const mesh = boxMesh({size: [1, 1, 1], cells: [1, 1, 1]}), material = {youngModulus: 1e6, poissonRatio: 0.3, density: 1000};
   const a = new SolidBody({mesh, material}), b = new SolidBody({mesh: boxMesh({size: [1, 1, 1], cells: [1, 1, 1], origin: [0, 1, 0]}), material});
   invalid(() => new SolidSolidContact([]));
@@ -51,29 +53,34 @@ test('two elastic blocks pressed together are springs in series: delta A / (L1 /
   near(match.error, 0, 1e-6, 'matching meshes: force');
   near(match.worstStress, 0, 1e-3, 'matching meshes: uniform stress');
   within(match.back, match.force, 1e-12, 'action and reaction');
-  // 3 x 3 x 3 against 4 x 4 x 4 cells, E 1 and 3 GPa, nu 0.3 and 0.2: the total force is the series one; the pressure is uneven.
+  // 3 x 3 x 3 against 4 x 4 x 4 cells, E 1 and 3 GPa, nu 0.3 and 0.2: the total force is the series one, and with the
+  // mortar the pressure is even too.
   const rows = [['3 on 4 cells', {}], ['5 on 7 x 6 x 7 cells', {cellsA: [5, 5, 5], cellsB: [7, 6, 7]}], ['E2 = 100 E1', {E1: 1e8, E2: 1e10}], ['corotational', {model: 'corotational'}], ['stiffnessScale 1000', {stiffnessScale: 1000}]];
   for (const [label, options] of rows) {
     const r = S.seriesBlocks(K, options);
     t.diagnostic(`${label}: force ${r.force.toFixed(3)} N against ${r.exact.toFixed(3)} N (${sci(r.error)}; ${sci(r.errorRigid)} without the springs' compliance); element stress within ${pct(r.worstStress)} of uniform; depth ${sci(r.depth)} m; ${r.contacts} contacts`);
     assert.ok(r.converged, label);
-    // 5e-4: measured 5e-5 to 2.4e-4. A node against a face does not pass the patch test; the force error is second order in it.
-    near(r.error, 0, 5e-4, `${label}: force`);
-    // Element stress: measured 5.5 to 6 % for comparable moduli, 30 % for a modulus ratio of 100. Bounds, not accuracy claims.
-    assert.ok(r.worstStress < (options.E2 ? 0.35 : 0.08), `${label}: element stress ${r.worstStress}`);
+    // 1e-6: measured 3e-10 to 1e-8 with the mortar (5e-5 to 2.4e-4 node to face, which fails the patch test).
+    near(r.error, 0, 1e-6, `${label}: force`);
+    // Element stress: measured 1.8e-4 to 3.9e-4 (5.5 to 6 % node to face, 30 % for a modulus ratio of 100). What is left
+    // sits at the rim, where the two blocks spread sideways by different Poisson strains.
+    assert.ok(r.worstStress < 1e-3, `${label}: element stress ${r.worstStress}`);
   }
   // The worst case for node against face: nodes that coincide while the surface diagonals differ (3 on 3 cells).
-  const worst = S.seriesBlocks(K, {cellsA: [3, 3, 3], cellsB: [3, 3, 3]});
-  t.diagnostic(`coincident nodes, crossed diagonals: force ${pct(worst.error)}, element stress within ${pct(worst.worstStress)}`);
-  near(worst.error, 0, 0.02, 'crossed diagonals: force (measured -1.5 %)');
+  const worst = S.seriesBlocks(K, {cellsA: [3, 3, 3], cellsB: [3, 3, 3]}), old = S.seriesBlocks(K, {cellsA: [3, 3, 3], cellsB: [3, 3, 3], method: 'node-face'});
+  t.diagnostic(`coincident nodes, crossed diagonals: force ${sci(worst.error)}, element stress within ${pct(worst.worstStress)}; node to face ${pct(old.error)} and ${pct(old.worstStress)}`);
+  near(worst.error, 0, 1e-6, 'crossed diagonals: force (measured 1e-8; node to face -1.5 %)');
+  assert.ok(worst.worstStress < 1e-3, `crossed diagonals: element stress ${worst.worstStress} (node to face 42 %)`);
+  near(old.error, -0.015, 0.002, 'node to face keeps its version-1 answer');
 });
 
 test('Hertz: two elastic caps pressed together, with the mesh study', t => {
   const runs = [[8, 4], [12, 6], [16, 8]].map(([n, m]) => S.hertzCaps(K, n, m));
   for (const r of runs) t.diagnostic(`${r.cellsPerRadius} cells per contact radius (${r.nodes} nodes): F ${r.force.toFixed(3)} N, Hertz ${r.exact.toFixed(3)} N (${pct(r.error)}), with the layer factor ${r.layer.toFixed(4)} ${pct(r.errorLayer)}; ${r.contacts} contacts, ${r.passes} passes, ${r.newton} Newton and ${r.linear} inner iterations`);
   for (const r of runs) assert.ok(r.converged);
-  // Linear tetrahedra and one contact per node: too stiff, converging from above. Measured +15.3 %, +8.5 %, +5.9 % (against
-  // +?, +9.4 %, +6.8 % for the rigid sphere of v17 on the same meshes). The bounds are the measured values plus a margin.
+  // Linear tetrahedra: too stiff, converging from above. Measured with the mortar +15.8 %, +8.7 %, +5.7 % (node to face
+  // +15.3 %, +8.5 %, +5.9 %; +9.4 % and +6.8 % for the rigid sphere of v17 on the two finer meshes). The bounds are the
+  // measured values plus a margin.
   assert.ok(runs[0].errorLayer > 0 && runs[0].errorLayer < 0.18, `coarse ${runs[0].errorLayer}`);
   assert.ok(runs[1].errorLayer > 0 && runs[1].errorLayer < 0.11, `medium ${runs[1].errorLayer}`);
   assert.ok(runs[2].errorLayer > 0 && runs[2].errorLayer < 0.08, `fine ${runs[2].errorLayer}`);
