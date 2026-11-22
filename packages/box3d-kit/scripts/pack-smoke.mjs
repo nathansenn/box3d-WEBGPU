@@ -63,11 +63,14 @@ const BUDGET = {
   // simulation 436.2.
   // Raised 2026-11-17: solid 75 -> 80 KiB when the crack band and the press solver's orphaned-pivot and tangent changes
   // met (measured 75.9 KiB = 77,718 bytes; each alone stayed under 75).
+  // Raised 2026-11-18: scene 447 -> 454 and simulation 446 -> 453 KiB for the mortar and edge-to-edge contact of
+  // SolidSolidContact (measured 448.7 and 447.3 KiB, from 441.8 and 440.5 at 5f0454d: solid-solid-contact.js grew from
+  // 15,827 to 22,857 bytes of gzip). solid-contact itself stays within 135 KiB: measured 134.7 (127.8 at 5f0454d).
   entry: {
     '.': 85 * KiB, './three': 3 * KiB, './babylon': 2 * KiB, './worker': 92 * KiB, './gameplay': 95 * KiB,
     './cable': 28 * KiB, './water': 4 * KiB, './coupling': 29 * KiB, './frame': 27 * KiB, './structure': 32 * KiB, './heat': 28 * KiB,
     './solid': 80 * KiB, './fracture': 138 * KiB, './solid-contact': 135 * KiB, './cloth': 72 * KiB, './granular': 65 * KiB, './fluid': 57 * KiB, './shallow-water': 38 * KiB,
-    './materials': 40 * KiB, './geometry': 33 * KiB, './scene-format': 92 * KiB, './robot': 74 * KiB, './scene': 447 * KiB, './simulation': 446 * KiB,
+    './materials': 40 * KiB, './geometry': 33 * KiB, './scene-format': 92 * KiB, './robot': 74 * KiB, './scene': 454 * KiB, './simulation': 453 * KiB,
   },
 };
 const size = {

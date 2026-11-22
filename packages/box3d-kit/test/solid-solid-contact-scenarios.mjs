@@ -18,14 +18,14 @@ const sha = (...arrays) => { const h = createHash('sha256'); for (const a of arr
  * ratios: F = delta A / (L1 / E1 + L2 / E2 + c), c the compliance of the contact springs per unit area. Each search
  * direction gives a layer of springs of stiffness stiffnessScale min(M_i / l_i) per unit area (M = lambda + 2 mu, l the
  * mean element size), and the two layers act side by side. */
-export function seriesBlocks(K, {cellsA = [3, 3, 3], cellsB = [4, 4, 4], E1 = 1e9, E2 = 3e9, nu1 = 0.3, nu2 = 0.2, L1 = 0.1, L2 = 0.08, delta = 1e-5, model = 'linear', stiffnessScale = 100} = {}) {
+export function seriesBlocks(K, {cellsA = [3, 3, 3], cellsB = [4, 4, 4], E1 = 1e9, E2 = 3e9, nu1 = 0.3, nu2 = 0.2, L1 = 0.1, L2 = 0.08, delta = 1e-5, model = 'linear', stiffnessScale = 100, method} = {}) {
   const a = 0.1, config = {model, tolerance: 1e-12};
   const A = new K.SolidBody({mesh: K.boxMesh({size: [a, L1, a], cells: cellsA}), material: {youngModulus: E1, poissonRatio: nu1, density: 1000}, config});
   const B = new K.SolidBody({mesh: K.boxMesh({size: [a, L2, a], cells: cellsB, origin: [0, L1, 0]}), material: {youngModulus: E2, poissonRatio: nu2, density: 1000}, config});
   for (const b of [A, B]) { b.constrain(b.selectNodes(x => near(x, 0)), [0, null, null]); b.constrain(b.selectNodes((x, y, z) => near(z, 0)), [null, null, 0]); }
   A.constrain(A.selectNodes((x, y) => near(y, 0)), [null, 0, null]);
   B.constrain(B.selectNodes((x, y) => near(y, L1 + L2)), [null, -delta, null]);
-  const contact = new K.SolidSolidContact([A, B], {stiffnessScale}), result = contact.solveStatic();
+  const contact = new K.SolidSolidContact([A, B], {stiffnessScale, method}), result = contact.solveStatic();
   const force = -contact.contactForce(0, 1)[1], back = contact.contactForce(1, 0)[1];
   const kA = stiffnessScale * (A.lambda + 2 * A.mu) / Math.cbrt(6 * A.referenceVolume / A.tetCount), kB = stiffnessScale * (B.lambda + 2 * B.mu) / Math.cbrt(6 * B.referenceVolume / B.tetCount);
   const springs = 1 / (2 * Math.min(kA, kB)), rigid = delta * a * a / (L1 / E1 + L2 / E2), exact = delta * a * a / (L1 / E1 + L2 / E2 + springs);
@@ -68,15 +68,15 @@ function cap(K, n, m, fine, W, R, up, material) {
  * times the factor of a layer bonded to a rigid base (Dimitriadis et al. 2002) at chi = sqrt(R* delta) / W: exact to that
  * formula's order for equal bodies (the contact plane is then a mirror plane), an estimate for unequal ones of the same
  * Poisson's ratio and depth. */
-export function hertzCaps(K, n, m, {fine = 0.04, W = 0.5, R1 = 3, R2 = 1.5, delta = 0.000625, E1 = 1e6, E2 = 1e6, nu = 0.3, stiffnessScale = 1000} = {}) {
-  const lower = cap(K, n, m, fine, W, R1, true, {youngModulus: E1, poissonRatio: nu}), upper = cap(K, n, m, fine, W, R2, false, {youngModulus: E2, poissonRatio: nu});
+export function hertzCaps(K, n, m, {fine = 0.04, W = 0.5, R1 = 3, R2 = 1.5, delta = 0.000625, E1 = 1e6, E2 = 1e6, nu = 0.3, stiffnessScale = 1000, method, upper: [nU, mU] = [n, m]} = {}) {
+  const lower = cap(K, n, m, fine, W, R1, true, {youngModulus: E1, poissonRatio: nu}), upper = cap(K, nU, mU, fine, W, R2, false, {youngModulus: E2, poissonRatio: nu});
   lower.constrain(lower.selectNodes((px, py) => near(py, 0)), [0, 0, 0]);
   const far = upper.selectNodes((px, py) => near(py, 2 * W)); upper.constrain(far, [0, -delta, 0]);
-  const contact = new K.SolidSolidContact([lower, upper], {stiffnessScale}), result = contact.solveStatic({tolerance: 1e-7});
+  const contact = new K.SolidSolidContact([lower, upper], {stiffnessScale, method}), result = contact.solveStatic({tolerance: 1e-7});
   const force = -4 * contact.contactForce(0, 1)[1], R = 1 / (1 / R1 + 1 / R2), modulus = 1 / ((1 - nu * nu) / E1 + (1 - nu * nu) / E2);
   const exact = 4 / 3 * modulus * Math.sqrt(R) * delta ** 1.5, a = Math.sqrt(R * delta), layer = bondedLayerFactor(a / W, nu);
   return {n, m, nodes: lower.nodeCount + upper.nodeCount, converged: result.converged, passes: result.passes, force, exact, error: force / exact - 1, layer, errorLayer: force / (exact * layer) - 1,
-    contacts: contact.stats.contacts, radius: a, cellsPerRadius: a / (fine / m), depth: contact.maxPenetration(), newton: contact.stats.newtonIterations, linear: contact.stats.linearIterations};
+    contacts: contact.stats.contacts, radius: a, cellsPerRadius: a / (fine / m), cellsPerRadiusUpper: a / (fine / mU), depth: contact.maxPenetration(), newton: contact.stats.newtonIterations, linear: contact.stats.linearIterations};
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -143,12 +143,12 @@ export function stack(K, {seconds = 2, friction = 0.5} = {}) {
 /** A block (0.1 x 0.05 x 0.1 m, E = 5 MPa) on a wider block (0.3 x 0.05 x 0.1 m, E = 20 MPa) whose base is held, with
  * gravity tilted by `degrees` about z: the upper block stays when tan(theta) < mu and slides at g (sin - mu cos) when
  * tan(theta) > mu. The acceleration is the least-squares fit of its mean velocity over the second half of the run. */
-export function incline(K, degrees, {friction = 0.3, seconds = 0.5, dt = 1 / 480} = {}) {
+export function incline(K, degrees, {friction = 0.3, seconds = 0.5, dt = 1 / 480, method} = {}) {
   const t = degrees * Math.PI / 180, g = [G * Math.sin(t), -G * Math.cos(t), 0];
   const base = new K.SolidBody({mesh: K.boxMesh({size: [0.3, 0.05, 0.1], cells: [9, 2, 3]}), material: {youngModulus: 2e7, poissonRatio: 0.3, density: 1000}, config: {model: 'linear', dt, gravity: g, tolerance: 1e-10}});
   const block = new K.SolidBody({mesh: K.boxMesh({size: [0.1, 0.05, 0.1], cells: [4, 2, 4], origin: [0.01, 0.05, 0]}), material: {youngModulus: 5e6, poissonRatio: 0.3, density: 1000}, config: {model: 'linear', dt, gravity: g, tolerance: 1e-10}});
   base.constrain(base.selectNodes((x, y) => near(y, 0)), [0, 0, 0]);
-  const contact = new K.SolidSolidContact([base, block], {friction}), steps = Math.round(seconds / dt), times = [], speeds = [];
+  const contact = new K.SolidSolidContact([base, block], {friction, method}), steps = Math.round(seconds / dt), times = [], speeds = [];
   const mean = array => { let s = 0; for (let n = 0; n < block.nodeCount; n++) s += block.nodalMass[n] * array[3 * n] / block.mass; return s; };
   for (let i = 0; i < steps; i++) { contact.step(); if (i >= steps / 2) { times.push((i + 1) * dt); speeds.push(mean(block.velocities)); } }
   const mt = times.reduce((a, b) => a + b, 0) / times.length, mv = speeds.reduce((a, b) => a + b, 0) / speeds.length;
@@ -187,4 +187,162 @@ export function closingSlot(K, {selfContact = true, push = 0.024} = {}) {
     rows.push({push: push * i / 6, force, opening: ty - surface, contacts: contact.stats.contacts, converged: r.converged});
   }
   return {rows, depth: contact.maxPenetration()};
+}
+
+// ---------------------------------------------------------------------------------------------------
+// The contact patch test: a uniform pressure through an interface whose two surface meshes do not match.
+// ---------------------------------------------------------------------------------------------------
+
+/** Tributary area of every node of `body` on the faces that `pick` selects (a third of each face's area), as a map. */
+function tributary(body, pick) {
+  const X = body.referencePositions, F = body.faces, out = new Map();
+  for (let f = 0; f < F.length; f += 3) {
+    const [a, b, c] = [F[f], F[f + 1], F[f + 2]], P = q => [X[3 * q], X[3 * q + 1], X[3 * q + 2]], [pa, pb, pc] = [P(a), P(b), P(c)];
+    if (!pick(pa, pb, pc)) continue;
+    const u = pb.map((v, i) => v - pa[i]), v = pc.map((w, i) => w - pa[i]), area = Math.hypot(u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]) / 2;
+    for (const n of [a, b, c]) out.set(n, (out.get(n) ?? 0) + area / 3);
+  }
+  return out;
+}
+/** The spring stiffness per unit area of one search direction between two bodies: stiffnessScale min(M / l). */
+const pairStiffness = (A, B, scale) => scale * Math.min((A.lambda + 2 * A.mu) / Math.cbrt(6 * A.referenceVolume / A.tetCount), (B.lambda + 2 * B.mu) / Math.cbrt(6 * B.referenceVolume / B.tetCount));
+
+/** Block A (0.1 x L1 x 0.1 m, E1, nu1) on rollers, block B (0.1 x L2 x 0.1 m, E2, nu2) on it, a pressure p on B's top: both
+ * are in uniaxial stress whatever their meshes, and the monolithic answer (one body of two materials) is linear in each:
+ * u_y = -p y / E1 in A, -p L1 / E1 - p / (2 k) - p (y - L1) / E2 in B (2 k: the two search directions' springs, which
+ * are the only difference from a bonded interface), u_x = nu p x / E, u_z = nu p z / E. Reports the contact pressure at
+ * every interface node (its contact force over its share of the interface), the element stresses and every nodal
+ * displacement against that answer. B starts at the springs' depth so the first solve has a support. */
+export function patchPressure(K, {cellsA = [3, 3, 3], cellsB = [4, 4, 4], E1 = 1e9, E2 = 3e9, nu1 = 0.3, nu2 = 0.2, L1 = 0.1, L2 = 0.08, p = 1e5, method = 'mortar', stiffnessScale = 100, distort = 0} = {}) {
+  const a = 0.1, config = {model: 'linear', tolerance: 1e-12};
+  const meshB = K.boxMesh({size: [a, L2, a], cells: cellsB, origin: [0, L1, 0]});
+  // A distorted mesh: the inner nodes of B moved in x and z (the faces stay planar where the boundary is), the interface too.
+  if (distort) for (let i = 0; i < meshB.positions.length; i += 3) { const x = meshB.positions[i], z = meshB.positions[i + 2]; meshB.positions[i] += distort * a * Math.sin(Math.PI * x / a) * Math.sin(2 * Math.PI * z / a); meshB.positions[i + 2] += distort * a * Math.sin(2 * Math.PI * x / a) * Math.sin(Math.PI * z / a); }
+  const A = new K.SolidBody({mesh: K.boxMesh({size: [a, L1, a], cells: cellsA}), material: {youngModulus: E1, poissonRatio: nu1, density: 1000}, config});
+  const B = new K.SolidBody({mesh: meshB, material: {youngModulus: E2, poissonRatio: nu2, density: 1000}, config});
+  for (const b of [A, B]) { b.constrain(b.selectNodes(x => near(x, 0)), [0, null, null]); b.constrain(b.selectNodes((x, y, z) => near(z, 0)), [null, null, 0]); }
+  A.constrain(A.selectNodes((x, y) => near(y, 0)), [null, 0, null]);
+  B.addPressure(B.selectFaces((cx, cy) => near(cy, L1 + L2)), p);
+  const k = pairStiffness(A, B, stiffnessScale), gap = p / (2 * k);
+  const start = new Float64Array(3 * B.nodeCount); for (let n = 0; n < B.nodeCount; n++) start[3 * n + 1] = -p * L1 / E1 - gap; B.setState(start);
+  const contact = new K.SolidSolidContact([A, B], {stiffnessScale, method}), result = contact.solveStatic();
+  // Contact pressure: the contact force of each interface node over its share of the interface, both bodies.
+  let pressure = 0, total = 0;
+  for (const [body, offset] of [[A, 0], [B, 3 * A.nodeCount]]) {
+    for (const [n, area] of tributary(body, (...q) => q.every(v => near(v[1], L1)))) { pressure = Math.max(pressure, Math.abs(Math.abs(contact.nodeForce[offset + 3 * n + 1]) / (area * p) - 1)); if (body === A) total -= contact.nodeForce[3 * n + 1]; }
+  }
+  let stress = 0; for (const b of [A, B]) { const s = b.stresses(); for (let e = 0; e < b.tetCount; e++) stress = Math.max(stress, Math.abs(s[6 * e + 1] / -p - 1)); }
+  const exact = (body, n) => { const X = body.referencePositions, x = X[3 * n], y = X[3 * n + 1], z = X[3 * n + 2], [E, nu] = body === A ? [E1, nu1] : [E2, nu2];
+    return [nu * p * x / E, body === A ? -p * y / E1 : -p * L1 / E1 - gap - p * (y - L1) / E2, nu * p * z / E]; };
+  const scale = p * (L1 / E1 + L2 / E2); let displacement = 0;
+  for (const b of [A, B]) for (let n = 0; n < b.nodeCount; n++) { const e = exact(b, n); for (let c = 0; c < 3; c++) displacement = Math.max(displacement, Math.abs(b.displacements[3 * n + c] - e[c]) / scale); }
+  return {converged: result.converged, passes: result.passes, pressure, stress, displacement, force: total, forceExact: p * a * a, contacts: contact.stats.contacts, depth: contact.maxPenetration(), nodes: A.nodeCount + B.nodeCount};
+}
+
+/** The same two blocks with the whole set-up turned by `angle` about the axis `axis` (the interface lies across no
+ * coordinate plane), nu = 0 so the end faces can be held in all three directions, B's far end pushed `delta` along the
+ * turned axis. Answer: uniform stress sigma = delta / (L1 / E1 + 1 / (2 k) + L2 / E2) and u linear along the axis. */
+export function patchRotated(K, {cellsA = [3, 3, 3], cellsB = [4, 4, 4], E1 = 1e9, E2 = 3e9, L1 = 0.1, L2 = 0.08, delta = 1e-5, axis = [1, 2, 3], angle = 0.7, method = 'mortar', stiffnessScale = 100} = {}) {
+  const a = 0.1, config = {model: 'linear', tolerance: 1e-12}, l = Math.hypot(...axis), [kx, ky, kz] = axis.map(v => v / l), c = Math.cos(angle), s = Math.sin(angle);
+  // Rodrigues: R = c I + s [k]x + (1 - c) k k^T.
+  const R = [c + kx * kx * (1 - c), kx * ky * (1 - c) - kz * s, kx * kz * (1 - c) + ky * s, ky * kx * (1 - c) + kz * s, c + ky * ky * (1 - c), ky * kz * (1 - c) - kx * s, kz * kx * (1 - c) - ky * s, kz * ky * (1 - c) + kx * s, c + kz * kz * (1 - c)];
+  const turn = mesh => { const P = mesh.positions; for (let i = 0; i < P.length; i += 3) { const [x, y, z] = [P[i], P[i + 1], P[i + 2]]; P[i] = R[0] * x + R[1] * y + R[2] * z; P[i + 1] = R[3] * x + R[4] * y + R[5] * z; P[i + 2] = R[6] * x + R[7] * y + R[8] * z; } return mesh; };
+  const up = [R[1], R[4], R[7]], along = (x, y, z) => x * up[0] + y * up[1] + z * up[2];
+  const A = new K.SolidBody({mesh: turn(K.boxMesh({size: [a, L1, a], cells: cellsA})), material: {youngModulus: E1, poissonRatio: 0, density: 1000}, config});
+  const B = new K.SolidBody({mesh: turn(K.boxMesh({size: [a, L2, a], cells: cellsB, origin: [0, L1, 0]})), material: {youngModulus: E2, poissonRatio: 0, density: 1000}, config});
+  A.constrain(A.selectNodes((x, y, z) => near(along(x, y, z), 0)), [0, 0, 0]);
+  B.constrain(B.selectNodes((x, y, z) => near(along(x, y, z), L1 + L2)), up.map(v => -delta * v));
+  const contact = new K.SolidSolidContact([A, B], {stiffnessScale, method}), result = contact.solveStatic();
+  const k = pairStiffness(A, B, stiffnessScale), sigma = delta / (L1 / E1 + 1 / (2 * k) + L2 / E2), gap = sigma / (2 * k);
+  const f = contact.contactForce(1, 0), force = f[0] * up[0] + f[1] * up[1] + f[2] * up[2];
+  let pressure = 0;
+  for (const [body, offset] of [[A, 0], [B, 3 * A.nodeCount]])
+    for (const [n, area] of tributary(body, (...q) => q.every(v => near(along(...v), L1)))) { const F = contact.nodeForce.subarray(offset + 3 * n, offset + 3 * n + 3); pressure = Math.max(pressure, Math.abs(Math.abs(F[0] * up[0] + F[1] * up[1] + F[2] * up[2]) / (area * sigma) - 1)); }
+  let displacement = 0;
+  for (const b of [A, B]) for (let n = 0; n < b.nodeCount; n++) {
+    const X = b.referencePositions, t = along(X[3 * n], X[3 * n + 1], X[3 * n + 2]), w = b === A ? -sigma * t / E1 : -sigma * L1 / E1 - gap - sigma * (t - L1) / E2;
+    for (let q = 0; q < 3; q++) displacement = Math.max(displacement, Math.abs(b.displacements[3 * n + q] - w * up[q]) / delta);
+  }
+  return {converged: result.converged, passes: result.passes, force, forceExact: sigma * a * a, error: force / (sigma * a * a) - 1, pressure, displacement, contacts: contact.stats.contacts};
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Friction at the threshold: tan(theta) = (1 -+ 1 %) mu.
+// ---------------------------------------------------------------------------------------------------
+
+/** The block of `incline` (4 x 2 x 4 cells on a base of 9 x 2 x 3 cells: the surface meshes do not match) on slopes with
+ * tan(theta) = ratio mu: it must stay below 1 and slide above. */
+export function frictionThreshold(K, {friction = 0.3, ratios = [0.99, 1.01], seconds = 0.5, method} = {}) {
+  return ratios.map(ratio => ({ratio, ...incline(K, Math.atan(ratio * friction) * 180 / Math.PI, {friction, seconds, method})}));
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Edge against edge: square bars standing on an edge ("diamonds"), crossed.
+// ---------------------------------------------------------------------------------------------------
+
+/** A square bar of side `a` and length `L` along x, turned 45° about its axis so that one edge is on top, then turned by
+ * `yaw` (degrees) about the vertical, its centre at `centre`. `cells` along its length (odd: the middle of the bar is the
+ * middle of an element edge), 2 x 2 across. */
+export function diamondBar(K, {a = 0.02, L = 0.2, cells = 9, yaw = 0, centre = [0, 0, 0], E = 1e7, nu = 0.3, density = 1000, config = {}} = {}) {
+  const mesh = K.boxMesh({size: [L, a, a], cells: [cells, 2, 2], origin: [-L / 2, -a / 2, -a / 2]}), P = mesh.positions, r = Math.SQRT1_2, c = Math.cos(yaw * Math.PI / 180), s = Math.sin(yaw * Math.PI / 180);
+  for (let i = 0; i < P.length; i += 3) {
+    const x = P[i], y = r * (P[i + 1] - P[i + 2]), z = r * (P[i + 1] + P[i + 2]);
+    P[i] = c * x + s * z + centre[0]; P[i + 1] = y + centre[1]; P[i + 2] = -s * x + c * z + centre[2];
+  }
+  return new K.SolidBody({mesh, material: {youngModulus: E, poissonRatio: nu, density}, config: {model: 'linear', tolerance: 1e-10, ...config}});
+}
+/** The lowest edge of the upper bar meets the highest edge of the lower one at the origin. The signed distance between
+ * the two edge lines near their crossing, from the deformed nodes (negative: one edge has gone through the other). */
+function edgeSeparation(lower, upper) {
+  const line = (body, pick) => { const X = body.referencePositions, u = body.displacements, nodes = []; for (let n = 0; n < body.nodeCount; n++) if (pick(X[3 * n + 1])) nodes.push(n); return nodes.map(n => [0, 1, 2].map(c => X[3 * n + c] + u[3 * n + c])); };
+  const top = Math.max(...Array.from({length: lower.nodeCount}, (_, n) => lower.referencePositions[3 * n + 1])), bottom = Math.min(...Array.from({length: upper.nodeCount}, (_, n) => upper.referencePositions[3 * n + 1]));
+  const A = line(lower, y => near(y, top)).sort((p, q) => p[0] - q[0] || p[2] - q[2]), B = line(upper, y => near(y, bottom));
+  // Lower edge along its own direction, upper edge along its own: sort each by its parameter along its chord.
+  const dir = pts => { const d = pts[pts.length - 1].map((v, i) => v - pts[0][i]); return pts.slice().sort((p, q) => (p[0] - q[0]) * d[0] + (p[2] - q[2]) * d[2]); };
+  const a = dir(A), b = dir(B.sort((p, q) => p[0] - q[0] || p[2] - q[2]));
+  let best = Infinity;
+  for (let i = 0; i + 1 < a.length; i++) for (let j = 0; j + 1 < b.length; j++) {
+    const d1 = a[i + 1].map((v, k) => v - a[i][k]), d2 = b[j + 1].map((v, k) => v - b[j][k]), r = a[i].map((v, k) => v - b[j][k]);
+    const aa = d1[0] ** 2 + d1[1] ** 2 + d1[2] ** 2, ee = d2[0] ** 2 + d2[1] ** 2 + d2[2] ** 2, bb = d1[0] * d2[0] + d1[1] * d2[1] + d1[2] * d2[2], cc = d1[0] * r[0] + d1[1] * r[1] + d1[2] * r[2], ff = d2[0] * r[0] + d2[1] * r[1] + d2[2] * r[2], den = aa * ee - bb * bb;
+    const s = (bb * ff - cc * ee) / den, t = (aa * ff - bb * cc) / den; if (!(s >= 0 && s <= 1 && t >= 0 && t <= 1)) continue;
+    // Upper above lower: the upper point's height over the lower point along +y of the common normal.
+    const n = [d1[1] * d2[2] - d1[2] * d2[1], d1[2] * d2[0] - d1[0] * d2[2], d1[0] * d2[1] - d1[1] * d2[0]], nl = Math.hypot(...n), sign = n[1] < 0 ? -1 : 1;
+    best = Math.min(best, sign * ((b[j][0] + t * d2[0] - a[i][0] - s * d1[0]) * n[0] + (b[j][1] + t * d2[1] - a[i][1] - s * d1[1]) * n[1] + (b[j][2] + t * d2[2] - a[i][2] - s * d1[2]) * n[2]) / nl);
+  }
+  return best;
+}
+/** Two diamond bars crossed at `angle` degrees, touching edge on edge at the origin, both held at their ends; the upper
+ * bar's ends are pushed down by `push`. No node of either bar is inside the other: only edge contact can carry the load.
+ * Statics. Force balance: what the lower bar's supports carry is the contact force is what the upper bar's supports
+ * give. */
+export function crossedBars(K, {angle = 90, push = 5e-4, edges, method, friction = 0, a = 0.02, L = 0.2, cells = 9} = {}) {
+  const h = a * Math.SQRT1_2, lower = diamondBar(K, {a, L, cells, centre: [0, -h, 0]}), upper = diamondBar(K, {a, L, cells, yaw: angle, centre: [0, h, 0]});
+  const ends = (body, yaw) => { const c = Math.cos(yaw * Math.PI / 180), s = Math.sin(yaw * Math.PI / 180); return body.selectNodes((x, y, z) => Math.abs(Math.abs(c * x - s * z) - L / 2) < 1e-9); };
+  lower.constrain(ends(lower, 0), [0, 0, 0]); upper.constrain(ends(upper, angle), [0, -push, 0]);
+  const contact = new K.SolidSolidContact([lower, upper], {edges, method, friction}), result = contact.solveStatic({tolerance: 1e-9});
+  const sum = body => { const r = body.reactions(); let y = 0; for (let n = 0; n < body.nodeCount; n++) y += r[3 * n + 1]; return y; };
+  const force = contact.contactForce(1, 0)[1], onLower = contact.contactForce(0, 1)[1];
+  // The edge spring: stiffnessScale (100) min((lambda + 2 mu) / l) l^2, l the mean element size (both bars alike).
+  const l = Math.cbrt(6 * lower.referenceVolume / lower.tetCount), stiffness = 100 * (lower.lambda + 2 * lower.mu) * l;
+  return {converged: result.converged, passes: result.passes, force, onLower, lowerSupports: sum(lower), upperSupports: sum(upper), edgeContacts: contact.stats.edgeContacts, contacts: contact.stats.contacts, stiffness,
+    depth: contact.maxPenetration(), separation: edgeSeparation(lower, upper), push};
+}
+/** Two free diamond bars crossed at 90° fly edge first at each other (no gravity) and part: linear momentum is kept and
+ * the edges do not pass through each other. */
+export function crossedImpact(K, {edges, speed = 0.5, steps = 300, dt = 1e-4, friction = 0.3} = {}) {
+  const h = 0.02 * Math.SQRT1_2, config = {dt, model: 'corotational'};
+  const lower = diamondBar(K, {centre: [0, -h - 1e-4, 0], config}), upper = diamondBar(K, {yaw: 90, centre: [0.003, h + 1e-4, 0.002], E: 2e7, density: 2000, config});
+  for (let n = 0; n < lower.nodeCount; n++) lower.velocities[3 * n + 1] = speed / 2;
+  for (let n = 0; n < upper.nodeCount; n++) upper.velocities[3 * n + 1] = -speed / 2;
+  const contact = new K.SolidSolidContact([lower, upper], {edges, friction}), p0 = contact.linearMomentum();
+  let worst = 0, touched = 0, most = 0, deepest = 0, separation = Infinity;
+  for (let i = 0; i < steps; i++) {
+    contact.step(); const p = contact.linearMomentum(); worst = Math.max(worst, Math.hypot(p[0] - p0[0], p[1] - p0[1], p[2] - p0[2]));
+    if (contact.stats.edgeContacts > 0) touched++; most = Math.max(most, contact.stats.edgeContacts); deepest = Math.max(deepest, contact.maxPenetration());
+    separation = Math.min(separation, edgeSeparation(lower, upper));
+  }
+  const vy = b => { let s = 0; for (let n = 0; n < b.nodeCount; n++) s += b.nodalMass[n] * b.velocities[3 * n + 1] / b.mass; return s; };
+  const cy = b => { let s = 0; for (let n = 0; n < b.nodeCount; n++) s += b.nodalMass[n] * (b.referencePositions[3 * n + 1] + b.displacements[3 * n + 1]) / b.mass; return s; };
+  return {momentum: Math.hypot(lower.mass * speed / 2, upper.mass * speed / 2), worst, touched, most, deepest, separation, vLower: vy(lower), vUpper: vy(upper), above: cy(upper) - cy(lower),
+    unconverged: contact.stats.unconvergedSteps, contact, bits: sha(lower.displacements, lower.velocities, upper.displacements, upper.velocities)};
 }

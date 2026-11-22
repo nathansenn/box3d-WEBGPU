@@ -145,7 +145,7 @@ An elastic-plastic `SolidBody` (J2, docs/SOLID_MECHANICS.md) works here unchange
 
 ## Deformable against deformable (`SolidSolidContact`)
 
-`src/engine/solid-solid-contact.ts`, published with `box3d-webgpu-kit/solid-contact`. Several `SolidBody` meshes, each with its own material, model and constraints, are advanced by backward Euler in **one** Newton solve; a body can also collide with itself, and all of them with fixed planes. Solver id `solid-solid-contact-node-face-penalty-newton-pcg-js-f64-v1`.
+`src/engine/solid-solid-contact.ts`, published with `box3d-webgpu-kit/solid-contact`. Several `SolidBody` meshes, each with its own material, model and constraints, are advanced by backward Euler in **one** Newton solve; a body can also collide with itself, and all of them with fixed planes. Two methods: `method: 'mortar'` (the default since version 2, solver id `solid-solid-contact-mortar-penalty-newton-pcg-js-f64-v2`) and `method: 'node-face'` (version 1, `solid-solid-contact-node-face-penalty-newton-pcg-js-f64-v1`, kept for comparison).
 
 ```js
 import {SolidBody, boxMesh} from 'box3d-webgpu-kit/solid';
@@ -153,46 +153,71 @@ import {SolidSolidContact, solidSolidContactSubsystem} from 'box3d-webgpu-kit/so
 
 const lower = new SolidBody({mesh: boxMesh({size: [0.1, 0.1, 0.1], cells: [3, 3, 3]}), material: soft, config: {dt: 1 / 240, gravity: [0, -9.81, 0]}});
 const upper = new SolidBody({mesh: boxMesh({size: [0.1, 0.1, 0.1], cells: [4, 4, 4], origin: [0, 0.1, 0]}), material: softer, config: {dt: 1 / 240, gravity: [0, -9.81, 0]}});
-const contact = new SolidSolidContact([lower, upper], {friction: 0.5, selfContact: false});
+const contact = new SolidSolidContact([lower, upper], {friction: 0.5, selfContact: false});   // method: 'mortar', edges: true
 contact.addPlane({normal: [0, 1, 0], friction: 0.5});
 contact.step();                       // or contact.solveStatic()
 contact.contactForce(1, 0);           // force on `upper` from `lower`, N
 ```
 
-**The contact.** At the start of a step every surface node of body A is paired with the boundary triangle of body B closest to it (a grid of B's faces; candidates within `skin` plus what the two bodies can close in the step, facing the node, with the node over the face). The pair is a one-sided spring on `gap = n . (x_node - sum xi_i x_i)`: the foot point's barycentric weights `xi` and the normal `n` are frozen for the step, so the energy `k <-gap>^2 / 2` is a function of the displacements alone, its tangent is symmetric, and what the node feels the triangle's three nodes get back with the weights `xi`. The contact forces therefore sum to zero exactly. Every pair of bodies is searched both ways (A's nodes on B's faces and B's on A's). `k = stiffnessScale min(M_A / l_A, M_B / l_B)` per unit of the node's facing area (M = lambda + 2 mu, l the mean element size), so an interface under pressure p closes by `p l / (2 stiffnessScale M)`.
+**Contact rows.** Every contact is one row `gap = n . sum_m w_m x_m` over a few nodes `m` of the two bodies, with weights that sum to zero, a normal `n` and a start gap, all frozen for the step (for each static pass): the energy `k <-gap>^2 / 2` is a function of the displacements alone, its tangent is symmetric, and the contact forces sum to zero exactly. Every pair of bodies is searched both ways.
 
-- **Normal.** The weighted mean of the triangle's three vertex normals, each the area-weighted mean of the faces around the vertex that lie within 30° of the triangle: continuous from facet to facet of a curved surface (without it a node near a ridge of the other mesh switches between two facets from pass to pass and the static passes do not settle), the facet's own normal on a flat face, and a sharp edge is not rounded.
-- **Friction.** The capped stick spring of the rigid contact above: stiffness k along the tangent plane, force capped at mu N, N from the previous pass (up to `frictionPasses`). The stretch of each node's friction spring is carried from step to step (and is part of the checkpoint), so a block stays where it is on a slope below the friction angle.
-- **Self-contact** (`selfContact`). A node is not paired with the faces around it, nor with a face that shares a node with one of them, and not with a face more than a quarter of an element size behind it: the far side of a thin part faces the node through the material.
-- **Statics** (`solveStatic`): Newton solves with the pairing found again from each answer until the displacements stop changing. Each body must be held by something other than contact.
+- **Mortar (default).** After Puso, Laursen and Solberg, *A 3D frictional segment-to-segment contact method for large deformations and quadratic elements*, ECCOMAS 2004, LLNL UCRL-JRNL-203338 ([OSTI 15014076](https://www.osti.gov/servlets/purl/15014076), eqs. 3, 4, 6 and section 3, read for this work): each boundary triangle of body A is intersected with the triangles of body B projected onto its plane (along its normal), the overlap polygon is cut into a fan of triangles and integrated with a three-point rule, exact for the quadratic integrands of flat faces. Every surface node `a` of A then gets the row `g_a = n_a . (sum_c (n_ac / W_a) x_c - sum_b (n_ab / W_a) x_b)`, with `n_ab` the integral of `N_a N_b` over the overlap (`c` over A's nodes, `b` over B's), `W_a` the integral of `N_a`, `n_a` the mean normal of the overlap, and stiffness `k W_a`. Translation leaves the gap unchanged (`sum_c n_ac = sum_b n_ab = W_a`), and a uniform pressure gives each node of either surface the consistent force `p W`: the **contact patch test is passed** on meshes that do not match. The paper uses Lagrange multipliers with an augmented Lagrangian; here the rows are penalty springs, so an interface under pressure `p` still closes by `p / (2 k)` (two search directions).
+- **Node to face** (`method: 'node-face'`, version 1). Every surface node of A is paired with the closest point of a boundary triangle of B (facing it, the node over the face), `gap = n . (x_node - sum xi_i x_i)` with the foot point's barycentric weights `xi`, the normal the weighted mean of the triangle's vertex normals (each the area-weighted mean of the faces around the vertex within 30° of the triangle). Stiffness `k` times the node's facing area. It fails the patch test (below).
+- **Edge to edge** (`edges`, default on with the mortar). Sharp convex edges of each surface (two boundary faces whose normals differ by more than 30°, found once on the reference mesh) that cross an edge of the other body get a point contact at the closest points of the two segments (both strictly inside their segments), along the common normal of the two edges when it lies inside the normal cone of both edges and more than 10° from each of their faces (nearer a face, the face contact acts). A point spring of stiffness `stiffnessScale min(M_A / l_A, M_B / l_B) min(l_A, l_B)^2`. It catches what no node can: two bars on edge crossing, where no node of either is inside the other.
+- **Stiffness.** `k = stiffnessScale min(M_A / l_A, M_B / l_B)` per unit of contact area (M = lambda + 2 mu, l the mean element size), so an interface under pressure p closes by `p l / (2 stiffnessScale M)`.
+- **Friction.** The capped stick spring of the rigid contact above: stiffness k along the tangent plane, force capped at mu N, N from the previous pass (up to `frictionPasses`). The stretch of each surface node's friction spring is carried from step to step (and is part of the checkpoint), so a block stays where it is on a slope below the friction angle; an edge contact keeps its stretch while the same two edges press (keyed by the two edges).
+- **Search.** A spatial hash of the master body's triangles (or sharp edges), filled by counting sort into flat arrays each step (no allocation once grown, items in index order, so the rows come out in the same order on every run), cell size the larger of the median longest edge of the master's triangles and the search distance. Candidates within `skin` plus what the two bodies can close in the step, facing (normals opposed by at least cos 78°), less than an element size behind.
+- **Self-contact** (`selfContact`). A face is not paired with a face that shares a node with a face around it, nor with one more than a quarter of an element size behind it; edges likewise.
+- **Statics** (`solveStatic`): Newton solves with the rows found again from each answer until the displacements stop changing. Each body must be held by something other than contact.
 - **Linear solver.** Conjugate gradients with the diagonal of each body's stiffness plus the springs. A body's `linearSolver: 'ldl'` is not used here.
 
 ### Validation
 
-`packages/box3d-kit/test/v22-solid-solid-contact.test.mjs` (8 tests, in the kit gate; rows `solid-contact.pair.*`):
+`packages/box3d-kit/test/v22-solid-solid-contact.test.mjs` (8 tests, rows `solid-contact.pair.*`) and `packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs` (7 tests, rows `solid-contact.mortar.*` and `solid-contact.edge.*`), both in the kit gate; the set-ups are in `solid-solid-contact-scenarios.mjs`. Mortar unless the row says node to face.
 
 | Check | Reference | Measured | Tolerance |
 |---|---|---|---|
-| Two blocks pressed together, surface meshes that match (4 × 4 cells each) | series springs `delta A / (L1 / E1 + L2 / E2 + 1 / (2 k))` | force +2.2e-8; element stress uniform to 1.4e-4 | 1e-6; 1e-3 |
-| The same with 3 × 3 on 4 × 4 cells, 5 × 5 on 7 × 6 × 7, E2 = 100 E1, the corotational model, stiffnessScale 1000 | the same | force -2.4e-4, -1.0e-4, -1.1e-4, -2.4e-4, -5.2e-5 | 5e-4 |
-| Hertz, two elastic caps (R1 = 3 m, R2 = 1.5 m, E = 1 MPa, nu = 0.3), 2.5, 3.75 and 5 cells per contact radius | `F = (4/3) E* sqrt(R*) delta^1.5` times the bonded-layer factor 1.046 (Dimitriadis et al. 2002) | +15.3 %, +8.5 %, +5.9 % (+20.6 %, +13.5 %, +10.8 % against plain Hertz) | 18 %, 11 %, 8 %, and falling |
-| The same coarse mesh with E2 = 5 E1, and a flat block against a cap of R = 1 m | the same error as equal caps | +15.6 %, +15.3 % (equal caps +15.3 %) | within 1 % of it |
-| Force against approach, delta and delta / 2 | exponent 1.5 | 1.552 | ±0.12 |
-| Free impact of two cubes (1 kg and 2.5 kg, off centre, friction 0.3 and 0), 400 steps | linear momentum constant; angular momentum constant | 1.1e-9 and 1.9e-9 of \|p\|; 6.5e-4 and 1.4e-3 of \|L\| | 1e-8; 3e-3 |
-| Three soft cubes (E 0.2, 0.1, 0.3 MPa) stacked on a plane, 2 s | plane 3 W, interfaces 2 W and W; at rest | within 3e-9 of each; speed 0, drift 1e-11 m | 1e-6 |
-| A block on a wider block on a slope, friction 0.3 | sticks at 10° and 15° with shear m g sin; slides at 25° with a = g (sin - mu cos) | shear to 1e-10; a = 1.478633 against 1.478621 m/s² (8e-6); mu = 0: 4.145884 against 4.145885 | 1e-6; 1e-3; 2e-3 |
-| Self-contact: the arms of a slotted block | they stop at each other | 2, then 4 contacts, 19 µm deep, reaction 35.4 N against 13.9 N; without self-contact the arm goes 5.2 mm through | depth below 50 µm |
-| Checkpoint: the stack resumes from `saveState()`, alone and in the stepping loop | bit-identical | bit-identical | exact |
+| Contact patch test: 0.1 m block (E 1 GPa, nu 0.3) under a 0.08 m block (E 3 GPa, nu 0.2), p = 0.1 MPa on top, 3 on 4 cells | uniform pressure: each interface node's contact force over its share of the interface is p | within 2.3e-4 (node to face 8.6 %); element stress 2.0e-4 (5.5 %) | 1e-3 |
+| The same, 5 on 7 × 6 × 7 cells; coincident nodes with crossed diagonals (3 on 3); upper mesh distorted by 4 %; E2 = 100 E1 | the same | 4.4e-4, 1.6e-4, 2.1e-4, 4.3e-3 (node to face 10 %, 77 %, 16 %, 72 %) | 1e-3; 1e-2 for the moduli 1 : 100 |
+| Displacements of every node, 3 on 4 cells | monolithic answer (one body of two materials) plus the springs' depth `p / (2 k)` | 4.1e-5 of the total shortening (node to face 4.9e-3) | 1e-4 |
+| The set-up turned by 0.7 rad about (1, 2, 3), nu = 0, end faces held, 3 on 4 and 5 on 7 cells | uniform stress, linear displacements | force 1.4e-12, pressure 1.0e-10, displacements 4.0e-12 (node to face 8.5 %, 3.9e-3) | 1e-8 |
+| Two blocks pressed together by 10 µm (v22), 4 on 4, 3 on 4, 5 on 7 cells, E2 = 100 E1, corotational, stiffnessScale 1000, 3 on 3 | series springs `delta A / (L1 / E1 + L2 / E2 + 1 / (2 k))` | force 7.3e-9, 1.0e-8, 5.5e-9, 3.4e-10, 1.0e-8, 3.2e-10, 1.0e-8; element stress within 1.5e-4 to 3.9e-4 | 1e-6; 1e-3 |
+| Hertz, sphere (R = 1 m) on a block, both E = 1 MPa, nu = 0.3, meshes that do not match: 2.5 / 1.9 and 3.75 / 3.1 elements per contact radius | `F = (4/3) E* sqrt(R) delta^1.5`, `1/E* = sum (1 - nu^2)/E` ([Wikipedia, Contact mechanics](https://en.wikipedia.org/wiki/Contact_mechanics), sphere on a half-space, read for this work) times the bonded-layer factor 1.046 (Dimitriadis et al. 2002, not re-read for this work) | +11.1 %, +9.3 % (+16.2 %, +14.3 % against plain Hertz; node to face +11.9 %, +10.7 %) | 14 %, 12 %, and falling |
+| Hertz, two elastic caps (R1 = 3 m, R2 = 1.5 m), 2.5, 3.75 and 5 cells per contact radius (v22) | the same with `1/R* = 1/R1 + 1/R2` | +15.8 %, +8.7 %, +5.7 % (node to face +15.3 %, +8.5 %, +5.9 %) | 18 %, 11 %, 8 %, and falling |
+| The same coarse mesh with E2 = 5 E1, and a flat block against a cap of R = 1 m | the same error as equal caps | +16.1 %, +15.8 % (equal caps +15.8 %) | within 1 % of it |
+| Force against approach, delta and delta / 2 | exponent 1.5 | 1.532 | ±0.12 |
+| Friction threshold: a block (4 × 4 cells) on a base (9 × 3 cells, the meshes do not match), mu = 0.3, tan(theta) = 0.99 mu and 1.01 mu, 0.5 s | sticks below: shear m g sin; slides above at `g (sin - mu cos)` = 0.0282 m/s² | sticks (speed 0, 12 µm of elastic shear), shear to 2e-11; slides at 0.028179 against 0.028165 m/s² (5e-4), friction force mu N to 4e-6 | 1e-6; 1 % |
+| A block on a wider block on a slope, friction 0.3 (v22) | sticks at 10° and 15°; slides at 25° with a = g (sin - mu cos) | shear to 1e-10; a = 1.478633 against 1.478621 m/s² (8e-6); mu = 0: 4.145881 against 4.145885 | 1e-6; 1e-3; 2e-3 |
+| Edge to edge: two square bars on edge (20 mm, E = 10 MPa, 9 × 2 × 2 cells), crossed at 90° and 60°, the upper pushed down 0.5 mm at its ends | statics: each bar's supports carry the contact force; the edges do not pass through | one edge contact, 1.9127 N; supports to 5e-12 of it; the deformed edges 1.02e-7 m through (force / k, 2.0e-4 of the push). Without edge contact: no contact, through by the whole push | 1e-8; 1e-3 of the push |
+| The same with friction 0.3 | the same force; the static passes settle | the same to 1e-6, 3 passes | 1e-6 |
+| Edge to edge in motion: the two bars (1 : 2 in density) fly at each other edge first at 0.5 m/s, friction 0.3, 300 steps | momentum kept; no pass-through | 85 steps in contact, momentum to 2e-10, the edges at most 1.06 µm through; without edge contact 8.5 mm through | 1e-8; 2 µm |
+| Free impact of two cubes (1 kg and 2.5 kg, off centre, friction 0.3 and 0), 400 steps (v22) | linear momentum constant; angular momentum constant | 2.1e-9 and 1.7e-9 of \|p\|; 6.6e-4 and 1.4e-3 of \|L\| | 1e-8; 3e-3 |
+| Three soft cubes (E 0.2, 0.1, 0.3 MPa) stacked on a plane, 2 s (v22) | plane 3 W, interfaces 2 W and W; at rest | within 3e-9 of each; speed 0, drift 4e-15 m | 1e-6 |
+| Self-contact: the arms of a slotted block (v22) | they stop at each other | 2 contacts, 33 µm deep (a weighted gap), reaction 37.3 N against 13.9 N; without self-contact the arm goes 5.2 mm through | depth below 50 µm |
+| Checkpoints: the stack resumes from `saveState()`, alone and in the stepping loop (v22); the crossed bars in mid contact, mortar rows and an edge contact with its friction state (v23) | bit-identical | bit-identical | exact |
+| Repeat runs (impact of the cubes, impact of the bars) | bit-identical | bit-identical | exact |
 
 **Limits, measured.**
 
-- **Patch test.** A node against a face does not pass the contact patch test when the two surface meshes do not match: the pressure across the interface is uneven from node to node. On 3 × 3 against 4 × 4 cells the element stress is within 5.5 % of uniform (5.9 % on 5 against 7 cells: it does not fall with the mesh), 30 % with a modulus ratio of 100, and 42 % in the worst case found, coincident nodes with crossed surface diagonals (3 × 3 on 3 × 3 cells), where the total force is 1.5 % low. The total force is otherwise within 2.4e-4. A mortar or segment-to-segment integration would be needed to do better.
-- **Hertz** converges from above at the rate of the rigid-sphere rows of this document (+9.4 % and +6.8 % there at 3.75 and 5 cells per radius): linear tetrahedra and one spring per node. The layer factor is that of a rigid sphere on a bonded layer; for two equal bodies it applies by symmetry, for unequal ones it is an estimate.
-- **Angular momentum** is kept to 1e-3 over an impact, not to rounding: the foot points are frozen during a step.
-- **Backward Euler** damps: the impact above keeps 37 % of its kinetic energy (40 % without friction). Restitution is not a parameter.
-- Contact between a solid of a group and a rigid body is not available: `SolidSolidContact` takes solids and fixed planes. No welds between solids. Edge-to-edge contact (two edges crossing with no node inside the other body) is not detected. A node that goes more than an element size behind the other body's face in one step is lost. Self-contact of parts thinner than a quarter of an element size is not supported.
-- **Cost.** One search per pair and direction per step (a uniform grid of the master's faces), then the same Newton and conjugate-gradient iteration as a lone solid. The stack of three cubes (318 nodes) takes 38 ms per step in Node on the loaded shared machine, 9 times slower than real time at 240 Hz; the Hertz pair with 9826 nodes 23 s for the static solve.
-- **Scene format.** `solids[].contact.solids` names the other solids a solid collides with, `contact.self` its self-contact, `contact.friction` the coefficient ([`SCENE_FORMAT.md`](SCENE_FORMAT.md#coupled-sections-solids-and-heat)); the Lab runs `lab.html?example=soft-blocks`.
+- **Patch test.** Passed to a few 1e-4 where the two blocks spread sideways by different Poisson strains: a strip a few micrometres wide of the face that spreads more is not covered, so the pressure falls off at the rim (4.3e-3 with moduli 1 : 100). With nu = 0 it is exact to the solve. Node to face fails it (5 % to 77 % above); the total force is right either way.
+- **Hertz** converges from above at the rate of the rigid-sphere rows of this document: linear tetrahedra are too stiff, and the mortar changes the answer by less than a percentage point on these meshes. The layer factor is that of a rigid sphere on a bonded layer; for two equal bodies it applies by symmetry, for unequal ones it is an estimate.
+- **Mortar rows** are frozen for a step, as the node rows were: angular momentum is kept to 1e-3 over an impact, not to rounding, and a row's depth is a weighted gap (`maxPenetration()`), not the depth of the deepest point. The static passes of the patch test take 3 to 4.
+- **Edges.** Only sharp convex edges (more than 30° between their faces), only crossings strictly inside both segments (an edge crossing exactly through a node of the other edge is not caught), only edges more than 3° from parallel (nearer parallel, the faces act). An edge pair keeps its friction state while it presses; when the crossing moves to the next segment the stretch starts again from zero.
+- **Backward Euler** damps: the impact of the cubes keeps 38 % of its kinetic energy (41 % without friction). Restitution is not a parameter.
+- Contact between a solid of a group and a rigid body is not available: `SolidSolidContact` takes solids and fixed planes. No welds between solids. A surface that goes more than an element size behind the other body's face in one step is lost. Self-contact of parts thinner than a quarter of an element size is not supported. The penalty springs close an interface by `p / (2 k)`; there are no Lagrange multipliers.
+- **Cost.** `node packages/box3d-kit/scripts/bench-solid-contact.mjs --repeat 5` (fastest of 5 searches and of 2 steps; one thread, Node 22, the shared 4-core sandbox at a load average of 8 to 16, so the times are upper bounds and differences under a factor of 1.5 are noise; the first size of each run also pays for compilation): two slabs of 1 m × 0.05 m, n × 2 × n cells on (n + 1) × 2 × (n + 1), one on the other. Version 1 is commit 5f0454d built the same way.
+
+  | Surface triangles (both bodies) | 6,020 | 11,220 | 26,420 | 50,532 |
+  |---|---|---|---|---|
+  | Search, mortar (both directions and the edges), ms | 169 | 101 | 154 | 311 |
+  | Search, node to face, spatial hash, ms | 25 | 54 | 61 | 106 |
+  | Search, node to face, version 1 (a `Map` of arrays per cell), ms | 55 | 32 | 188 | 250 |
+  | One step (search, Newton, PCG), mortar, s | 2.0 | 2.5 | 6.2 | 12.7 |
+  | One step, node to face with the hash, s | 1.5 | 2.6 | 6.6 | 15.9 |
+  | One step, version 1, s | 1.7 | 2.9 | 7.7 | 19.9 |
+
+  The search grows about linearly with the surface; the mortar's clipping and integration cost about three times the node search, and the search is 1 to 3 % of a step. The Newton and conjugate-gradient iteration is the cost, as for a lone solid. A mortar row reaches about 20 nodes (241,187 entries for 12,325 rows on the largest pair), against 4 for a node-face row. An earlier run at a load average of 21 to 35 gave 75 to 828 ms for the mortar search and 199 to 719 ms for version 1: on this machine, timings move by a factor of 2 to 3 with the load.
+- **Scene format.** `solids[].contact.solids` names the other solids a solid collides with, `contact.self` its self-contact, `contact.friction` the coefficient ([`SCENE_FORMAT.md`](SCENE_FORMAT.md#coupled-sections-solids-and-heat)); scene groups use the default method (mortar with edge contact); the Lab runs `lab.html?example=soft-blocks`.
 
 ## Reproduce
 
@@ -201,6 +226,8 @@ npm run test:kit
 npm --prefix packages/box3d-kit run build
 node --test --test-reporter=tap packages/box3d-kit/test/v17-solid-contact.test.mjs   # prints the measured numbers
 node --test --test-reporter=tap packages/box3d-kit/test/v22-solid-solid-contact.test.mjs   # deformable against deformable
+node --test --test-reporter=tap packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs     # mortar patch test, edges
+node packages/box3d-kit/scripts/bench-solid-contact.mjs                                       # cost of the search and of a step
 npm --prefix packages/box3d-kit run clean
 npm run validation:check
 ```
