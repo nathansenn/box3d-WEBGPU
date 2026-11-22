@@ -16,6 +16,10 @@
 //     (the run carries on with the bits it would have had); captured again;
 //  4. lab.html?example=<name>&gpu=off: the scene runs on the float64 CPU solvers and says why; its hash after the steps
 //     is the CPU example's (the scene without its backend fields) stepped in node.
+// With --coupling (or alone with --coupling-only), the fluid coupling rows through the WebAssembly world on the GPU
+// (src/engine/gpu/coupling-scenes.ts, docs/GPU_COMPUTE.md): gpu-probe.html runs the three row scenes with their flows on
+// WebGPU compute and the body in a world of the page's box3d.wasm; node runs them on the float32 reference with the same
+// WASM; every row must pass its tolerance and the GPU's numbers must be the reference's.
 // No page error, console error or failed request may happen. Writes lab-gpu-browser-check.json and PNG captures.
 import assert from 'node:assert/strict';
 import {execSync} from 'node:child_process';
@@ -33,8 +37,9 @@ const {chromium} = playwright;
 
 const output = path.resolve(process.argv.slice(2).find(a => !a.startsWith('--')) ?? path.join(os.tmpdir(), 'box3d-lab-gpu'));
 fs.mkdirSync(output, {recursive: true});
-const args = process.argv.slice(2).filter(a => !a.startsWith('--'));
-const EXAMPLES = (args[1] ?? 'sphere-settling-gpu,hopper-seesaw-gpu').split(',');
+const args = process.argv.slice(2).filter(a => !a.startsWith('--')), flags = new Set(process.argv.slice(2).filter(a => a.startsWith('--')));
+const EXAMPLES = flags.has('--coupling-only') ? [] : (args[1] ?? 'sphere-settling-gpu,hopper-seesaw-gpu').split(',');
+const COUPLING = flags.has('--coupling') || flags.has('--coupling-only');
 /** Steps compared on the GPU before the loss, and after it. */
 const BEFORE = Number(process.env.BOX3D_GPU_STEPS ?? 8), AFTER = Number(process.env.BOX3D_GPU_AFTER ?? 6);
 
@@ -185,6 +190,29 @@ try {
     check(`${name}&gpu=off: float64 CPU, step ${cpu.simulationTick} has the CPU example's hash`, entry.cpu.indicator);
     await cpuContext.close();
   }
+  if (COUPLING) {
+    const {runCouplingRows, couplingRowChecks} = await import('../src/engine/gpu/coupling-scenes.ts');
+    const reference = await runCouplingRows(scene => {
+      const world = pool.createWorld(); world.retainBodyShapes(true);
+      const loaded = loadLabScene(world, scene, {gpu: gpuSceneBackends('reference')});
+      return Object.assign(loaded, {dispose: () => { loaded.simulation.dispose(); world.destroy(); }});
+    });
+    const context = await browser.newContext();
+    const page = await newPage(context, 'coupling rows');
+    page.on('console', message => { if (message.type() === 'log' && message.text().startsWith('[rows]')) console.log(message.text()); });
+    await page.goto(`${base}gpu-probe.html`, {waitUntil: 'load'});
+    const started = Date.now();
+    const gpu = await page.evaluate(() => window.box3dGpu.couplingRows({progress: text => console.log('[rows] ' + text)}));
+    const same = {
+      settling: gpu.result.settling.velocity === reference.settling.velocity,
+      thirdLaw: gpu.result.thirdLaw.fluidSide === reference.thirdLaw.fluidSide && gpu.result.thirdLaw.total === reference.thirdLaw.total,
+      buoyancy: gpu.result.buoyancy.lift === reference.buoyancy.lift,
+    };
+    report.coupling = {adapter: gpu.info, seconds: (Date.now() - started) / 1000, gpu: gpu.result, reference, rows: gpu.rows, referenceRows: couplingRowChecks(reference), sameAsReference: same};
+    for (const row of gpu.rows) { assert.ok(row.pass, `${row.title}: ${row.value} against ${row.reference} (${row.tolerance})`); check(`GPU, ${row.title}`, `${row.value} (reference ${row.reference}, ${row.tolerance})`); }
+    check('the GPU rows against the float32 reference in node', same);
+    await context.close();
+  }
   assert.deepEqual(report.errors, [], 'no page errors, console errors or failed requests');
   report.ok = true;
 } catch (error) {
@@ -195,4 +223,4 @@ try {
   await browser.close();
   server.close();
 }
-console.log(`lab GPU scenes: ${EXAMPLES.join(', ')} passed; report ${path.join(output, 'lab-gpu-browser-check.json')}`);
+console.log(`lab GPU scenes: ${[...EXAMPLES, ...(COUPLING ? ['coupling rows'] : [])].join(', ')} passed; report ${path.join(output, 'lab-gpu-browser-check.json')}`);

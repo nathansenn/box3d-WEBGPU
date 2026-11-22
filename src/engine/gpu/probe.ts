@@ -7,6 +7,10 @@ import {ShallowWater,type ShallowWaterOptions} from '../shallow-water.ts';
 import {SHALLOW_WATER_SETUPS,floodValley} from './shallow-water-setups.ts';
 import {EngineError} from '../contracts.ts';
 import {acquireGpuCompute,gpuComputeSupported,type GpuCompute,type GpuComputeInfo} from './compute.ts';
+import {NativeWorldPool} from '../native-world.ts';
+import {loadLabScene} from '../../lab/scene-host.ts';
+import {gpuSceneBackends} from './scene-backends.ts';
+import {couplingRowChecks,runCouplingRows,type CouplingRowLoad,type CouplingRowsResult} from './coupling-scenes.ts';
 import {GpuShallowWater,ShallowWaterRunner} from './shallow-water-gpu.ts';
 import {ShallowWaterF32} from './shallow-water-f32.ts';
 import {runShallowWaterCases,type GpuCaseRow} from './shallow-water-cases.ts';
@@ -425,7 +429,27 @@ async function benchmark(options:{readonly shallowWater?:readonly number[];reado
   return {info:compute.info,rows};
 }
 
-const api={supported:gpuComputeSupported,acquire:acquireGpuCompute,validate,benchmark,setups:SHALLOW_WATER_SETUPS,grainSetups:GRANULAR_SETUPS,floodValley,sandAvalanche,GpuShallowWater,ShallowWater,ShallowWaterF32,ShallowWaterRunner,GpuGranular,GranularF32,GranularRunner,Granular,GpuFluid,FluidF32,FluidRunner,Fluid,fluidSetups:FLUID_SETUPS,EngineError};
+/**
+ * The fluid coupling rows through the Box3D WebAssembly world on the GPU (coupling-scenes.ts): each row a scene with a
+ * GPU flow and a body of the world, loaded into a world of the page's box3d.wasm by the scene loader and stepped with
+ * stepAsync, the flow pulled after every step.
+ */
+async function couplingRows(options:{readonly progress?:(text:string)=>void}={}):Promise<{info:GpuComputeInfo;result:CouplingRowsResult;rows:ReturnType<typeof couplingRowChecks>}> {
+  const base=new URL('box3d/',document.baseURI).href;
+  const imported=await import(/* @vite-ignore */ `${base}box3d.js`) as {default:(options:Record<string,unknown>)=>Promise<unknown>};
+  const pool=new NativeWorldPool(await imported.default({locateFile:(file:string)=>`${base}${file}`}) as ConstructorParameters<typeof NativeWorldPool>[0]);
+  const compute=await acquireGpuCompute({label:'box3d coupling rows'}),backends=gpuSceneBackends(compute);
+  try{
+    const result=await runCouplingRows(scene=>{
+      const world=pool.createWorld();world.retainBodyShapes(true);
+      const loaded=loadLabScene(world,scene,{gpu:backends});
+      return Object.assign(loaded as unknown as CouplingRowLoad,{dispose:()=>{loaded.simulation.dispose();world.destroy();}});
+    },{progress:options.progress});
+    return {info:compute.info,result,rows:couplingRowChecks(result)};
+  }finally{compute.destroy();compute.device.destroy();}
+}
+
+const api={supported:gpuComputeSupported,acquire:acquireGpuCompute,validate,benchmark,couplingRows,setups:SHALLOW_WATER_SETUPS,grainSetups:GRANULAR_SETUPS,floodValley,sandAvalanche,GpuShallowWater,ShallowWater,ShallowWaterF32,ShallowWaterRunner,GpuGranular,GranularF32,GranularRunner,Granular,GpuFluid,FluidF32,FluidRunner,Fluid,fluidSetups:FLUID_SETUPS,EngineError};
 export type GpuProbeApi=typeof api;
 declare global {interface Window {box3dGpu?:GpuProbeApi}}
 

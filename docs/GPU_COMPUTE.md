@@ -376,6 +376,30 @@ reference in the gate and on the GPU (SwiftShader) in the browser, with the same
 | Coupling: impulse handed over (stand-in world) | 6.2e-8 | 0 | <= 1e-6 | <= 1e-12 |
 | Coupling: total momentum (stand-in world) | 6.2e-8 | 0 | <= 1e-6 | same |
 
+**Through the Box3D WebAssembly world** (added 2026-11-18, `src/engine/gpu/coupling-scenes.ts`). The coupling rows
+above take a stand-in world because the set-ups ran synchronously in a worker that blocks while the page drives the
+device, and the worker had no WebAssembly world. With flows in the scene format and `stepAsync`, each row is now also a
+scene (a flow with backend `gpu` and a body of the world, the set-ups of `settling`, `momentumExchange` and the buoyancy
+of `hydrostatic` with the sphere a static body coupled to the flow), loaded by the scene loader into a real world on
+box3d.wasm and stepped where the GPU is driven. The kit's gate runs them through the kit's own `createWorld` and
+`loadSimulationScene` with the float32 reference (`packages/box3d-kit/test/v23-gpu-scene.test.mjs`); the GPU runs them
+in `gpu-probe.html` (`box3dGpu.couplingRows()`, `node scripts/lab-gpu-browser-check.mjs out --coupling-only`, 2026-11-18,
+SwiftShader, 592 s, load average 7 at the start rising to over 20 from other jobs), against the reference run in node on
+the same box3d.wasm:
+
+| Row (WebAssembly world) | GPU (SwiftShader) | float32 reference (node) | float64 solver, same world | Closed form | Tolerance |
+|---|---|---|---|---|---|
+| Terminal velocity of a settling sphere | -9.257764e-3 m/s | the same bits | -9.257723e-3 | -8.729402e-3 (+6.05 %) | 12 % |
+| Impulse handed over (fluid side, over the momentum exchanged) | 6.2e-8 | the same bits | 9.0e-16 | 0 | <= 1e-6 |
+| Total momentum of fluid and body | 1.60e-7 | the same bits | 2.78e-7 | 0 | <= 1e-6 |
+| Buoyancy of a static sphere coupled to water at rest | 1.164486 N | the same bits | 1.164486 N (the same digits) | 1.109485 (+4.96 %) | 6 % |
+
+The GPU gives the reference's bits on all three runs (200, 60 and 40 steps), so the numbers are those the stand-in rows
+gave to the digits shown (terminal velocity -9.2577e-3 there too). The total momentum is a float32 number in both runs
+because the world keeps the body's velocity in float32; the float64 flow on the same world gives 2.8e-7. The kit's
+gate also requires the float32 numbers to match the float64 ones to 1e-5 (terminal velocity 4.4e-6, buoyancy to every
+digit). The grain coupling rows (block on a bed, floor load, spring scale, third law) are not yet run this way.
+
 The float64 solver gives 2.237e-3 / 8.244e-3 (Re 100) and 1.335e-2 / 1.483e-2 (Re 400) on the cavity: the float32
 backend is within 1e-5 of the lid speed of it. Where float32 forces a looser tolerance:
 
@@ -736,10 +760,10 @@ SwiftShader result; the closed-form rows have margin for that.
   the flow backend, and it was left for a later pass rather than committed unvalidated.
 - A **multigrid** pressure preconditioner on the GPU, and the obstacle geometry on the GPU (it is on the host, in
   float64; many moving obstacles would make the host the bottleneck).
-- The fluid coupling rows through the kit's WebAssembly world (they ran through a float64 stand-in world).
 - **The Studio's granular tray and river tabs on the GPU (`?gpu=1`).** The Studio's SI solvers run inside
   its synchronous step and its saved runs are exact.
 - **Shallow water with bodies and point sources** on the GPU.
 - **Compensated velocity and position sums** for grains (the incline row above).
 - **Real-GPU numbers** and a check that the closed-form rows hold on a real GPU's rounding.
-- The grain rows through the kit's rigid world, glass-bead repose and column collapse on the GPU.
+- The grain rows through the kit's rigid world (the fluid rows run through it since 2026-11-18; the grain ones can now be
+  written the same way, as scenes with a GPU grain section), glass-bead repose and column collapse on the GPU.

@@ -5,7 +5,11 @@
 //    checkpoint taken at step N and resumed with resumeSimulation in a fresh world reaches step M with the bits of the
 //    straight run; the refusals (no backends, step() instead of stepAsync(), a save before a pull);
 //  - Dawn's null device (it compiles and validates but runs no shader): the GPU backends of the same scene build their
-//    pipelines from the kit's copies of the shaders and encode a step without a validation error.
+//    pipelines from the kit's copies of the shaders and encode a step without a validation error;
+//  - the fluid coupling rows through the kit's WebAssembly world (src/engine/gpu/coupling-scenes.ts): a sphere settling
+//    at Hasimoto's terminal velocity, equal and opposite impulses with the total momentum kept, and the buoyancy of a
+//    static sphere in water at rest, each a scene with a flow on the float32 reference coupled to a body of the kit's
+//    PhysicsWorld; and the same scenes on the float64 solver, which the float32 numbers must match to 1e-5.
 // What the shaders compute is checked against the reference in a browser: scripts/gpu-compute-browser-check.mjs and
 // scripts/lab-gpu-browser-check.mjs in the repository (docs/GPU_COMPUTE.md).
 import assert from 'node:assert/strict';
@@ -16,6 +20,7 @@ import {loadSimulationScene, resumeSimulation, simulationCheckpointInfo} from 'b
 import {damBreakValleyScene, hopperSeesawScene, sphereSettlingScene, sceneHash, sceneWorldOptions} from 'box3d-webgpu-kit/scene-format';
 import {GpuCompute, gpuSceneBackends, GPU_SCENE_BACKEND} from 'box3d-webgpu-kit/gpu';
 import {createDawnGpu} from '../../../scripts/dawn-gpu.mjs';
+import {runCouplingRows, couplingRowChecks} from '../../../src/engine/gpu/coupling-scenes.ts';
 
 const bits = (...arrays) => { const h = createHash('sha256'); for (const a of arrays) h.update(new Uint8Array(a.buffer, a.byteOffset, a.byteLength)); return h.digest('hex'); };
 /** The hopper of grains over a see-saw and the valley of water without its crates, with backend 'gpu' (or none). */
@@ -129,4 +134,22 @@ test('gpu scene sections on Dawn (null backend): the kit\'s shaders compile and 
     }
   } finally { device.destroy(); }
   assert.deepEqual(errors, []);
+});
+
+test('fluid coupling rows through the kit\'s WebAssembly world, the flow on the float32 reference', {timeout: 900000}, async () => {
+  const load = backends => async scene => {
+    const world = await createWorld(sceneWorldOptions(scene)), loaded = loadSimulationScene(world, scene, backends ? {gpu: backends} : {});
+    return Object.assign(loaded, {dispose: () => { loaded.simulation.dispose(); world.dispose(); }});
+  };
+  const f32 = await runCouplingRows(load(reference)), f64 = await runCouplingRows(load(null), {backend: null});
+  for (const row of couplingRowChecks(f32)) {
+    console.log(`${row.id}: ${row.value} (reference ${row.reference}, ${row.tolerance})`);
+    assert.ok(row.pass, `${row.title}: ${row.value} against ${row.reference} (${row.tolerance})`);
+  }
+  console.log(`float64 on the same world: terminal velocity ${f64.settling.velocity}, buoyancy ${f64.buoyancy.lift}, impulse ${f64.thirdLaw.fluidSide}, total momentum ${f64.thirdLaw.total}`);
+  // float32 against float64 on the same scenes: the GPU flow's agreement (docs/GPU_COMPUTE.md) is 1e-6 to 6e-6 of the
+  // largest speed; the body integrates the mean force of the steps, so its velocity agrees as well.
+  assert.ok(Math.abs(f32.settling.velocity - f64.settling.velocity) <= 1e-5 * Math.abs(f64.settling.velocity), `terminal velocity ${f32.settling.velocity} against ${f64.settling.velocity}`);
+  assert.ok(Math.abs(f32.buoyancy.lift - f64.buoyancy.lift) <= 1e-5 * f64.buoyancy.lift, `buoyancy ${f32.buoyancy.lift} against ${f64.buoyancy.lift}`);
+  assert.ok(f64.thirdLaw.fluidSide <= 1e-12, 'the float64 flow hands over its impulse to round-off');
 });

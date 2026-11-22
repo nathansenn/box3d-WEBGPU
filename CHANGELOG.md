@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 2026-11-18 — GPU flow coupling rows through the Box3D WebAssembly world
+
+- **`src/engine/gpu/coupling-scenes.ts`:** the fluid coupling rows (terminal velocity of a settling sphere, equal and opposite impulses with the total momentum, buoyancy of a static sphere in water at rest) as scenes with a GPU flow and a body of the world, so they run where the GPU is driven instead of through the float64 stand-in world.
+- **Kit gate (v23):** through the kit's `createWorld` and `loadSimulationScene` on the float32 reference: terminal velocity -9.257764e-3 m/s against Hasimoto's -8.729402e-3 (+6.05 %, tolerance 12 %), impulse 6.2e-8 (<= 1e-6), total momentum 1.60e-7 (<= 1e-6), buoyancy 1.164486 N against 1.109485 (+4.96 %, 6 %); the float64 solver on the same world -9.257723e-3, 9.0e-16, 2.78e-7, 1.164486.
+- **On the GPU (`gpu-probe.html`, `box3dGpu.couplingRows()`; `scripts/lab-gpu-browser-check.mjs --coupling`):** SwiftShader gives the reference's bits on all three runs with the page's box3d.wasm; every row passes. docs/GPU_COMPUTE.md.
+
 ## Unreleased — 2026-11-18 — GPU scene sections in the Physics Lab, with a fall back on device loss
 
 - **Lab (`src/lab/gpu-scene.ts`):** a scene with `"backend": "gpu"` sections runs them on WebGPU compute (a compute device of its own), steps with `stepAsync` one step at a time (the GPU sets the pace; skipped clock steps are counted), pulls the state for drawing, and shows a status line. `&gpu=reference` runs the float32 CPU reference, `&gpu=off` (or no compute device) the float64 CPU solvers with the backend fields dropped, and the line says why. Frames are held while a GPU step is on its way. Checkpoints use `checkpointAsync`. Two examples: `sphere-settling-gpu`, `hopper-seesaw-gpu`.
