@@ -42,6 +42,18 @@ export interface PlateDefinition {
    * 2 ((w+ - w) / b - (w - w-) / a) / (a + b) between spacings a and b; a twist per cell; bilinear membrane cells of their
    * own size), so a grid can be finer where cracks are to be resolved. */
   lines?:{readonly x:readonly number[];readonly y:readonly number[]};
+  /** Implicit fine cells on a graded grid: the bending terms of cells narrower than this (m) are taken implicitly, the others
+   * explicitly as before. A step of h is (M + h0^2 / 4 K_f) (v_new - v) = h F(w), w_new = w + h v_new, with F every force at
+   * the present deflection, K_f the implicit bending terms and h0 the stable step of the explicit terms of the plate as first
+   * assembled. At h = h0 this is the average acceleration (trapezoidal) rule on K_f and central differences on the rest (the
+   * element partition of Hughes and Liu, J. Appl. Mech. 45 (1978) 371-374): central differences with the mass
+   * M + h0^2 / 4 K_f, stable when h^2 lambda_max(M^-1 K_e) < 4 for the explicit terms K_e alone and h <= h0, so the fine cells
+   * no longer set the step. h0 stays fixed when the step changes: a mass that changed with the step pumped energy into the
+   * fine cells' modes. Below h0 the term adds stiffness-proportional inertia (selective mass scaling) that slows only modes
+   * above about 2 / h0. Mass damping and the caller's dashpots follow node by node, implicitly. A node whose x-curvature is
+   * implicit and y-curvature explicit splits its energy into 1/2 D A (k_x + nu k_y)^2 (implicit) and 1/2 D A (1 - nu^2) k_y^2
+   * (explicit), both positive. `stableTimeStep` is then the explicit part's limit, at most h0. Default 0: off. */
+  implicitCells?:number;
 }
 export interface PlateFragment {nodes:Uint32Array;mass:number;center:[number,number,number];velocity:number;angularVelocity:[number,number];supported:boolean}
 
@@ -101,7 +113,7 @@ export class PlateBody {
   private membraneLambda=0;membraneIterations=0;
 
   constructor(input:PlateDefinition){
-    const o=record(input,'plate');onlyKeys(o,['size','cells','thickness','material','origin','addedArealMass','massDamping','fracture','membrane','lines'],'plate');
+    const o=record(input,'plate');onlyKeys(o,['size','cells','thickness','material','origin','addedArealMass','massDamping','fracture','membrane','lines','implicitCells'],'plate');
     const size=o.size as number[],cells=o.cells as number[];
     if(!Array.isArray(size)||size.length!==2||!Array.isArray(cells)||cells.length!==2)throw payload('plate.size and plate.cells take two numbers.');
     const a=finite(size[0],'plate.size[0]',1e-6,1e4),b=finite(size[1],'plate.size[1]',1e-6,1e4);
@@ -165,6 +177,8 @@ export class PlateBody {
         }
       });
     }
+    this.implicitCells=o.implicitCells===undefined?0:finite(o.implicitCells,'plate.implicitCells',0,1e4);
+    if(this.implicitCells>0){this.Kf=new Float64Array(N*STENCIL);this.Ks=new Float64Array(N*STENCIL);this.slowRow=new Float64Array(N);this.fastIndex=new Int32Array(N);}
     for(let j=0;j<this.ny;j++)for(let i=0;i<this.cx;i++)this.tieWidth[j*this.cx+i]=this.dualY(j);
     for(let j=0;j<this.cy;j++)for(let i=0;i<this.nx;i++)this.tieWidth[this.cx*this.ny+j*this.nx+i]=this.dualX(i);
   }
@@ -175,6 +189,18 @@ export class PlateBody {
   private readonly curveX:Float64Array;private readonly curveY:Float64Array;
   /** Which in-plane cell stiffness (cellStiffness[64 k ..]) each cell uses. */
   private cellKind?:Uint16Array;
+  /** Implicit fine cells (`implicitCells`): the width below which a cell's bending terms are implicit (0: off), the implicit
+   * (Kf) and explicit (Ks) bending stencils, the explicit part's Gershgorin rows (with supports and extra stiffness), its limit
+   * and its bound with the membrane and a bridging layer; the free nodes with an implicit row (`fastIndex`: their place in
+   * the solve, or -1) and the envelope Cholesky factor of M + h0^2 / 4 Kf over them (`factorStep`: its h0, -1 before). */
+  readonly implicitCells:number;
+  private Kf?:Float64Array;private Ks?:Float64Array;private slowRow?:Float64Array;private fastIndex?:Int32Array;private fastNodes?:Int32Array;
+  private slowLimit=Infinity;private slowBound=-1;
+  private envFirst?:Int32Array;private envStart?:Int32Array;private envL?:Float64Array;private envWork?:Float64Array;private factorStep=-1;
+  /** h0 of `implicitCells`: the explicit terms' stable step when the plate was first assembled (0 until then), s. */
+  implicitStep=0;
+  /** Factorizations of M + h0^2 / 4 Kf so far (one per crack). */
+  factorizations=0;
   /** Everything a later step reads, as a state tree (checkpoint.ts), for exact checkpoints. */
   saveState():StateObject {return captureFields(this,PLATE_FIELDS);}
   /** Put back a state from `saveState()` of a plate with the same grid, material and options. */
@@ -245,7 +271,85 @@ export class PlateBody {
       if(!this.active[p]||!this.active[q])continue;const di=q%nx-p%nx,dj=Math.floor(q/nx)-Math.floor(p/nx);
       add(p,0,0,k);add(q,0,0,k);add(p,di,dj,-k);add(q,-di,-dj,-k);
     }
+    if(this.implicitCells>0)this.assembleSplit();
     this.stale=false;this.membraneStale=true;this.formRows();
+  }
+  /** The bending stencil split into its implicit (fast) and explicit (slow) parts (`implicitCells`); the same terms as
+   * `assemble`. Also the nodes of the implicit solve and their envelope. */
+  private assembleSplit():void {
+    const Kf=this.Kf!,Ks=this.Ks!,D=this.rigidity,nu=this.material.poissonRatio,nx=this.nx,cut=this.implicitCells;Kf.fill(0);Ks.fill(0);
+    // K += scale g g' for a term g of the curvatures: [di, dj, coefficient] entries about node c.
+    const outer=(K:Float64Array,c:number,g:[number,number,number][],scale:number)=>{
+      for(const [ai,aj,av] of g)for(const [bi,bj,bv] of g)K[(c+aj*nx+ai)*STENCIL+slot(bi-ai,bj-aj)]+=scale*av*bv;
+    };
+    for(let j=0;j<this.ny;j++)for(let i=0;i<nx;i++){
+      const c=j*nx+i;if(!this.active[c])continue;const hasX=this.hasX[c]===1,hasY=this.hasY[c]===1;if(!hasX&&!hasY)continue;
+      const gx:[number,number,number][]=hasX?[0,1,2].map(p=>[p-1,0,this.curveX[3*i+p]] as [number,number,number]):[],gy:[number,number,number][]=hasY?[0,1,2].map(p=>[0,p-1,this.curveY[3*j+p]] as [number,number,number]):[];
+      const fx=hasX&&Math.min(this.dx[i-1],this.dx[i])<cut,fy=hasY&&Math.min(this.dy[j-1],this.dy[j])<cut,A=D*this.area[c];
+      // 1/2 A (kx^2 + ky^2 + 2 nu kx ky): both parts on one side, or (kx + nu ky)^2 fast and (1 - nu^2) ky^2 slow (and x, y swapped).
+      const all=(K:Float64Array)=>{
+        const terms=[...gx,...gy],xs=gx.length;
+        for(let p=0;p<terms.length;p++)for(let q=0;q<terms.length;q++){const weight=(p<xs)===(q<xs)?1:nu,[ai,aj,av]=terms[p],[bi,bj,bv]=terms[q];K[(c+aj*nx+ai)*STENCIL+slot(bi-ai,bj-aj)]+=A*weight*av*bv;}
+      };
+      if(fx===fy||!hasX||!hasY)all(fx||fy?Kf:Ks);
+      else if(fx){outer(Kf,c,[...gx,...gy.map(([a,b,v])=>[a,b,nu*v] as [number,number,number])],A);outer(Ks,c,gy,A*(1-nu*nu));}
+      else{outer(Kf,c,[...gy,...gx.map(([a,b,v])=>[a,b,nu*v] as [number,number,number])],A);outer(Ks,c,gx,A*(1-nu*nu));}
+    }
+    for(let j=0;j<this.cy;j++)for(let i=0;i<this.cx;i++){
+      if(!this.cellOn[j*this.cx+i])continue;const twist=2*D*(1-nu)/(this.dx[i]*this.dy[j]),K=this.dx[i]<cut||this.dy[j]<cut?Kf:Ks,n00=j*nx+i;
+      const c:[number,number,number][]=[[0,0,1],[1,0,-1],[0,1,-1],[1,1,1]];
+      for(const [ai,aj,av] of c)for(const [bi,bj,bv] of c)K[(n00+aj*nx+ai)*STENCIL+slot(bi-ai,bj-aj)]+=twist*av*bv;
+    }
+    for(const [p,q,k] of this.couplings){
+      if(!this.active[p]||!this.active[q])continue;const di=q%nx-p%nx,dj=Math.floor(q/nx)-Math.floor(p/nx);
+      Ks[p*STENCIL+slot(0,0)]+=k;Ks[q*STENCIL+slot(0,0)]+=k;Ks[p*STENCIL+slot(di,dj)]-=k;Ks[q*STENCIL+slot(-di,-dj)]-=k;
+    }
+    // The free nodes with an implicit row, ordered along the shorter side of the grid first (a narrower envelope).
+    const list:number[]=[],index=this.fastIndex!;index.fill(-1);
+    const byColumns=this.nx>this.ny,outerCount=byColumns?this.nx:this.ny,innerCount=byColumns?this.ny:this.nx;
+    for(let a=0;a<outerCount;a++)for(let b=0;b<innerCount;b++){
+      const n=byColumns?b*nx+a:a*nx+b;if(!this.active[n]||this.fixed[n])continue;
+      for(let k=0;k<STENCIL;k++)if(Kf[n*STENCIL+k]!==0){index[n]=list.length;list.push(n);break;}
+    }
+    this.fastNodes=Int32Array.from(list);
+    // Envelope: each row from its first implicit neighbour within the stencil.
+    const M=list.length,first=this.envFirst=new Int32Array(M),start=this.envStart=new Int32Array(M+1);
+    for(let r=0;r<M;r++){
+      const n=list[r],i=n%nx,j=(n-i)/nx;let lo=r;
+      for(let dj=-2;dj<=2;dj++)for(let di=-2;di<=2;di++){const ii=i+di,jj=j+dj;if(ii<0||jj<0||ii>=nx||jj>=this.ny||Kf[n*STENCIL+slot(di,dj)]===0)continue;const q=index[jj*nx+ii];if(q>=0&&q<lo)lo=q;}
+      first[r]=lo;start[r+1]=start[r]+(r-lo+1);
+    }
+    this.envL=new Float64Array(start[M]);this.envWork=new Float64Array(M);this.factorStep=-1;
+  }
+  /** Envelope Cholesky factor of M + h0^2 / 4 Kf over the implicit nodes (row r holds columns first[r] .. r). */
+  private factorImplicit(h:number):void {
+    const list=this.fastNodes!,first=this.envFirst!,start=this.envStart!,L=this.envL!,Kf=this.Kf!,index=this.fastIndex!,nx=this.nx,M=list.length,c=.25*h*h;L.fill(0);
+    for(let r=0;r<M;r++){
+      const n=list[r],i=n%nx,j=(n-i)/nx,row=start[r]-first[r];
+      for(let dj=-2;dj<=2;dj++)for(let di=-2;di<=2;di++){
+        const ii=i+di,jj=j+dj;if(ii<0||jj<0||ii>=nx||jj>=this.ny)continue;const q=index[jj*nx+ii];if(q<0||q>r)continue;
+        L[row+q]+=c*Kf[n*STENCIL+slot(di,dj)];
+      }
+      L[row+r]+=this.mass[n];
+    }
+    for(let r=0;r<M;r++){
+      const fr=first[r],row=start[r]-fr;
+      for(let k=fr;k<r;k++){
+        const fk=first[k],rk=start[k]-fk,lo=fr>fk?fr:fk;let sum=L[row+k];
+        for(let p=lo;p<k;p++)sum-=L[row+p]*L[rk+p];
+        L[row+k]=sum/L[rk+k];
+      }
+      let d=L[row+r];for(let p=fr;p<r;p++)d-=L[row+p]*L[row+p];
+      if(!(d>0))throw new EngineError('NUMERICAL_FAILURE','The implicit part of the plate step is not positive definite.');
+      L[row+r]=Math.sqrt(d);
+    }
+    this.factorStep=h;this.factorizations++;
+  }
+  /** x = (M + h0^2 / 4 Kf)^-1 x over the implicit nodes (x in their order). */
+  private solveImplicit(x:Float64Array):void {
+    const first=this.envFirst!,start=this.envStart!,L=this.envL!,M=x.length;
+    for(let r=0;r<M;r++){const fr=first[r],row=start[r]-fr;let s=x[r];for(let p=fr;p<r;p++)s-=L[row+p]*x[p];x[r]=s/L[row+r];}
+    for(let r=M-1;r>=0;r--){const fr=first[r],row=start[r]-fr,v=x[r]/L[row+r];x[r]=v;for(let p=fr;p<r;p++)x[p]-=L[row+p]*v;}
   }
   /** Gershgorin rows of the bending stiffness plus supports and extra stiffness, and the bending limit. */
   private formRows():void {
@@ -256,20 +360,37 @@ export class PlateBody {
       lambda=Math.max(lambda,row/this.mass[n]);
     }
     this.limit=lambda>0?2/Math.sqrt(lambda):Infinity;this.bound=-1;this.rowsStale=false;
+    if(this.implicitCells>0){
+      const Ks=this.Ks!,S=this.slowRow!;let slow=0;
+      for(let n=0;n<this.nodeCount;n++){
+        if(!this.active[n]||this.fixed[n]){S[n]=0;continue;}let b=0;
+        for(let k=0;k<STENCIL;k++)b+=Math.abs(Ks[n*STENCIL+k]);
+        b+=this.support[n]+this.extraStiffness[n];S[n]=b;slow=Math.max(slow,b/this.mass[n]);
+      }
+      this.slowLimit=slow>0?2/Math.sqrt(slow):Infinity;this.slowBound=-1;
+      if(this.implicitStep===0&&Number.isFinite(this.slowLimit))this.implicitStep=this.slowLimit;
+      // h0 caps the step only while some node is implicit (an empty or fully detached plate has no limit).
+      if(this.fastNodes!.length)this.slowLimit=Math.min(this.slowLimit,this.implicitStep);
+    }
   }
   /** Largest stable time step of the explicit scheme for the current cracks, s: 2 / sqrt(max Gershgorin row of M^-1 K).
    * On a von Karman plate, or with a bridging layer, K is the tangent of the present state: each node's row is its bending row
    * plus the membrane's and the layer's rows of the last evaluation, and the largest of their sums over the mass decides. */
-  stableTimeStep():number {
+  stableTimeStep():number {return this.stepLimit(this.implicitCells>0);}
+  /** The limit of a step with every term explicit, s: with `implicitCells`, the step the fine cells would set. */
+  explicitTimeStep():number {return this.stepLimit(false);}
+  /** The limit of the whole bending stiffness (`split` false) or of the explicit part of a step with implicit fine cells, with the membrane and a bridging layer. */
+  private stepLimit(split:boolean):number {
     if(this.stale)this.assemble();else if(this.rowsStale)this.formRows();
     const tie=(this.fracture?.tie??0)>0,membrane=this.membrane&&this.membraneLambda>0;
-    if(!tie&&!membrane)return this.limit;
-    if(this.bound<0){
-      const B=this.bendRow,T=this.tieRow,R=this.mRow;let lambda=0;
+    if(!tie&&!membrane)return split?this.slowLimit:this.limit;
+    if((split?this.slowBound:this.bound)<0){
+      const B=split?this.slowRow!:this.bendRow,T=this.tieRow,R=this.mRow;let lambda=0;
       for(let n=0;n<this.nodeCount;n++){if(!this.active[n]||this.fixed[n])continue;const row=B[n]+(tie?T[n]:0)+(membrane?R![n]:0);if(row>lambda*this.mass[n])lambda=row/this.mass[n];}
-      this.bound=lambda;
+      if(split)this.slowBound=lambda;else this.bound=lambda;
     }
-    return this.bound>0?2/Math.sqrt(this.bound):Infinity;
+    const bound=split?this.slowBound:this.bound;
+    return bound>0?2/Math.sqrt(bound):Infinity;
   }
   /** Gershgorin rows of the bending stiffness (with supports, couplings and the caller's extra stiffness; read only) and of
    * the bridging layer's tangent at the last evaluation, N/m; the largest row sum over the mass of the present state (-1: not yet formed). */
@@ -366,7 +487,7 @@ export class PlateBody {
       if(record){cellForce[3*cell]=sx;cellForce[3*cell+1]=sy;cellForce[3*cell+2]=sxy;}
     }
     if(!linear)this.membraneLoad=C*steepest;
-    if(record){let lambda=0;for(let n=0;n<this.nodeCount;n++)if(this.active[n]&&!this.fixed[n])lambda=Math.max(lambda,row[n]/this.mass[n]);this.membraneLambda=lambda;this.bound=-1;}
+    if(record){let lambda=0;for(let n=0;n<this.nodeCount;n++)if(this.active[n]&&!this.fixed[n])lambda=Math.max(lambda,row[n]/this.mass[n]);this.membraneLambda=lambda;this.bound=-1;this.slowBound=-1;}
     return energy;
   }
   /** out += K p for the in-plane stiffness of the intact cells. */
@@ -539,7 +660,7 @@ export class PlateBody {
     let most=0;for(let n=0;n<this.nodeCount;n++)if(this.active[n]){const v=Math.abs(w[n]);if(v>most)most=v;}
     if(most<1e-4*this.thickness&&this.membraneFlat){return 0;}
     this.membraneFlat=most<1e-4*this.thickness;
-    if(this.membraneFlat){this.uv!.fill(0);this.cellForce!.fill(0);this.membraneLambda=0;this.bound=-1;this.membraneLoad=0;this.membraneIterations=0;return 0;}
+    if(this.membraneFlat){this.uv!.fill(0);this.cellForce!.fill(0);this.membraneLambda=0;this.bound=-1;this.slowBound=-1;this.membraneLoad=0;this.membraneIterations=0;return 0;}
     this.solveInPlane(w);return this.membraneEnergy(w,this.uv!,null,out,false,true);
   }
   /** True while the plate is flat to within 1e-4 of its thickness and the in-plane state has been cleared. */
@@ -555,7 +676,7 @@ export class PlateBody {
       f+=this.support[n]*w[n];out[n]+=f;energy+=.5*f*w[n];
     }
     const tie=this.fracture?.tie??0,T=this.tieRow;
-    if(tie>0&&record){T.fill(0);this.bound=-1;}
+    if(tie>0&&record){T.fill(0);this.bound=-1;this.slowBound=-1;}
     const xBonds=this.cx*this.ny,active=this.active,width=this.tieWidth,cx=this.cx;
     if(tie>0)for(let b=0;b<this.bondCount;b++){
       // The nodes of bond b (bondNodes without the array).
@@ -589,6 +710,7 @@ export class PlateBody {
   /** One explicit step (symplectic Euler) of length h under the current `force`. Breaks bonds afterwards; returns how many. */
   advance(h:number):number {
     finite(h,'step',0,1);if(this.stale)this.assemble();
+    if(this.implicitCells>0)return this.advanceImplicit(h);
     const f=this.scratch(),w=this.w,v=this.v,c=this.massDamping;this.internalForce(w,f,true);
     if(this.membrane)this.membraneForce(w,f);
     const limit=this.stableTimeStep();
@@ -597,6 +719,29 @@ export class PlateBody {
       if(!this.active[n]||this.fixed[n])continue;
       // Mass damping and the caller's dashpots (drag towards dragVelocity) are taken implicitly, so they never limit the step.
       const m=this.mass[n],g=this.drag[n],vn=(v[n]+h*(this.force[n]-f[n]+g*this.dragVelocity[n])/m)/(1+c*h+h*g/m);
+      this.kineticLost+=c*h*m*vn*vn+h*g*(vn-this.dragVelocity[n])**2;v[n]=vn;w[n]+=h*vn;
+      if(!Number.isFinite(w[n]))throw new EngineError('NUMERICAL_FAILURE','The plate step produced a nonfinite state.');
+    }
+    this.time+=h;return this.fracture?this.checkFracture():0;
+  }
+  /** One step with implicit fine cells (`implicitCells`): every force at the present deflection, the velocity change of the
+   * implicit nodes from (M + h0^2 / 4 Kf) dv = h F (the factor is formed again when the cracks change), the others' from
+   * M dv = h F; then each node's mass damping and dashpot implicitly, and the drift. */
+  private advanceImplicit(h:number):number {
+    const f=this.scratch(),w=this.w,v=this.v,c=this.massDamping,N=this.nodeCount;this.internalForce(w,f,true);
+    if(this.membrane)this.membraneForce(w,f);
+    const limit=this.stableTimeStep();
+    if(h>limit)throw new EngineError('UNSTABLE_TIME_STEP',`Plate step ${h} s exceeds the stability limit ${limit} s.`);
+    if(this.factorStep!==this.implicitStep)this.factorImplicit(this.implicitStep);
+    const list=this.fastNodes!,x=this.envWork!;
+    for(let r=0;r<list.length;r++){const n=list[r];x[r]=h*(this.force[n]-f[n]);}
+    this.solveImplicit(x);
+    for(let n=0;n<N;n++){if(this.active[n]&&!this.fixed[n]&&this.fastIndex![n]<0)f[n]=v[n]+h*(this.force[n]-f[n])/this.mass[n];}
+    for(let r=0;r<list.length;r++){const n=list[r];f[n]=v[n]+x[r];}
+    for(let n=0;n<N;n++){
+      if(!this.active[n]||this.fixed[n])continue;
+      // f now holds the undamped new velocity; the damping and the dashpot act on it node by node.
+      const m=this.mass[n],g=this.drag[n],vn=(f[n]+h*g*this.dragVelocity[n]/m)/(1+c*h+h*g/m);
       this.kineticLost+=c*h*m*vn*vn+h*g*(vn-this.dragVelocity[n])**2;v[n]=vn;w[n]+=h*vn;
       if(!Number.isFinite(w[n]))throw new EngineError('NUMERICAL_FAILURE','The plate step produced a nonfinite state.');
     }
@@ -729,6 +874,21 @@ export class PlateBody {
   }
   /** Removes a fragment's nodes from the plate (it is handed to a rigid model). */
   detach(fragment:PlateFragment):void {for(const n of fragment.nodes){this.active[n]=0;this.force[n]=0;}this.stale=true;}
+  /** The energy the step conserves exactly on a linear plate without damping (no membrane, no bridging layer), J, after a
+   * step of h: 1/2 v' (M - h^2 / 4 K_e + (h0^2 - h^2) / 4 K_f) v + 1/2 wm' K wm, with v the velocity of the last step, wm the
+   * mean of the deflections before and after it, K_e the explicit and K_f the implicit part of the stiffness (all of it
+   * explicit without `implicitCells`). For checks. */
+  stepEnergy(h:number):number {
+    if(this.stale)this.assemble();
+    const N=this.nodeCount,nx=this.nx,ny=this.ny,v=this.v,K=this.implicitCells>0?this.Ks!:this.K,mid=new Float64Array(N),f=new Float64Array(N);let kinetic=0;
+    for(let n=0;n<N;n++){
+      if(!this.active[n])continue;mid[n]=this.w[n]-.5*h*v[n];
+      let kv=this.support[n]*v[n],fv=0;const i=n%nx,j=(n-i)/nx;
+      for(let dj=-2;dj<=2;dj++){const jj=j+dj;if(jj<0||jj>=ny)continue;for(let di=-2;di<=2;di++){const at=n*STENCIL+slot(di,dj),k=K[at];if(k!==0)kv+=k*v[n+dj*nx+di];if(this.implicitCells>0&&this.Kf![at]!==0)fv+=this.Kf![at]*v[n+dj*nx+di];}}
+      kinetic+=.5*v[n]*(this.mass[n]*v[n]-.25*h*h*kv+.25*(this.implicitStep*this.implicitStep-h*h)*fv);
+    }
+    return kinetic+this.internalForce(mid,f);
+  }
   kineticEnergy():number {let e=0;for(let n=0;n<this.nodeCount;n++)if(this.active[n])e+=.5*this.mass[n]*this.v[n]*this.v[n];return e;}
   strainEnergy():number {const bending=this.internalForce(this.w,this.scratch());return this.membrane?bending+this.membraneForce(this.w,null):bending;}
   /** Static deflection of the nonlinear (or linear) plate under `force` by dynamic relaxation: explicit steps at `safety`
@@ -744,7 +904,7 @@ export class PlateBody {
       this.internalForce(w,f,true);if(this.membrane)this.membraneForce(w,f);
       residual=0;for(let n=0;n<N;n++)if(this.active[n]&&!this.fixed[n])residual=Math.max(residual,Math.abs(this.force[n]-f[n]));
       if(residual<=tol*scale){residual=scale>0?residual/scale:0;return {steps,residual,converged:true};}
-      const h=safety*this.stableTimeStep();let kinetic=0;
+      const h=safety*this.stepLimit(false);let kinetic=0;
       for(let n=0;n<N;n++){if(!this.active[n]||this.fixed[n])continue;v[n]+=h*(this.force[n]-f[n])/this.mass[n];kinetic+=this.mass[n]*v[n]*v[n];}
       // Kinetic damping: past a peak of the kinetic energy the plate is near equilibrium; stop it there.
       if(kinetic<last){v.fill(0);last=0;continue;}

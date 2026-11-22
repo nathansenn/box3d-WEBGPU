@@ -1,5 +1,6 @@
 // The glass lab on the grid refined around the impact (GlassModel `refine`, PlateBody `lines`): the tiles still cover the
-// pane, the first crack comes when it does on the 0.1 m grid, and the cracks are finer. The plate's own checks on graded
+// pane, the first crack comes when it does on the 0.1 m grid, the cracks are finer, and with the fine cells' bending implicit
+// (PlateBody `implicitCells`) the refined lab steps as the 0.1 m lab does. The plate's own checks on graded
 // grids (Navier, Kirchhoff, first crack, Levy) are in tests/engine/plate.test.mjs.
 // Run: node --import ./scripts/register-typescript.mjs --test tests/studio/glass-refine.test.mjs
 import '../../scripts/register-typescript.mjs';
@@ -25,9 +26,11 @@ test('refined grid: 0.05 m cells within 0.3 m of the impact, the tiles cover the
   }
 });
 
-test('refined grid: the first crack comes when it does on the 0.1 m grid, and the cracks and pieces are finer',()=>{
+test('refined grid: the first crack comes when it does on the 0.1 m grid, and the cracks and pieces are finer, at the 0.1 m grid\'s step',()=>{
   const plain=new GlassModel(preset('radial-impact')),fine=new GlassModel(preset('radial-impact'),{refine:GLASS_REFINEMENT});
   for(let i=0;i<Math.round(1.2/DT);i++){plain.step(DT);fine.step(DT);}
+  console.log(`# sub-steps in 1.2 s: ${plain.substeps} (0.1 m) and ${fine.substeps} (refined, fine cells implicit); implicit factors formed ${fine.plate.factorizations}`);
+  assert.ok(fine.plate.implicitCells>0&&fine.substeps<1.1*plain.substeps,'the fine cells do not set the step');
   const area=m=>m.fragments.reduce((a,f)=>a+[...f.nodes].reduce((s,n)=>s+m.plate.area[n],0),0)/Math.max(1,m.fragments.length);
   console.log(`# radial impact, 1.2 s: first crack ${plain.plate.breakTime.toFixed(5)} s (0.1 m) and ${fine.plate.breakTime.toFixed(5)} s (refined); pieces ${plain.fragmentCount} and ${fine.fragmentCount}; mean falling piece ${(area(plain)*1e4).toFixed(0)} and ${(area(fine)*1e4).toFixed(0)} cm^2; peak contact force ${(plain.peakForce/1e3).toFixed(2)} and ${(fine.peakForce/1e3).toFixed(2)} kN, peak stress ${(plain.peakStress/1e6).toFixed(1)} and ${(fine.peakStress/1e6).toFixed(1)} MPa`);
   assert.ok(plain.plate.breakTime>0&&fine.plate.breakTime>0);
