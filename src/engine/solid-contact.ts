@@ -171,7 +171,7 @@ const weldMap:FieldHandler={
 };
 /** What an exact checkpoint of a SolidContact holds: every field but the solid (saved by whoever owns it), its kernel (part of
  * the solid) and the views into its own work vectors; the bodies it holds keep their identity. */
-const CONTACT_FIELDS:FieldOptions={label:'SolidContact',skip:['solid','k','views','ldl','solidEnergy','energyFresh'],nested:{bodies:eachElement({label:'SolidContact body'}),welded:weldMap}};
+const CONTACT_FIELDS:FieldOptions={label:'SolidContact',skip:['solid','k','views','ldl','solidEnergy','energyFresh','touchAt','touchK','touchA','touchB','touchIndex'],nested:{bodies:eachElement({label:'SolidContact body'}),welded:weldMap}};
 /** What an exact checkpoint of a SolidCoupling holds: the solid, the contact solver and the coupled bodies' records. */
 const SOLID_COUPLING_FIELDS:FieldOptions={label:'SolidCoupling',skip:['world','byBody'],nested:{solid:holder,contact:holder,list:eachElement({label:'SolidCoupling body'})}};
 
@@ -282,6 +282,7 @@ export class SolidContact {
     this.cand=new Uint8Array(slots);this.act=new Uint8Array(slots);this.fmode=new Uint8Array(slots);
     this.cn=new Float64Array(3*slots);this.ca=new Float64Array(3*slots);this.cr=new Float64Array(3*slots);this.fa=new Float64Array(3*slots);this.fr=new Float64Array(3*slots);this.fs=new Float64Array(3*slots);
     this.fcap=new Float64Array(slots);this.fsl=new Float64Array(slots);this.kc=new Float64Array(slots);this.g0=new Float64Array(slots);this.f0=new Float64Array(3*slots);this.list=new Uint32Array(slots);this.listCount=0;
+    this.touchAt=new Float64Array(slots);this.touchK=new Float64Array(slots);this.touchA=new Float64Array(slots);this.touchB=new Float64Array(slots);this.touchIndex=new Int32Array(slots);
     const size=this.size=this.n3+6*nb,grow=(a:Float64Array)=>{const o=new Float64Array(size);o.set(a.subarray(0,this.n3));return o;};
     this.z=grow(this.z);this.G=grow(this.G);this.Gt=grow(this.Gt);this.trial=grow(this.trial);this.cgX=grow(this.cgX);this.cgR=grow(this.cgR);this.cgZ=grow(this.cgZ);this.cgP=grow(this.cgP);this.cgA=grow(this.cgA);this.diag=grow(this.diag);
     this.blocks=new Float64Array(36*nb);this.makeViews();
@@ -695,6 +696,41 @@ export class SolidContact {
     return iterations;
   }
 
+  /** Along z + t x the normal gap of each candidate contact is affine in t (the springs act on the step's increments), so the
+   * contacts the step closes are known exactly. The Newton step minimises the quadratic model phi + slope (t - t^2/2), which
+   * leaves them out; adding the springs of the contacts that close (0.5 k min(0, gap(t))^2) gives a convex model whose minimum
+   * on (0, 1) this returns (0 when it is at t = 1 or beyond). A node just short of a die otherwise creeps towards it: the full
+   * step drives it deep into the die, the halvings land just short of it, and the spring that would stop it never enters the
+   * tangent. */
+  private touchStep(z:Float64Array,x:Float64Array,slope:number):number {
+    const nb=this.bodies.length,n3=this.n3,surface=this.surfaceNodes,u0=this.u0;
+    let count=0;const at=this.touchAt,tk=this.touchK,ta=this.touchA;
+    for(let q=0;q<this.listCount;q++){
+      const c=this.list[q],j=c%nb,s=(c-j)/nb,i=3*surface[s],o=3*c,ob=n3+6*j;
+      const nx=this.cn[o],ny=this.cn[o+1],nz=this.cn[o+2],rx=this.cr[o],ry=this.cr[o+1],rz=this.cr[o+2];
+      const tx=z[ob+3],ty=z[ob+4],tz=z[ob+5],dx=x[ob+3],dy=x[ob+4],dz=x[ob+5];
+      const a=this.g0[c]+nx*(z[i]-u0[i]-z[ob]-(ty*rz-tz*ry))+ny*(z[i+1]-u0[i+1]-z[ob+1]-(tz*rx-tx*rz))+nz*(z[i+2]-u0[i+2]-z[ob+2]-(tx*ry-ty*rx));
+      if(a<0)continue;
+      const b=nx*(x[i]-x[ob]-(dy*rz-dz*ry))+ny*(x[i+1]-x[ob+1]-(dz*rx-dx*rz))+nz*(x[i+2]-x[ob+2]-(dx*ry-dy*rx));
+      if(!(b<0)||-a/b>=1)continue;
+      at[count]=-a/b;tk[count]=this.kc[c];ta[count]=a;this.touchB[count]=b;count++;
+    }
+    if(count===0||!(slope<0))return 0;
+    // Breakpoints in order (insertion sort of indices; ties keep list order).
+    const idx=this.touchIndex;for(let m=0;m<count;m++){let p=m;while(p>0&&at[idx[p-1]]>at[m]){idx[p]=idx[p-1];p--;}idx[p]=m;}
+    // f'(t) = slope (1 - t) + sum over closed contacts of k b (a + b t) = (slope + B) + (A - slope) t.
+    let A=0,B=0;
+    for(let m=0;m<count;m++){
+      const e=idx[m],tc=at[e];
+      // The minimum lies before this breakpoint when f' is already non-negative there.
+      if((slope+B)+(A-slope)*tc>=0)return -(slope+B)/(A-slope);
+      const b=this.touchB[e];A+=tk[e]*b*b;B+=tk[e]*ta[e]*b;
+    }
+    const t=-(slope+B)/(A-slope);
+    return t<1?t:0;
+  }
+  private touchAt=new Float64Array(0);private touchK=new Float64Array(0);private touchA=new Float64Array(0);private touchB=new Float64Array(0);private touchIndex=new Int32Array(0);
+
   /** Newton's method on Phi from the present z. Adds to the iteration counts in `stats`. */
   private minimise():boolean {
     const st=this.stats,k=this.k,size=this.size,z=this.z,kScale=1+this.cd*k.stiffnessDamping,mScale=this.cm+this.cd*k.massDamping,volume=this.solid.mu*this.solid.referenceVolume;
@@ -717,13 +753,17 @@ export class SolidContact {
       st.linearIterations+=Math.abs(inner);if(k.linearSolver==='ldl')k.innerDone(Math.abs(inner));
       const x=this.cgX;let slope=0;for(let j=0;j<size;j++)slope+=this.G[j]*x[j];
       if(!(slope<0))break;
-      let accepted=false,trialPhi=0,trialResidual=0;
-      for(let search=0,t=1;search<48;search++,t*=.5){
+      let accepted=false,trialPhi=0,trialResidual=0,touch=-1;
+      for(let search=0,t=1;search<48;search++){
         for(let j=0;j<size;j++)this.trial[j]=z[j]+t*x[j];
         trialPhi=this.objective(this.trial,this.Gt,this.views.tu);
-        if(!(trialPhi<Infinity))continue;
-        trialResidual=this.norm(this.Gt);
-        if(trialPhi<=phi+1e-4*t*slope||(trialResidual<residual&&Math.abs(trialPhi-phi)<=1e-10*Math.max(Math.abs(phi),Math.abs(trialPhi))+1e-14*volume)){accepted=true;break;}
+        if(trialPhi<Infinity){
+          trialResidual=this.norm(this.Gt);
+          if(trialPhi<=phi+1e-4*t*slope||(trialResidual<residual&&Math.abs(trialPhi-phi)<=1e-10*Math.max(Math.abs(phi),Math.abs(trialPhi))+1e-14*volume)){accepted=true;break;}
+        }
+        // After a rejected full step, try once where the step's model with the contacts it closes has its minimum.
+        if(touch<0){touch=this.touchStep(z,x,slope);if(touch>0&&touch<t){t=touch;continue;}}
+        t*=.5;
       }
       if(!accepted)break;
       if(!Number.isFinite(trialPhi)||!Number.isFinite(trialResidual))throw new EngineError('NUMERICAL_FAILURE','The contact solve produced a nonfinite state.');

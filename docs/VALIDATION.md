@@ -1518,8 +1518,8 @@ Solver: `src/engine/solid.ts`: linear tetrahedra with linear, corotational, Neo-
 | J2 plasticity: reverse yield after unloading | `sigma = -(sigma_y + H p), p from the bilinear law` = -2.602098e8 Pa | -2.602098e8 | +1.48e-10 rel. | ±1e-9 rel. | pass |
 | Elastic-plastic bending moment at 8 times the yield curvature | `M = b (E k c^3 / 3 ... ) = M_y (3 / 2)(1 - (k_y / k)^2 / 3)` = 62.17448 N m | 64.17348 | +3.22% | ±4% | pass |
 | Springback of a plastically bent beam | `dk = M(k) / (E I), k the curvature reached at mid-length` = 0.3727108 1/m | 0.3739886 | +0.343% | ±1% | pass |
-| Press brake: three-point air bend at the limit load | `F / (4 M_p' / V) = 1, M_p' = (2 / sqrt 3) sigma_y t^2 / 4 (plane strain)` = 1 | 1.227699 | +0.228 | at most 0.35 above the reference | pass |
-| Press brake: elastic springback of the bend depth | `d = F V^3 / (48 E' I), E' = E / (1 - nu^2)` = 6.978497e-5 m | 6.271355e-5 | -10.1% | ±12% | pass |
+| Press brake: three-point air bend at the limit load | `F / (4 M_p' / V) = 1, M_p' = (2 / sqrt 3) sigma_y t^2 / 4 (plane strain)` = 1 | 1.227695 | +0.228 | at most 0.35 above the reference | pass |
+| Press brake: elastic springback of the bend depth | `d = F V^3 / (48 E' I), E' = E / (1 - nu^2)` = 6.97847e-5 m | 6.271338e-5 | -10.1% | ±12% | pass |
 | Viscoelastic relaxation: the stress history | `a = exp(-dt / tau), b = (1 - a) / (dt / tau)` = 0 | 1.332268e-15 | +1.33e-15 | ±1e-9 | pass |
 | Viscoelastic relaxation at t = tau | `sigma = E eps (1 + gamma exp(-t / tau))` = 31036.38 Pa | 31064.02 | +0.089% | ±1% | pass |
 | Creep of a standard linear solid at t = tau (1 + gamma) | `eps = sigma / E - (sigma / E - sigma / E0) exp(-t / tau_c), E0 = E (1 + gamma), tau_c = tau (1 + gamma)` = 0.01948181 | 0.01947629 | -0.0283% | ±1% | pass |
@@ -1662,25 +1662,25 @@ Solver: `box3d-webgpu-kit/solid-contact`: node-against-body penalty contact of t
 | Depth of a contact under pressure | `p l / (stiffnessScale (lambda + 2 mu)), l the mean element size` = 7.683069e-7 m | 7.671776e-7 | -0.147% | ±0.5% | pass |
 | Box of the rigid world settling on the pad, in the stepping loop | `d = m g L / (E A), m the mass the world reports` = 8.829e-5 m | 8.829001e-5 | +7.15e-8 rel. | ±1e-6 rel. | pass |
 | Force of the pad on the resting box | `F = m g` = 70.632 N | 70.63201 | +7.2e-8 rel. | ±1e-6 rel. | pass |
-| Energy ledger of the settling box | `backward Euler and damping only remove energy` = 0 | 5.562912e-13 | +5.56e-13 | at most 1e-9 above the reference | pass |
+| Energy ledger of the settling box | `backward Euler and damping only remove energy` = 0 | 5.497923e-13 | +5.5e-13 | at most 1e-9 above the reference | pass |
 | Hertz contact, 2.5 elements per contact radius | `F = (4/3) E* sqrt(R) d^1.5 (1 + 0.0460), E* = E / (1 - nu^2); layer factor of Dimitriadis et al. 2002 at a / t = 0.05` = 0 | 0.1626037 | +0.163 | ±0.18 | pass |
 | Hertz contact, 3.75 elements per contact radius | `as above` = 0 | 0.09413065 | +0.0941 | ±0.11 | pass |
 | Hertz contact, 5 elements per contact radius | `as above` = 0 | 0.06792268 | +0.0679 | ±0.08 | pass |
 | Hertz contact: exponent of force against indentation | `F ~ d^1.5` = 1.5 | 1.558762 | +0.0588 | ±0.08 | pass |
 | Box on a deformable incline below the friction angle | `no motion while tan(theta) < mu` = 0 m | 0 | 0 | ±1e-7 | pass |
-| Box on a deformable incline: friction force when stuck | `F_t / N = tan(theta)` = 0.4877326 | 0.4877326 | -1.55e-11 rel. | ±1e-5 rel. | pass |
+| Box on a deformable incline: friction force when stuck | `F_t / N = tan(theta)` = 0.4877326 | 0.4877326 | -5.77e-12 rel. | ±1e-5 rel. | pass |
 | Box sliding on a deformable incline | `a = -g (sin(theta) - mu cos(theta))` = -0.1789658 m/s^2 | -0.1796691 | -0.393% | ±2% | pass |
 | Block resting on an elastic column | `omega = x c / L, x tan(x) = m_column / M (bar with a tip mass)` = 3.227503 Hz | 3.223077 | -0.137% | ±0.4% | pass |
 | Weight welded under a hanging bar | `d = M g L / (E A) + rho g L^2 / (2 E)` = 0.003195706 m | 0.003195718 | +3.9e-6 rel. | ±5e-5 rel. | pass |
 | Weight welded under a hanging bar: support reaction | `R = (M + m_bar) g` = 24.87816 N | 24.87814 | -8.18e-7 rel. | ±1e-5 rel. | pass |
-| Free impact of a ball on an elastic block | `dp = 0` = 0 | 7.555374e-13 | +7.56e-13 | at most 2e-11 above the reference | pass |
+| Free impact of a ball on an elastic block | `dp = 0` = 0 | 7.659202e-13 | +7.66e-13 | at most 2e-11 above the reference | pass |
 | Free impact through the rigid world | `dp = 0` = 0 | 1.188226e-7 | +1.19e-7 | at most 2e-6 above the reference | pass |
 | A 4 g body on a steel block | `at rest` = 0 m/s | 5.736947e-7 | +5.74e-7 | at most 1e-5 above the reference | pass |
 | The same with naive staggering | `unstable when stiffness h^2 / mass is large: thrown off in the first step` = 1 steps | 1 | 0 | at most 2 above the reference | pass |
-| An 80 kg body on a 2 kg soft pad at 60 Hz | `F = m g at rest` = 0 | -2.910108e-8 | -2.91e-8 | ±0.001 | pass |
+| An 80 kg body on a 2 kg soft pad at 60 Hz | `F = m g at rest` = 0 | -2.909221e-8 | -2.91e-8 | ±0.001 | pass |
 | Free elastic cube on a ground plane | `F = -m g` = -9.81 N | -9.81 | +1.98e-12 rel. | ±1e-9 rel. | pass |
 | Free elastic cube on a ground plane: shortening | `rho g L^2 / (2 E)` = 0.0004905 m | 0.0004887339 | -0.36% | ±0.8% | pass |
-| Capsule lying on a pad | `F = m g` = 19.62 N | 19.62 | -5.05e-12 rel. | ±1e-9 rel. | pass |
+| Capsule lying on a pad | `F = m g` = 19.62 N | 19.62 | -2.58e-11 rel. | ±1e-9 rel. | pass |
 | Block resting on a box that rests on rigid ground | `F = -m g` = -39.24 N | -39.24 | -6.07e-8 rel. | ±1e-5 rel. | pass |
 | Two elastic blocks pressed together, matching surface meshes | `F = delta A / (L1 / E1 + L2 / E2 + 1 / (2 k)), k the contact stiffness per area of one search direction` = 0 | 2.183951e-8 | +2.18e-8 | ±1e-6 | pass |
 | Two elastic blocks pressed together, 3 on 4 cells | `as above` = 0 | -0.0002395154 | -0.00024 | ±0.0005 | pass |

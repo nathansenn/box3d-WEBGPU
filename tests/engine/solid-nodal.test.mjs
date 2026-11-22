@@ -108,6 +108,28 @@ test('contact friction passes: a pass that starts where the last one ended reuse
   assert.ok(a.converged&&b.converged);assert.equal(bits(a.u),bits(b.u));assert.equal(a.force,b.force);assert.ok(a.evaluations<b.evaluations);
 });
 
+test('contact line search: a node short of the plane steps onto it instead of creeping towards it (same answer, a third of the evaluations)',()=>{
+  for(const gap of [1e-7,1e-5,1e-3]){
+    const r=pressedBlock(gap),ref=pressedBlock(gap,{tolerance:1e-10});
+    let d=0,s=0;for(let j=0;j<r.u.length;j++){d=Math.max(d,Math.abs(r.u[j]-ref.u[j]));s=Math.max(s,Math.abs(ref.u[j]));}
+    console.log(`# gap ${gap} m: ${r.evaluations} evaluations of the solid's energy, ${r.newton} Newton iterations; |u - u(tolerance 1e-10)| ${(d/s).toExponential(2)} of the largest`);
+    assert.ok(r.converged&&ref.converged);
+    assert.ok(Math.abs(r.force+8000)<=1e-6*8000,'the plane carries the 20 MPa on 4 cm^2');
+    assert.ok(d<=1e-6*s,'within the solve tolerance of a tightly converged run');
+    // Before the step to first touch (2026-11-18): 97, 159 and 172 evaluations.
+    assert.ok(r.evaluations<=60,`${r.evaluations} evaluations`);
+  }
+});
+test('sparse LDLᵀ ordering: the press section (a long strip) takes reverse Cuthill-McKee, a cube keeps minimum degree',()=>{
+  // Minimum degree gave the press section's factor 57,114 entries.
+  for(const [cells,ordering,entries] of [[[23,4,1],'reverse-cuthill-mckee',46800],[[5,5,5],'minimum-degree',104508]]){
+    const b=new SolidBody({mesh:boxMesh({size:[.05,.002,.003],cells}),material:steel,config:{model:'green-lagrange',element:'tet4-nodal',linearSolver:'ldl'}}),n=3*b.nodeCount;
+    b.kernel().energy(new Float64Array(n),new Float64Array(n),true);
+    const L=b.kernel().assembleTangent(1,0);
+    assert.equal(L.ordering,ordering);assert.equal(L.entries,entries);
+  }
+});
+
 test('tet4-nodal green-lagrange: the written-out tangent product is the general one bit for bit (plastic, eroded elements, scratch state)',()=>{
   const b=new SolidBody({mesh:boxMesh({size:[.02,.004,.004],cells:[6,2,1]}),material:{...steel,yieldStress:250e6,hardeningModulus:1e9},config:{model:'green-lagrange',element:'tet4-nodal'}});
   const n=3*b.nodeCount,X=b.referencePositions,k=b.kernel(),rnd=random(13),u=new Float64Array(n);

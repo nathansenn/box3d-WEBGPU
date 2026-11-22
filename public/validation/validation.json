@@ -16639,9 +16639,9 @@
    "unit": "1",
    "formula": "F / (4 M_p' / V) = 1, M_p' = (2 / sqrt 3) sigma_y t^2 / 4 (plane strain)",
    "reference": 1,
-   "measured": 1.22769949,
-   "error": 0.227699489,
-   "relativeError": 0.227699489,
+   "measured": 1.22769473,
+   "error": 0.227694728,
+   "relativeError": 0.227694728,
    "tolerance": {
     "kind": "upper",
     "value": 0.35
@@ -16655,7 +16655,7 @@
    },
    "text": {
     "reference": "1",
-    "measured": "1.227699",
+    "measured": "1.227695",
     "error": "+0.228",
     "tolerance": "at most 0.35 above the reference"
    }
@@ -16667,10 +16667,10 @@
    "quantity": "bend depth recovered when the punch retracts",
    "unit": "m",
    "formula": "d = F V^3 / (48 E' I), E' = E / (1 - nu^2)",
-   "reference": 0.0000697849662,
-   "measured": 0.0000627135478,
-   "error": -0.00000707141831,
-   "relativeError": -0.101331543,
+   "reference": 0.0000697846956,
+   "measured": 0.0000627133796,
+   "error": -0.00000707131599,
+   "relativeError": -0.10133047,
    "tolerance": {
     "kind": "relative",
     "value": 0.12
@@ -16683,8 +16683,8 @@
     "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/press-brake.test.mjs"
    },
    "text": {
-    "reference": "6.978497e-5 m",
-    "measured": "6.271355e-5",
+    "reference": "6.97847e-5 m",
+    "measured": "6.271338e-5",
     "error": "-10.1%",
     "tolerance": "±12%"
    }
@@ -17643,8 +17643,8 @@
    "formula": "f_ck,cube / f_ck = 37 / 30 (EN 1992-1-1 Table 3.1, C30/37)",
    "reference": 1.23333333,
    "measured": 1.20355318,
-   "error": -0.0297801553,
-   "relativeError": -0.0241460719,
+   "error": -0.0297801555,
+   "relativeError": -0.024146072,
    "tolerance": {
     "kind": "relative",
     "value": 0.05
@@ -17672,8 +17672,8 @@
    "formula": "1.17: the correction of CSN EN 12390-3/Z1 for slenderness 1, as quoted by Stredulova and Elias (2023)",
    "reference": 1.17,
    "measured": 1.16396558,
-   "error": -0.00603441515,
-   "relativeError": -0.00515761978,
+   "error": -0.0060344153,
+   "relativeError": -0.00515761991,
    "tolerance": {
     "kind": "relative",
     "value": 0.03
@@ -17788,8 +17788,8 @@
    "formula": "uniaxial stress: d = m g L / (E A)",
    "reference": 0.000122625,
    "measured": 0.000122625,
-   "error": 1.38127357e-16,
-   "relativeError": 1.12642085e-12,
+   "error": 1.38723668e-16,
+   "relativeError": 1.13128373e-12,
    "tolerance": {
     "kind": "relative",
     "value": 1e-8
@@ -17817,8 +17817,8 @@
    "formula": "uniaxial strain: d = m g L / ((lambda + 2 mu) A)",
    "reference": 0.0000910928571,
    "measured": 0.0000910928571,
-   "error": -9.16462544e-16,
-   "relativeError": -1.00607509e-11,
+   "error": -9.16435439e-16,
+   "relativeError": -1.00604533e-11,
    "tolerance": {
     "kind": "relative",
     "value": 1e-8
@@ -17846,8 +17846,8 @@
    "formula": "p l / (stiffnessScale (lambda + 2 mu)), l the mean element size",
    "reference": 7.68306913e-7,
    "measured": 7.67177596e-7,
-   "error": -1.12931708e-9,
-   "relativeError": -0.00146987755,
+   "error": -1.12931709e-9,
+   "relativeError": -0.00146987756,
    "tolerance": {
     "kind": "relative",
     "value": 0.005
@@ -17875,8 +17875,8 @@
    "formula": "d = m g L / (E A), m the mass the world reports",
    "reference": 0.0000882900035,
    "measured": 0.0000882900098,
-   "error": 6.31428036e-12,
-   "relativeError": 7.15175003e-8,
+   "error": 6.31382586e-12,
+   "relativeError": 7.15123526e-8,
    "tolerance": {
     "kind": "relative",
     "value": 0.000001
@@ -17904,8 +17904,8 @@
    "formula": "F = m g",
    "reference": 70.6320028,
    "measured": 70.6320079,
-   "error": 0.00000508379266,
-   "relativeError": 7.19757681e-8,
+   "error": 0.00000508342897,
+   "relativeError": 7.19706191e-8,
    "tolerance": {
     "kind": "relative",
     "value": 0.000001
@@ -17931,8 +17931,8 @@
    "unit": "1",
    "formula": "backward Euler and damping only remove energy",
    "reference": 0,
-   "measured": 5.56291217e-13,
-   "error": 5.56291217e-13,
+   "measured": 5.49792313e-13,
+   "error": 5.49792313e-13,
    "relativeError": null,
    "tolerance": {
     "kind": "upper",
@@ -17946,8 +17946,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "5.562912e-13",
-    "error": "+5.56e-13",
+    "measured": "5.497923e-13",
+    "error": "+5.5e-13",
     "tolerance": "at most 1e-9 above the reference"
    }
   },
@@ -17988,8 +17988,8 @@
    "unit": "1",
    "formula": "as above",
    "reference": 0,
-   "measured": 0.0941306515,
-   "error": 0.0941306515,
+   "measured": 0.0941306514,
+   "error": 0.0941306514,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
@@ -18047,8 +18047,8 @@
    "formula": "F ~ d^1.5",
    "reference": 1.5,
    "measured": 1.55876201,
-   "error": 0.05876201,
-   "relativeError": 0.0391746733,
+   "error": 0.0587620101,
+   "relativeError": 0.0391746734,
    "tolerance": {
     "kind": "absolute",
     "value": 0.08
@@ -18105,8 +18105,8 @@
    "formula": "F_t / N = tan(theta)",
    "reference": 0.487732589,
    "measured": 0.487732589,
-   "error": -7.53913598e-12,
-   "relativeError": -1.54575195e-11,
+   "error": -2.81547008e-12,
+   "relativeError": -5.77256912e-12,
    "tolerance": {
     "kind": "relative",
     "value": 0.00001
@@ -18120,7 +18120,7 @@
    "text": {
     "reference": "0.4877326",
     "measured": "0.4877326",
-    "error": "-1.55e-11 rel.",
+    "error": "-5.77e-12 rel.",
     "tolerance": "±1e-5 rel."
    }
   },
@@ -18247,8 +18247,8 @@
    "unit": "1",
    "formula": "dp = 0",
    "reference": 0,
-   "measured": 7.55537361e-13,
-   "error": 7.55537361e-13,
+   "measured": 7.65920166e-13,
+   "error": 7.65920166e-13,
    "relativeError": null,
    "tolerance": {
     "kind": "upper",
@@ -18263,8 +18263,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "7.555374e-13",
-    "error": "+7.56e-13",
+    "measured": "7.659202e-13",
+    "error": "+7.66e-13",
     "tolerance": "at most 2e-11 above the reference"
    }
   },
@@ -18362,8 +18362,8 @@
    "unit": "1",
    "formula": "F = m g at rest",
    "reference": 0,
-   "measured": -2.91010828e-8,
-   "error": -2.91010828e-8,
+   "measured": -2.9092211e-8,
+   "error": -2.9092211e-8,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
@@ -18377,7 +18377,7 @@
    },
    "text": {
     "reference": "0",
-    "measured": "-2.910108e-8",
+    "measured": "-2.909221e-8",
     "error": "-2.91e-8",
     "tolerance": "±0.001"
    }
@@ -18391,8 +18391,8 @@
    "formula": "F = -m g",
    "reference": -9.81,
    "measured": -9.81,
-   "error": 1.9394264e-11,
-   "relativeError": 1.97698919e-12,
+   "error": 1.94262384e-11,
+   "relativeError": 1.98024856e-12,
    "tolerance": {
     "kind": "relative",
     "value": 1e-9
@@ -18448,8 +18448,8 @@
    "formula": "F = m g",
    "reference": 19.62,
    "measured": 19.62,
-   "error": -9.91668969e-11,
-   "relativeError": -5.05437803e-12,
+   "error": -5.06165776e-10,
+   "relativeError": -2.57984595e-11,
    "tolerance": {
     "kind": "relative",
     "value": 1e-9
@@ -18464,7 +18464,7 @@
    "text": {
     "reference": "19.62 N",
     "measured": "19.62",
-    "error": "-5.05e-12 rel.",
+    "error": "-2.58e-11 rel.",
     "tolerance": "±1e-9 rel."
    }
   },
@@ -18477,8 +18477,8 @@
    "formula": "F = -m g",
    "reference": -39.24,
    "measured": -39.2400024,
-   "error": -0.00000238114233,
-   "relativeError": -6.06815069e-8,
+   "error": -0.00000238109645,
+   "relativeError": -6.06803377e-8,
    "tolerance": {
     "kind": "relative",
     "value": 0.00001

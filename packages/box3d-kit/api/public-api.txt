@@ -6067,6 +6067,12 @@ export declare class SolidContact {
     private applyPreconditioner;
     private norm;
     private conjugateGradient;
+    private touchStep;
+    private touchAt;
+    private touchK;
+    private touchA;
+    private touchB;
+    private touchIndex;
     private minimise;
     private rounding;
     private updateCaps;
@@ -7070,6 +7076,7 @@ export declare class SolidBody {
 
 // ==== core/sparse-ldl.d.ts ====
 export declare class SparseLDL {
+    ordering: 'minimum-degree' | 'reverse-cuthill-mckee';
     readonly nodes: number;
     readonly size: number;
     readonly position: Int32Array;
