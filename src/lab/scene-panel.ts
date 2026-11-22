@@ -8,7 +8,7 @@
  * textContent; nothing here builds markup from input.
  */
 import './scene-panel.css';
-import { COUPLED_EXAMPLE_NAMES, COUPLED_EXAMPLE_TITLES, EXAMPLE_SCENE_NAMES, EXAMPLE_SCENE_TITLES, RIGID_CORE_EXAMPLE_NAMES, RIGID_CORE_EXAMPLE_TITLES } from './scene-loading.ts';
+import { COUPLED_EXAMPLE_NAMES, COUPLED_EXAMPLE_TITLES, EXAMPLE_SCENE_NAMES, EXAMPLE_SCENE_TITLES, GPU_EXAMPLE_NAMES, GPU_EXAMPLE_TITLES, RIGID_CORE_EXAMPLE_NAMES, RIGID_CORE_EXAMPLE_TITLES } from './scene-loading.ts';
 import { RIGID_DEBUG_LABELS, RIGID_DEBUG_LAYERS, RIGID_DEBUG_OFF, type RigidDebugLayer, type RigidDebugState } from './rigid-debug.ts';
 
 export interface ScenePanelCallbacks {
@@ -148,7 +148,7 @@ export function createScenePanel(callbacks: ScenePanelCallbacks): ScenePanel {
   const placeholder = element('option', '', 'Example scenes…');
   placeholder.value = '';
   examples.append(placeholder);
-  for (const [label, names, titles] of [['Rigid bodies and joints', EXAMPLE_SCENE_NAMES, EXAMPLE_SCENE_TITLES], ['Rigid core: character, vehicle, rays, bullets, breaking', RIGID_CORE_EXAMPLE_NAMES, RIGID_CORE_EXAMPLE_TITLES], ['Coupled: water, cables, cloth, grains, solids, heat', COUPLED_EXAMPLE_NAMES, COUPLED_EXAMPLE_TITLES]] as const) {
+  for (const [label, names, titles] of [['Rigid bodies and joints', EXAMPLE_SCENE_NAMES, EXAMPLE_SCENE_TITLES], ['Rigid core: character, vehicle, rays, bullets, breaking', RIGID_CORE_EXAMPLE_NAMES, RIGID_CORE_EXAMPLE_TITLES], ['Coupled: water, cables, cloth, grains, solids, heat', COUPLED_EXAMPLE_NAMES, COUPLED_EXAMPLE_TITLES], ['GPU sections: grains and flow on WebGPU compute', GPU_EXAMPLE_NAMES, GPU_EXAMPLE_TITLES]] as const) {
     const group = document.createElement('optgroup');
     group.label = label;
     for (const name of names) {

@@ -896,6 +896,7 @@ await loaded.simulation.pullAsync();                              // the GPU sta
 
 - **What runs where.** The grains' and the flow's couplings to rigid bodies run on the CPU around the GPU's steps (the walls' sums and the obstacles' forces are read back before the rigid step); a flow's obstacle geometry stays on the CPU in float64 and the faces near each obstacle are uploaded every step. Shallow water on the GPU has no bodies; a free-surface tank has no GPU backend.
 - **Numbers.** float32: the results are the float32 reference's bits where the repository's `docs/GPU_COMPUTE.md` says "identical", not the float64 solvers'. A run repeats bit for bit on the same device; a checkpoint resumes bit-exactly and restores on either the GPU or the reference. `test/v23-gpu-scene.test.mjs` runs the sections on the reference and encodes them on Dawn's null device.
+- **Device loss.** `new GpuSceneRunner(loaded.simulation)` and `await runner.step()` instead of `stepAsync()`: a checkpoint every 30 steps, and when the device is lost the sections carry on on the float32 reference from the last checkpoint (`runner.fallback` says when and from where).
 - **TypeScript.** The declarations of this entry name the WebGPU types: add `@webgpu/types` to your project when you import it. It loads the grain and shallow-water solvers, and the flow solver only by type (about 152 KiB of gzip).
 
 ### No build step

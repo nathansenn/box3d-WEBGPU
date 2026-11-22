@@ -73,9 +73,28 @@ export const COUPLED_EXAMPLE_TITLES: { readonly [name: string]: string } = Objec
   'river-bend': 'River bend',
 });
 export const COUPLED_EXAMPLE_NAMES: readonly string[] = Object.freeze(Object.keys(COUPLED_EXAMPLE_SCENES));
-/** Every example `?example=<name>` opens: the rigid ones, the rigid-core ones, then the coupled ones. */
-export const LAB_EXAMPLE_SCENES: { readonly [name: string]: () => Scene } = Object.freeze({ ...EXAMPLE_SCENES, ...RIGID_CORE_EXAMPLE_SCENES, ...COUPLED_EXAMPLE_SCENES });
-export const LAB_EXAMPLE_TITLES: { readonly [name: string]: string } = Object.freeze({ ...EXAMPLE_SCENE_TITLES, ...RIGID_CORE_EXAMPLE_TITLES, ...COUPLED_EXAMPLE_TITLES });
+/** A coupled example with every grain, shallow-water and flow section on the GPU (`"backend": "gpu"`). */
+function onGpu(scene: Scene): Scene {
+  const gpu = <T extends object>(list: readonly T[] | undefined): T[] | undefined => list?.map(section => ({ ...section, backend: 'gpu' }));
+  return { ...scene, ...(scene.grains ? { grains: gpu(scene.grains) } : {}), ...(scene.shallowWater ? { shallowWater: gpu(scene.shallowWater) } : {}),
+    ...(scene.fluids ? { fluids: gpu(scene.fluids) } : {}) } as Scene;
+}
+/**
+ * The examples with GPU sections (src/lab/gpu-scene.ts, docs/GPU_COMPUTE.md): coupled examples whose grains or flow run
+ * on WebGPU compute when the page has it, and on the CPU otherwise. Same bodies, same set-up; only `backend` differs.
+ */
+export const GPU_EXAMPLE_SCENES: { readonly [name: string]: () => Scene } = Object.freeze({
+  'sphere-settling-gpu': () => onGpu(COUPLED_EXAMPLE_SCENES['sphere-settling']!()),
+  'hopper-seesaw-gpu': () => onGpu(COUPLED_EXAMPLE_SCENES['hopper-seesaw']!()),
+});
+export const GPU_EXAMPLE_TITLES: { readonly [name: string]: string } = Object.freeze({
+  'sphere-settling-gpu': 'Sphere settling, flow on the GPU',
+  'hopper-seesaw-gpu': 'Hopper and see-saw, grains on the GPU',
+});
+export const GPU_EXAMPLE_NAMES: readonly string[] = Object.freeze(Object.keys(GPU_EXAMPLE_SCENES));
+/** Every example `?example=<name>` opens: the rigid ones, the rigid-core ones, the coupled ones, then those with GPU sections. */
+export const LAB_EXAMPLE_SCENES: { readonly [name: string]: () => Scene } = Object.freeze({ ...EXAMPLE_SCENES, ...RIGID_CORE_EXAMPLE_SCENES, ...COUPLED_EXAMPLE_SCENES, ...GPU_EXAMPLE_SCENES });
+export const LAB_EXAMPLE_TITLES: { readonly [name: string]: string } = Object.freeze({ ...EXAMPLE_SCENE_TITLES, ...RIGID_CORE_EXAMPLE_TITLES, ...COUPLED_EXAMPLE_TITLES, ...GPU_EXAMPLE_TITLES });
 export const LAB_EXAMPLE_NAMES: readonly string[] = Object.freeze(Object.keys(LAB_EXAMPLE_SCENES));
 
 /** Where the scene on screen came from. */

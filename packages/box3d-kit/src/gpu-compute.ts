@@ -22,7 +22,7 @@
  * See docs/GPU_COMPUTE.md in the repository for the validation, the float32 tolerances and the limits.
  */
 export {acquireGpuCompute, gpuComputeSupported, GpuCompute, GpuProgram, type GpuAcquireOptions, type GpuComputeInfo, type GpuComputeNeeds} from './core/gpu/compute.js';
-export {gpuSceneBackends, gpuShallowWaterSubsystem, gpuGranularSubsystem, gpuFluidSubsystem, GPU_SCENE_BACKEND, type GpuSceneSubsystem} from './core/gpu/scene-backends.js';
+export {gpuSceneBackends, gpuShallowWaterSubsystem, gpuGranularSubsystem, gpuFluidSubsystem, GpuSceneRunner, GPU_SCENE_BACKEND, type GpuSceneFallback, type GpuSceneSubsystem} from './core/gpu/scene-backends.js';
 export {GpuShallowWater, ShallowWaterRunner, SHALLOW_WATER_GPU_SOLVER_ID, type GpuShallowWaterOptions, type ShallowWaterRunnerOptions} from './core/gpu/shallow-water-gpu.js';
 export {ShallowWaterF32, SHALLOW_WATER_CHECKPOINT, type ShallowWaterF32Stats} from './core/gpu/shallow-water-f32.js';
 export {GpuGranular, GranularRunner, GpuGranularCoupling, demMemory, GRANULAR_GPU_SOLVER_ID, type GranularRunnerOptions} from './core/gpu/granular-gpu.js';

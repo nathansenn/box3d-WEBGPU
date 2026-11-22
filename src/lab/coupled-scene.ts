@@ -37,6 +37,7 @@
  * Everything here is plain arithmetic with no DOM and no GPU, so it runs in node
  * (tests/physics/lab-coupled-scenes.test.mjs).
  */
+import type { LabGpuStepper } from './gpu-scene.ts';
 import type { NativeBodyHandle } from '../engine/native-world.ts';
 import type { Scene, SceneFluid, SceneGrainWall, SceneHeat, SceneSolid } from '../engine/scene-format.ts';
 import type { SceneFluidRuntime, SceneSolidRuntime, SimulationEnergy, SimulationEvent } from '../engine/simulation.ts';
@@ -606,9 +607,12 @@ export class CoupledSceneView implements InstanceBufferSource {
   private arrowCount = 0;
   private readonly shallowGrids: { readonly water: ShallowWater; readonly grid: { stride: number; nx: number; nz: number }; readonly heights: Float32Array }[] = [];
 
-  constructor(loaded: LabLoadedScene, base: InstanceBufferSource) {
+  /** The stepper of a scene with GPU sections (src/lab/gpu-scene.ts), or null: then `step()` is `simulation.step()`. */
+  readonly gpu: LabGpuStepper | null;
+  constructor(loaded: LabLoadedScene, base: InstanceBufferSource, gpu: LabGpuStepper | null = null) {
     this.loaded = loaded;
     this.base = base;
+    this.gpu = gpu;
     const scene = loaded.scene, notes: string[] = [];
 
     for (const description of scene.cloths ?? []) {
@@ -742,8 +746,12 @@ export class CoupledSceneView implements InstanceBufferSource {
     this.sync();
   }
 
-  /** One fixed step of the whole scene: `simulation.step()`, timed. */
+  /**
+   * One fixed step of the whole scene: `simulation.step()`, timed. With GPU sections a step is started when none is on
+   * its way (`stepAsync()`, then the state is pulled for drawing) and skipped otherwise: the GPU sets the pace.
+   */
   step(): void {
+    if (this.gpu) { this.gpu.tick(); return; }
     const start = performance.now();
     this.loaded.simulation.step();
     this.stepMs += performance.now() - start;
@@ -1002,7 +1010,7 @@ export class CoupledSceneView implements InstanceBufferSource {
     const simulation = this.loaded.simulation;
     // While paused no step runs: the last measured cost is kept.
     if (this.stepCount > 0) { this.lastStepMs = this.stepMs / this.stepCount; this.stepMs = 0; this.stepCount = 0; }
-    const stepMs = this.lastStepMs;
+    const stepMs = this.gpu ? this.gpu.state().msPerStep : this.lastStepMs;
     return { tick: simulation.tick, time: simulation.time, dt: simulation.dt, stepMs, energy: simulation.energy(), eventCount: this.eventCount, events: this.events.slice(-8), order: simulation.order().map(row => row.id) };
   }
   dispose(): void { this.unsubscribe(); }

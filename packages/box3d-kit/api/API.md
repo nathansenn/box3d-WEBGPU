@@ -14406,7 +14406,7 @@ one; a move that needs more throws GPU_CAPACITY. No energy ledger (the backend s
 'unconverged' when a solve stopped at its iteration limit.
 
 ```ts
-export declare function gpuFluidSubsystem<W, B>(compute: GpuCompute | 'reference', target: Fluid | FluidCoupling<B>, options?: {
+export declare function gpuFluidSubsystem<W, B>(device: GpuCompute | 'reference', target: Fluid | FluidCoupling<B>, options?: {
     readonly id?: string;
     readonly order?: number;
     readonly backend?: FluidBackendOptions;
@@ -14472,7 +14472,7 @@ export declare class GpuGranularCoupling<B> {
 A GPU (or float32 reference) grain section: the coupling's begin and finish on the CPU, the grain steps on the backend; couple stage, as granularSubsystem of a coupling.
 
 ```ts
-export declare function gpuGranularSubsystem<W, B>(compute: GpuCompute | 'reference', coupling: GranularCoupling<B>, options?: {
+export declare function gpuGranularSubsystem<W, B>(device: GpuCompute | 'reference', coupling: GranularCoupling<B>, options?: {
     readonly id?: string;
     readonly order?: number;
 }): GpuSceneSubsystem<W, B>;
@@ -14498,6 +14498,40 @@ The `gpu` option of the scene loaders: GPU subsystems for the sections that say 
 export declare function gpuSceneBackends<W, B>(compute: GpuCompute | 'reference'): SceneGpuBackends<W, B>;
 ```
 
+### GpuSceneFallback · interface
+
+What a GpuSceneRunner did when the device was lost.
+
+```ts
+export interface GpuSceneFallback {
+    readonly reason: string;
+    readonly atTick: number;
+    readonly resumedFrom: number;
+    readonly stepsRerun: number;
+}
+```
+
+### GpuSceneRunner · class
+
+Steps a simulation with GPU sections and carries on with the float32 reference when the device is lost. It takes a
+checkpoint of the whole simulation (`checkpointAsync`: the world, every section, the clock) before its first step and
+then every `snapshotEvery` steps; on GPU_DEVICE_LOST during a step or a checkpoint every GPU section switches to the
+reference (`useReference`), the last checkpoint is restored and the steps since it are taken again, then the step that
+failed. The reference runs the GPU's program, so the run goes on with the bits it would have had on the device
+wherever the two agree bit for bit (docs/GPU_COMPUTE.md); a fall back costs the steps since the checkpoint.
+
+```ts
+export declare class GpuSceneRunner<W extends SimulationWorld<B>, B> {
+  readonly simulation: Simulation<W, B>;
+  readonly snapshotEvery: number;
+  fallback: GpuSceneFallback | null;
+  get sections(): GpuSceneSubsystem<W, B>[];
+  get backend(): 'gpu' | 'reference';
+  get checkpointTick(): number;
+  step(): Promise<void>;
+}
+```
+
 ### GpuSceneSubsystem · interface
 
 What `pullAsync` and the scene save need of a GPU section.
@@ -14506,6 +14540,7 @@ What `pullAsync` and the scene save need of a GPU section.
 export interface GpuSceneSubsystem<W, B> extends Subsystem<W, B> {
     stale(): boolean;
     readonly backend: 'gpu' | 'reference';
+    useReference(): void;
 }
 ```
 
@@ -14567,7 +14602,7 @@ export interface GpuShallowWaterOptions {
 A GPU (or float32 reference) shallow-water section: post stage, commensurate step, as shallowWaterSubsystem without bodies.
 
 ```ts
-export declare function gpuShallowWaterSubsystem<W, B>(compute: GpuCompute | 'reference', water: ShallowWater, options?: {
+export declare function gpuShallowWaterSubsystem<W, B>(device: GpuCompute | 'reference', water: ShallowWater, options?: {
     readonly id?: string;
     readonly order?: number;
 }): GpuSceneSubsystem<W, B>;

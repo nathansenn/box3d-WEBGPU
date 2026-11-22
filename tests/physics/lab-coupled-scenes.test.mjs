@@ -28,7 +28,7 @@ import {
 import {FractureBody} from '../../src/engine/solid-fracture.ts';
 import {exactTransformHash, loadLabScene} from '../../src/lab/scene-host.ts';
 import {CoupledSceneView, FLUID_BANDS, SOLID_BANDS, boundaryFaceElements, coupledStateHash, flowSlice, fluidBand, grainWallMesh, rampColor, sceneIsCoupled, shallowDrawGrid, sliceValues, solidBand, waterDrawGrid, writeShallowMesh, writeTwoSidedMesh, writeWaterMesh} from '../../src/lab/coupled-scene.ts';
-import {COUPLED_EXAMPLE_NAMES, LAB_EXAMPLE_NAMES, RIGID_CORE_EXAMPLE_NAMES, parseSceneRequest, resolveSceneRequest, sceneCameraFrame, sceneSummary} from '../../src/lab/scene-loading.ts';
+import {COUPLED_EXAMPLE_NAMES, GPU_EXAMPLE_NAMES, LAB_EXAMPLE_NAMES, RIGID_CORE_EXAMPLE_NAMES, parseSceneRequest, resolveSceneRequest, sceneCameraFrame, sceneSummary} from '../../src/lab/scene-loading.ts';
 
 const artifact = resolve(process.env.BOX3D_WORLD_ARTIFACT_DIR ?? 'public/box3d');
 const {default: factory} = await import(pathToFileURL(resolve(artifact, 'box3d.js')));
@@ -57,7 +57,7 @@ test('the Lab opens every coupled example by name, after the rigid ones', () => 
   assert.deepEqual(COUPLED_EXAMPLE_NAMES, ['moored-buoy', 'cable-stayed-deck', 'buoy-and-crates', 'trampoline', 'hopper-seesaw', 'suspended-platform', 'rubber-pad', 'soft-blocks', 'notched-beam', 'quenched-plate', 'heated-bar',
     'sphere-settling', 'cavity-flow', 'flow-past-cylinder', 'dam-break', 'dam-break-valley', 'river-bend']);
   // The rigid examples, the rigid-core examples (tests/physics/rigid-play.test.mjs) and the coupled ones.
-  assert.deepEqual(LAB_EXAMPLE_NAMES, [...Object.keys(EXAMPLE_SCENES), ...RIGID_CORE_EXAMPLE_NAMES, ...COUPLED_EXAMPLE_NAMES]);
+  assert.deepEqual(LAB_EXAMPLE_NAMES, [...Object.keys(EXAMPLE_SCENES), ...RIGID_CORE_EXAMPLE_NAMES, ...COUPLED_EXAMPLE_NAMES, ...GPU_EXAMPLE_NAMES]);
   for (const name of COUPLED_EXAMPLE_NAMES) {
     const request = parseSceneRequest(`?example=${name}`);
     assert.deepEqual(request, {kind: 'example', name});
