@@ -4,6 +4,7 @@
  *
  * - **Ordering.** Minimum degree on the node graph by explicit elimination (ties to the lowest node index, so the order is
  *   deterministic), which also gives the structure of the factor: a node's column holds its neighbours at elimination time.
+ *   Reverse Cuthill-McKee is formed too and kept when its factor is smaller (a long strip such as the press section; `ordering`).
  * - **Storage.** The lower triangle of the permuted matrix, column by column with the factor's structure, so the matrix is
  *   assembled straight into the factor's places and factored in place: `D` holds the diagonal, `values` the rest.
  * - **Factorization.** Left-looking, a node's three columns at a time (each earlier column that reaches the node is read once
@@ -24,7 +25,34 @@
 /** Fractions of the diagonal added to an indefinite matrix, in turn. */
 const SHIFTS=[0,1e-6,1e-4,1e-2,1] as const;
 
+/** Explicit elimination in a given order: each node's neighbours at its elimination (its column's higher nodes). */
+function eliminate(graph:readonly number[][],order:ArrayLike<number>):number[][] {
+  const sets=graph.map(list=>new Set(list)),upper:number[][]=new Array(graph.length);
+  for(let k=0;k<order.length;k++){
+    const a=order[k],neighbours=Array.from(sets[a]);upper[a]=neighbours;
+    for(const b of neighbours){const set=sets[b];set.delete(a);for(const c of neighbours)if(c!==b)set.add(c);}
+    sets[a].clear();
+  }
+  return upper;
+}
+/** Reverse Cuthill-McKee: breadth first from a node of least degree (lowest index on a tie), neighbours by degree, then index;
+ * each further component from its own least-degree node; the whole order reversed. */
+function reverseCuthillMcKee(graph:readonly number[][]):Int32Array {
+  const n=graph.length,seen=new Uint8Array(n),out=new Int32Array(n);let count=0;
+  while(count<n){
+    let start=-1;for(let a=0;a<n;a++)if(!seen[a]&&(start<0||graph[a].length<graph[start].length))start=a;
+    seen[start]=1;out[count++]=start;
+    for(let head=count-1;head<count;head++){
+      const next=graph[out[head]].filter(b=>!seen[b]).sort((p,q)=>graph[p].length-graph[q].length||p-q);
+      for(const b of next){seen[b]=1;out[count++]=b;}
+    }
+  }
+  return out.reverse();
+}
+
 export class SparseLDL {
+  /** The fill-reducing order in use: minimum degree, or reverse Cuthill-McKee where it fills less. */
+  ordering:'minimum-degree'|'reverse-cuthill-mckee'='minimum-degree';
   /** Number of nodes and of unknowns (3 per node). */
   readonly nodes:number;readonly size:number;
   /** Elimination position of each node, and the node at each position. */
@@ -51,8 +79,9 @@ export class SparseLDL {
     // Explicit elimination on the node graph: neighbour sets, minimum degree first.
     const sets:Set<number>[]=Array.from({length:nodes},()=>new Set<number>());
     for(let a=0;a<nodes;a++)adjacency(a,b=>{if(b!==a&&b>=0&&b<nodes){sets[a].add(b);sets[b].add(a);}});
-    const position=this.position=new Int32Array(nodes).fill(-1),order=this.order=new Int32Array(nodes);
-    const upper:number[][]=new Array(nodes);
+    const graph:number[][]=sets.map(set=>Array.from(set).sort((p,q)=>p-q));
+    let position=this.position=new Int32Array(nodes).fill(-1),order=this.order=new Int32Array(nodes);
+    let upper:number[][]=new Array(nodes);
     // Buckets of nodes by degree, scanned from the lowest; the lowest node index wins a tie.
     const degree=new Int32Array(nodes);let maxDegree=0;
     for(let a=0;a<nodes;a++){degree[a]=sets[a].size;if(degree[a]>maxDegree)maxDegree=degree[a];}
@@ -68,6 +97,13 @@ export class SparseLDL {
         degree[b]=s.size;
       }
       sets[a].clear();
+    }
+    // Reverse Cuthill-McKee as well: on a long strip (the press section) it fills less than minimum degree. The order with
+    // the smaller factor is kept (minimum degree on a tie).
+    let fillMD=0;for(let a=0;a<nodes;a++)fillMD+=upper[a].length;
+    const rcm=reverseCuthillMcKee(graph),rcmUpper=eliminate(graph,rcm);let fillRCM=0;for(let a=0;a<nodes;a++)fillRCM+=rcmUpper[a].length;
+    if(fillRCM<fillMD){
+      upper=rcmUpper;order.set(rcm);for(let k=0;k<nodes;k++)position[order[k]]=k;this.ordering='reverse-cuthill-mckee';
     }
     // Column structure: per node column, its higher neighbours sorted by elimination position.
     const upperStart=this.upperStart=new Int32Array(nodes+1);
