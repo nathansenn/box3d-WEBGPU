@@ -5,7 +5,7 @@
 import '../../scripts/register-typescript.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {compression, tension, band, tensionBand, crushBand, confined, biaxial, biaxialEnvelope, flow, tie, beam, c30, b500} from '../../validation/domains/concrete.mjs';
+import {compression, tension, band, tensionBand, crushBand, confined, biaxial, biaxialEnvelope, flow, strengthFactor, tie, beam, c30, b500} from '../../validation/domains/concrete.mjs';
 const {SolidBody, boxMesh, SOLID_CONCRETE_SOLVER_ID, buildConcreteLaw} = await import('../../src/engine/solid.ts');
 const {ConcreteReturn} = await import('../../src/engine/concrete-law.ts');
 const {encodeState} = await import('../../src/engine/checkpoint.ts');
@@ -105,6 +105,21 @@ test('biaxial compression: the equal-biaxial strength is 1.16 f_cm (Kupfer, Hils
   assert.ok(b.converged, 'every step to the peak converged');
   // The elliptic section through the EN 1992-1-1 meridian and the 1.16 point overshoots Kupfer's 1.27 at the ratio 0.5: documented.
   assert.ok(half > 1.27 && half < 1.45, `ratio 0.5: ${half}`);
+});
+
+test('strength factors scale the whole surface: a factor f gives f f_cm in uniaxial compression, f f_ctm in tension and 1.16 f f_cm in equal-biaxial compression', async () => {
+  const rows = [];
+  for (const f of [0.8, 0.9, 1.1]) {
+    const r = await strengthFactor(f);
+    rows.push({f, peak: +(r.peak / 1e6).toFixed(3), at: +(r.at * 1e3).toFixed(3), compression: +r.compression.toFixed(5), tension: +r.tension.toFixed(5)});
+    // 0.5 %: the one-cell compression row (factor 1) is 0.2 % low (nominal stress, Green-Lagrange kinematics). Before
+    // 2026-11-18 the meridian was read at xi / f_cm: 0.8, 0.9 and 1.1 gave 0.788, 0.881 and 1.151 of f f_cm.
+    close(r.compression, 1, 0.005, `factor ${f}: uniaxial peak over f f_cm`);
+    close(r.tension, 1, 0.005, `factor ${f}: tensile peak over f f_ctm`);
+    assert.ok(r.converged, 'every step converged');
+  }
+  for (const f of [0.9, 1.1]) close((await biaxial(f)).ratio, 1.16, 0.01, `factor ${f}: equal-biaxial strength over f f_cm`);
+  console.log('# strength factors', JSON.stringify(rows));
 });
 
 test('non-associated flow: the plastic volume change per unit kappa_c is the dilatancy psi of the potential, below the meridian slope', async () => {

@@ -67,9 +67,10 @@ export const FIBRE_SOFTENING=[5e-5,.5,2.5e-3,.3,5e-3,0];
 const fibreEnergy=(ft:number)=>{let a=0,w0=0,s0=1;for(let i=0;i<FIBRE_SOFTENING.length;i+=2){a+=(FIBRE_SOFTENING[i]-w0)*(FIBRE_SOFTENING[i+1]+s0)/2*ft;w0=FIBRE_SOFTENING[i];s0=FIBRE_SOFTENING[i+1];}return a;};
 
 /** What the lab's elements do after their compressive peak (`ConcreteLawInput.postPeak`): 'lagged', the law before
- * 2026-11-17. The crack band's softening surface ('band', the engine's default) moves the presets' peaks by -7 % to +11 %
- * (docs/STUDIO_MATERIAL_LABS.md): elements of the strength scatter pass their own peak before the cube does, and whether
- * they then dilate changes the cube's peak. */
+ * 2026-11-17. The crack band's softening surface ('band', the engine's default) moves the presets' peaks by -6.0 % to
+ * +7.2 % (docs/STUDIO_MATERIAL_LABS.md): under the platens' confinement most elements pass their peak in kappa_c before
+ * the cube peaks, and whether they then expand sideways changes the cube's peak. Later switching rules tried on
+ * 2026-11-18 did not localise in the engine's prism. */
 export const CONCRETE_POST_PEAK='lagged';
 /** SI law of each Studio mix. Concrete classes from the material library (EN 1992-1-1 Table 3.1, section 11 for LC); the
  * mapping of a Studio name onto a class is stated in `source`. */

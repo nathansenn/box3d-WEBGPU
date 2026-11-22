@@ -1508,7 +1508,9 @@ export class SolidBody {
     for(let e=0;e<this.tetCount;e++)out[e]=this.eroded[e]?1:concreteDamage(law,this.cnonlocal?this.kbar[e]:this.alpha[e],this.kappaT[e],this.scaleC(e),this.scaleT(e),this.canchor.length>0);return out;
   }
   /** Concrete: scale the strengths (and with them the fracture energies) of each element by a factor, e.g. to seed
-   * localisation or to give a specimen a scatter of strength. One factor per element, 0.05 to 20. Default 1. */
+   * localisation or to give a specimen a scatter of strength. One factor per element, 0.05 to 20. Default 1. The factor f
+   * scales the whole surface in stress space (`q r = f k Psi(xi / (f f_cm))`, tension f f_t): f times the law's uniaxial,
+   * biaxial, confined and tensile strengths. */
   setStrengthFactors(factors:ArrayLike<number>):void {
     if(!this.concreteLaw)throw new EngineError('INVALID_PAYLOAD','Strength factors need a concrete law.');
     this.strengthFactor.set(numbers(Array.from(factors),this.tetCount,'strength factors',.05,20));

@@ -505,8 +505,11 @@ export class ConcreteReturn {
     // The strength never falls below psi xi (the slope of the potential): k is floored at psi xi_n / cf, so that
     // c = cf k + cs >= 0 and the plastic work sigma : d eps_p = c d lambda of the step stays non-negative, also for a
     // crushed element under pressure, which keeps that friction.
+    // A strength factor f scales the whole surface in stress space: q r = f k Psi(xi / (f f_cm)), so the element has f times
+    // the uniaxial, equal-biaxial, confined and tensile strengths of the law (before 2026-11-18 the meridian was read at
+    // xi / f_cm, which gave 0.794 f_cm in uniaxial compression for f = 0.9).
     const psi=this.psi=L.dilatancy;
-    const cf=this.cf=f*meridianValue(L,xn/L.input.compressiveStrength),cs=this.cs=-psi*xn;this.floor=Math.max(0,-cs/cf);
+    const cf=this.cf=f*meridianValue(L,xn/(f*L.input.compressiveStrength)),cs=this.cs=-psi*xn;this.floor=Math.max(0,-cs/cf);
     return kc0;
   }
   private kx:Float64Array;private ky:Float64Array;private ki:Float64Array;
