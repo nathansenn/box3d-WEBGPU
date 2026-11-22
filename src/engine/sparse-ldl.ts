@@ -6,11 +6,15 @@
  *   deterministic), which also gives the structure of the factor: a node's column holds its neighbours at elimination time.
  * - **Storage.** The lower triangle of the permuted matrix, column by column with the factor's structure, so the matrix is
  *   assembled straight into the factor's places and factored in place: `D` holds the diagonal, `values` the rest.
- * - **Factorization.** Left-looking, column by column. A pivot that is not clearly positive (an indefinite tangent: softening, a
+ * - **Factorization.** Left-looking, a node's three columns at a time (each earlier column that reaches the node is read once
+ *   for all three); the substitutions also work by node. Every entry receives its updates in the column-by-column order, so
+ *   the numbers are those of a column-by-column factorization to the bit. A pivot that is not clearly positive (an indefinite tangent: softening, a
  *   strongly distorted finite-strain element) is reset to the larger of its magnitude and the column's own diagonal, so the result
  *   is always a symmetric positive definite preconditioner; `modified` counts such pivots. (Raising the whole diagonal until no
  *   pivot needs resetting, Levenberg-Marquardt style, was tried: on the cracking V bend it took 15 times more inner iterations.) The conjugate gradients multiply by the true tangent, so this changes how fast they converge, never
  *   what they converge to.
+ * - **Isolated unknowns** (a zero row and column, such as a node whose elements have all eroded) are pivoted on their own
+ *   diagonal, which is exact for them however small it is, and do not count as reset pivots.
  * - **Constrained components** have unit rows: `fixed` components take no entries and solve to zero.
  *
  * Self-contained. See docs/SOLID_MECHANICS.md (Linear solver).
@@ -32,10 +36,12 @@ export class SparseLDL {
   /** Higher neighbours of each node column (in elimination order) and where its rows start: node a's column (dof p) has its
    * rows of node b at columnStart[3 pos(a) + p] + (2 - p) + 3 k, k the index of b in a's list. */
   private readonly upperStart:Int32Array;private readonly upperNodes:Int32Array;
+  /** The same lists as permuted dof indices: 3 x the elimination position of each higher neighbour. */
+  private readonly upperRows:Int32Array;
   /** Row structure: for each permuted dof j the columns k < j with L(j, k) present and the index of that entry. */
   private readonly rowStart:Int32Array;private readonly rowColumn:Int32Array;private readonly rowEntry:Int32Array;
-  private readonly work:Float64Array;private readonly scratch:Float64Array;
-  private readonly fixed:Uint8Array;
+  private readonly work:Float64Array;private readonly work1:Float64Array;private readonly work2:Float64Array;private readonly scratch:Float64Array;
+  private readonly fixed:Uint8Array;private readonly isolated:Uint8Array;
 
   /** `adjacency(node, visit)` calls `visit` for every node coupled to `node` (either order; duplicates and itself are ignored). */
   constructor(nodes:number,adjacency:(node:number,visit:(other:number)=>void)=>void){
@@ -66,6 +72,7 @@ export class SparseLDL {
     for(let a=0;a<nodes;a++){upper[a].sort((p,q)=>position[p]-position[q]);upperStart[a+1]=upperStart[a]+upper[a].length;}
     const upperNodes=this.upperNodes=new Int32Array(upperStart[nodes]);
     for(let a=0;a<nodes;a++)upperNodes.set(upper[a],upperStart[a]);
+    const upperRows=this.upperRows=new Int32Array(upperNodes.length);for(let k=0;k<upperNodes.length;k++)upperRows[k]=3*position[upperNodes[k]];
     const columnStart=this.columnStart=new Int32Array(this.size+1);
     for(let s=0;s<nodes;s++){const a=order[s],h=upper[a].length;for(let p=0;p<3;p++)columnStart[3*s+p+1]=columnStart[3*s+p]+(2-p)+3*h;}
     const nnz=columnStart[this.size],rows=this.rows=new Int32Array(nnz);this.values=new Float64Array(nnz);
@@ -83,8 +90,8 @@ export class SparseLDL {
     for(let j=0;j<this.size;j++)rowStart[j+1]=rowStart[j]+rowCount[j+1];
     const fill=rowStart.slice(0,this.size),rowColumn=this.rowColumn=new Int32Array(nnz),rowEntry=this.rowEntry=new Int32Array(nnz);
     for(let k=0;k<this.size;k++)for(let e=columnStart[k];e<columnStart[k+1];e++){const j=rows[e],o=fill[j]++;rowColumn[o]=k;rowEntry[o]=e;}
-    this.D=new Float64Array(this.size);this.work=new Float64Array(this.size);this.scratch=new Float64Array(this.size);
-    this.fixed=new Uint8Array(this.size);
+    this.D=new Float64Array(this.size);this.work=new Float64Array(this.size);this.work1=new Float64Array(this.size);this.work2=new Float64Array(this.size);this.scratch=new Float64Array(this.size);
+    this.fixed=new Uint8Array(this.size);this.isolated=new Uint8Array(this.size);
   }
   /** Entries of the factor (strictly below the diagonal). */
   get entries():number {return this.rows.length;}
@@ -134,71 +141,136 @@ export class SparseLDL {
   factor():void {
     if(this.saved.length!==this.values.length){this.saved=new Float64Array(this.values.length);this.savedD=new Float64Array(this.size);}
     this.saved.set(this.values);this.savedD.set(this.D);
-    // A matrix with a pivot that fails at every shift goes straight to the last attempt: the attempts before it would all
-    // be thrown away, and the last one starts from the saved matrix as it would after them, so the result is the same.
-    const first=this.hopelessPivot()?SHIFTS.length-1:0;
-    for(let k=first;k<SHIFTS.length;k++){
+    this.findIsolated();
+    for(let k=0;k<SHIFTS.length;k++){
       if(k>0){this.values.set(this.saved);const s=1+SHIFTS[k];for(let j=0;j<this.size;j++)this.D[j]=this.savedD[j]*s;}
       this.shift=SHIFTS[k];this.factorOnce();
       if(this.modified===0)break;
     }
-    this.skippedAttempts+=first;
   }
-  /** Factorizations attempted and skipped as certain to fail (`factor()`), since construction. */
-  skippedAttempts=0;
-  /** Whether the saved matrix has a free unknown that no attempt can pivot: its row and column of the assembled matrix are
-   * zero (an unknown left without stiffness, such as a node whose elements have all eroded), so the factorization reaches it
-   * unchanged and its pivot is its diagonal, scaled like every other diagonal by a shift. factorOnce resets a pivot that is not
-   * above 1e-12 of the largest diagonal; a diagonal at most half of that (or not positive) fails at every shift, rounding
-   * included. Zero rows and columns are tested on the assembled values, which no shift changes. */
-  private hopelessPivot():boolean {
-    const n=this.size,D=this.savedD,values=this.saved,cs=this.columnStart,rs=this.rowStart,re=this.rowEntry,fixed=this.fixed;let largest=0;
-    for(let j=0;j<n;j++)if(!fixed[j])largest=Math.max(largest,Math.abs(D[j]));
-    // Far from overflow and underflow, so that scaling by a shift and by 1e-12 rounds the same way for every diagonal.
-    if(!(largest>1e-280&&largest<1e280))return false;
-    const limit=.5e-12*largest;
+  /** Free unknowns of the last factorization whose row and column of the assembled matrix are zero (`isolatedUnknowns`). */
+  isolatedUnknowns=0;
+  /** Marks the free unknowns whose row and column of the assembled matrix are zero: an unknown coupled to nothing, such as a
+   * node whose elements have all eroded and that keeps only its lumped mass. Elimination never reaches it (its row and column
+   * of the factor stay zero), so its own diagonal is its exact pivot, however small: factorOnce takes it as it is and does not
+   * count it as a reset pivot. (Resetting it, as an indefinite pivot is reset, sent every factorization with such an unknown
+   * through all the shifts to a doubled diagonal.) */
+  private findIsolated():void {
+    const n=this.size,values=this.values,cs=this.columnStart,rs=this.rowStart,re=this.rowEntry,fixed=this.fixed,iso=this.isolated;let count=0;
     for(let j=0;j<n;j++){
-      if(fixed[j]||(D[j]>limit))continue;
+      iso[j]=0;if(fixed[j])continue;
       let empty=true;
       for(let e=cs[j];e<cs[j+1]&&empty;e++)if(values[e]!==0)empty=false;
       for(let r=rs[j];r<rs[j+1]&&empty;r++)if(values[re[r]]!==0)empty=false;
-      if(empty)return true;
+      if(empty){iso[j]=1;count++;}
     }
-    return false;
+    this.isolatedUnknowns=count;
   }
   /** Fraction of its own diagonal the last factorization added (0 for a positive definite matrix). */
   shift=0;
   private saved=new Float64Array(0);private savedD=new Float64Array(0);
+  /** One left-looking factorization of the assembled matrix in place, a node's three columns at a time: each earlier column
+   * that reaches the node is read once for all three (x0, x1, x2 gather them). Every entry and pivot receives its updates in
+   * the same order as a column-by-column factorization gives them (earlier columns first, in order), so the factor is the
+   * same to the bit. */
   private factorOnce():void {
-    const n=this.size,D=this.D,values=this.values,rows=this.rows,cs=this.columnStart,x=this.work,fixed=this.fixed;
-    const rs=this.rowStart,rc=this.rowColumn,re=this.rowEntry;let modified=0,largest=0;
-    for(let j=0;j<n;j++)if(!fixed[j])largest=Math.max(largest,Math.abs(D[j]));
+    const N=this.nodes,D=this.D,values=this.values,rows=this.rows,cs=this.columnStart,fixed=this.fixed;
+    const rs=this.rowStart,rc=this.rowColumn,re=this.rowEntry,iso=this.isolated,x0=this.work,x1=this.work1,x2=this.work2;let modified=0,largest=0;
+    for(let j=0;j<this.size;j++)if(!fixed[j])largest=Math.max(largest,Math.abs(D[j]));
     const tiny=1e-12*largest||1;
-    for(let j=0;j<n;j++){
-      if(fixed[j]){D[j]=1;for(let e=cs[j];e<cs[j+1];e++)values[e]=0;continue;}
-      const start=cs[j],end=cs[j+1],diagonal=D[j];
-      for(let e=start;e<end;e++)x[rows[e]]=values[e];
-      let d=diagonal;
-      for(let r=rs[j];r<rs[j+1];r++){
-        const k=rc[r],entry=re[r],ljk=values[entry];if(ljk===0)continue;
-        const f=ljk*D[k];d-=ljk*f;
-        for(let e=entry+1;e<cs[k+1];e++)x[rows[e]]-=values[e]*f;
+    // A pivot that is not clearly positive is reset to the larger of its magnitude and the column's own diagonal, so the
+    // result is positive definite whatever the matrix. An isolated unknown keeps its own diagonal (findIsolated).
+    const pivot=(j:number,d:number,diagonal:number):number=>{
+      if(iso[j]){if(!(d>0))d=Math.max(Math.abs(d),tiny);}
+      else if(!(d>1e-6*Math.abs(diagonal))||!(d>tiny)){d=Math.max(Math.abs(d),Math.abs(diagonal),tiny);modified++;}
+      return d;
+    };
+    for(let s=0;s<N;s++){
+      const j0=3*s,j1=j0+1,j2=j0+2,a0=!fixed[j0],a1=!fixed[j1],a2=!fixed[j2],c0=cs[j0],c1=cs[j1],c2=cs[j2],end=cs[j2+1];
+      const diag0=D[j0],diag1=D[j1],diag2=D[j2];let d0=diag0,d1=diag1,d2=diag2;
+      if(a0)for(let e=c0;e<c1;e++)x0[rows[e]]=values[e];
+      if(a1)for(let e=c1;e<c2;e++)x1[rows[e]]=values[e];
+      if(a2)for(let e=c2;e<end;e++)x2[rows[e]]=values[e];
+      // Earlier columns: rows j0, j1, j2 of a column are consecutive, and the rows after them are the node's higher rows.
+      for(let r=rs[j0];r<rs[j1];r++){
+        const k=rc[r],entry=re[r],stop=cs[k+1],Dk=D[k];
+        const l0=a0?values[entry]:0,l1=a1?values[entry+1]:0,l2=a2?values[entry+2]:0;
+        let f0=0,f1=0,f2=0;
+        if(l0!==0){f0=l0*Dk;d0-=l0*f0;x0[j1]-=values[entry+1]*f0;x0[j2]-=values[entry+2]*f0;}
+        if(l1!==0){f1=l1*Dk;d1-=l1*f1;x1[j2]-=values[entry+2]*f1;}
+        if(l2!==0){f2=l2*Dk;d2-=l2*f2;}
+        if(l0!==0&&l1!==0&&l2!==0){
+          for(let e=entry+3;e<stop;e++){const i=rows[e],v=values[e];x0[i]-=v*f0;x1[i]-=v*f1;x2[i]-=v*f2;}
+        }else{
+          if(l0!==0)for(let e=entry+3;e<stop;e++)x0[rows[e]]-=values[e]*f0;
+          if(l1!==0)for(let e=entry+3;e<stop;e++)x1[rows[e]]-=values[e]*f1;
+          if(l2!==0)for(let e=entry+3;e<stop;e++)x2[rows[e]]-=values[e]*f2;
+        }
       }
-      // A pivot that is not clearly positive is reset to the larger of its magnitude and the column's own diagonal, so the
-      // result is positive definite whatever the matrix.
-      if(!(d>1e-6*Math.abs(diagonal))||!(d>tiny)){d=Math.max(Math.abs(d),Math.abs(diagonal),tiny);modified++;}
-      D[j]=d;const inv=1/d;
-      for(let e=start;e<end;e++){const i=rows[e];values[e]=x[i]*inv;x[i]=0;}
+      // Column j0, then its updates of j1 and j2; column j1, then its update of j2; column j2.
+      if(!a0){D[j0]=1;for(let e=c0;e<c1;e++)values[e]=0;}
+      else{d0=pivot(j0,d0,diag0);D[j0]=d0;const inv=1/d0;for(let e=c0;e<c1;e++){const i=rows[e];values[e]=x0[i]*inv;x0[i]=0;}}
+      {
+        const l1=a1?values[c0]:0,l2=a2?values[c0+1]:0,Dk=D[j0];
+        if(l1!==0){const f=l1*Dk;d1-=l1*f;x1[j2]-=values[c0+1]*f;for(let e=c0+2;e<c1;e++)x1[rows[e]]-=values[e]*f;}
+        if(l2!==0){const f=l2*Dk;d2-=l2*f;for(let e=c0+2;e<c1;e++)x2[rows[e]]-=values[e]*f;}
+      }
+      if(!a1){D[j1]=1;for(let e=c1;e<c2;e++)values[e]=0;}
+      else{d1=pivot(j1,d1,diag1);D[j1]=d1;const inv=1/d1;for(let e=c1;e<c2;e++){const i=rows[e];values[e]=x1[i]*inv;x1[i]=0;}}
+      {
+        const l2=a2?values[c1]:0;
+        if(l2!==0){const f=l2*D[j1];d2-=l2*f;for(let e=c1+1;e<c2;e++)x2[rows[e]]-=values[e]*f;}
+      }
+      if(!a2){D[j2]=1;for(let e=c2;e<end;e++)values[e]=0;}
+      else{d2=pivot(j2,d2,diag2);D[j2]=d2;const inv=1/d2;for(let e=c2;e<end;e++){const i=rows[e];values[e]=x2[i]*inv;x2[i]=0;}}
     }
     this.modified=modified;
   }
-  /** z = (L D L^T)^-1 r, original dof numbering. r and z may be the same array. */
+  /** z = (L D L^T)^-1 r, original dof numbering. r and z may be the same array. Node-blocked: a node's three columns share
+   * their rows of each higher neighbour (`upperRows`), so one index serves nine entries. Every entry of y receives its
+   * updates in the same order as a column-by-column substitution would give them, so the result is the same to the bit. */
   solve(r:ArrayLike<number>,z:Float64Array):void {
-    const n=this.size,y=this.scratch,values=this.values,rows=this.rows,cs=this.columnStart,D=this.D,order=this.order,fixed=this.fixed;
-    for(let s=0;s<this.nodes;s++){const a=3*order[s];y[3*s]=r[a];y[3*s+1]=r[a+1];y[3*s+2]=r[a+2];}
-    for(let j=0;j<n;j++){if(fixed[j])y[j]=0;const v=y[j];if(v!==0)for(let e=cs[j];e<cs[j+1];e++)y[rows[e]]-=values[e]*v;}
-    for(let j=0;j<n;j++)y[j]/=D[j];
-    for(let j=n-1;j>=0;j--){let v=y[j];for(let e=cs[j];e<cs[j+1];e++)v-=values[e]*y[rows[e]];y[j]=fixed[j]?0:v;}
-    for(let s=0;s<this.nodes;s++){const a=3*order[s];z[a]=y[3*s];z[a+1]=y[3*s+1];z[a+2]=y[3*s+2];}
+    const N=this.nodes,y=this.scratch,L=this.values,cs=this.columnStart,D=this.D,order=this.order,fixed=this.fixed,us=this.upperStart,up=this.upperRows;
+    for(let s=0;s<N;s++){const a=3*order[s];y[3*s]=r[a];y[3*s+1]=r[a+1];y[3*s+2]=r[a+2];}
+    // Forward: L y = r, the three columns of a node at once.
+    for(let s=0;s<N;s++){
+      const j=3*s,a=order[s],k0=us[a],k1=us[a+1];
+      if(fixed[j])y[j]=0;const v0=y[j];let e0=cs[j];
+      if(v0!==0){y[j+1]-=L[e0]*v0;y[j+2]-=L[e0+1]*v0;}
+      e0+=2;
+      if(fixed[j+1])y[j+1]=0;const v1=y[j+1];let e1=cs[j+1];
+      if(v1!==0)y[j+2]-=L[e1]*v1;
+      e1++;
+      if(fixed[j+2])y[j+2]=0;const v2=y[j+2];let e2=cs[j+2];
+      if(k0===k1)continue;
+      if(v0!==0&&v1!==0&&v2!==0){
+        for(let k=k0;k<k1;k++,e0+=3,e1+=3,e2+=3){
+          const t=up[k];
+          y[t]=y[t]-L[e0]*v0-L[e1]*v1-L[e2]*v2;
+          y[t+1]=y[t+1]-L[e0+1]*v0-L[e1+1]*v1-L[e2+1]*v2;
+          y[t+2]=y[t+2]-L[e0+2]*v0-L[e1+2]*v1-L[e2+2]*v2;
+        }
+      }else{
+        // A zero value adds nothing (and is skipped, as a column-by-column substitution skips it).
+        if(v0!==0)for(let k=k0;k<k1;k++,e0+=3){const t=up[k];y[t]-=L[e0]*v0;y[t+1]-=L[e0+1]*v0;y[t+2]-=L[e0+2]*v0;}
+        if(v1!==0)for(let k=k0;k<k1;k++,e1+=3){const t=up[k];y[t]-=L[e1]*v1;y[t+1]-=L[e1+1]*v1;y[t+2]-=L[e1+2]*v1;}
+        if(v2!==0)for(let k=k0;k<k1;k++,e2+=3){const t=up[k];y[t]-=L[e2]*v2;y[t+1]-=L[e2+1]*v2;y[t+2]-=L[e2+2]*v2;}
+      }
+    }
+    for(let j=0;j<this.size;j++)y[j]/=D[j];
+    // Backward: L^T z = y, column by column (each sum in the order of its column's rows).
+    for(let s=N-1;s>=0;s--){
+      const j=3*s,a=order[s],k0=us[a],k1=us[a+1];
+      let e=cs[j+2],v=y[j+2];
+      for(let k=k0;k<k1;k++,e+=3){const t=up[k];v-=L[e]*y[t];v-=L[e+1]*y[t+1];v-=L[e+2]*y[t+2];}
+      y[j+2]=fixed[j+2]?0:v;
+      e=cs[j+1];v=y[j+1];v-=L[e]*y[j+2];e++;
+      for(let k=k0;k<k1;k++,e+=3){const t=up[k];v-=L[e]*y[t];v-=L[e+1]*y[t+1];v-=L[e+2]*y[t+2];}
+      y[j+1]=fixed[j+1]?0:v;
+      e=cs[j];v=y[j];v-=L[e]*y[j+1];v-=L[e+1]*y[j+2];e+=2;
+      for(let k=k0;k<k1;k++,e+=3){const t=up[k];v-=L[e]*y[t];v-=L[e+1]*y[t+1];v-=L[e+2]*y[t+2];}
+      y[j]=fixed[j]?0:v;
+    }
+    for(let s=0;s<N;s++){const a=3*order[s];z[a]=y[3*s];z[a+1]=y[3*s+1];z[a+2]=y[3*s+2];}
   }
 }

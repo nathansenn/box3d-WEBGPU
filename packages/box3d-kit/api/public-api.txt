@@ -7079,12 +7079,16 @@ export declare class SparseLDL {
     modified: number;
     private readonly upperStart;
     private readonly upperNodes;
+    private readonly upperRows;
     private readonly rowStart;
     private readonly rowColumn;
     private readonly rowEntry;
     private readonly work;
+    private readonly work1;
+    private readonly work2;
     private readonly scratch;
     private readonly fixed;
+    private readonly isolated;
     constructor(nodes: number, adjacency: (node: number, visit: (other: number) => void) => void);
     get entries(): number;
     begin(fixed: Uint8Array): void;
@@ -7093,8 +7097,8 @@ export declare class SparseLDL {
     addDiagonal(node: number, value: number): void;
     addNodeBlock(node: number, M: ArrayLike<number>, offset?: number): void;
     factor(): void;
-    skippedAttempts: number;
-    private hopelessPivot;
+    isolatedUnknowns: number;
+    private findIsolated;
     shift: number;
     private saved;
     private savedD;
