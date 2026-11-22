@@ -192,7 +192,7 @@ export async function bootMaterialLab(id:LabId):Promise<void>{
     if(pendingDraw&&playback<0&&!glassPresentation){world.update(model.frame);}
     pendingDraw=false;
     if(running&&playback<0){const display=glassPresentation?.sample(now);if(display)world.update(display);}
-    if(now-lastUi>100){sync(playback>=0?history[playback]:model.frame);lastUi=now;}world.renderFrame();
+    if(now-lastUi>100){sync(playback>=0?history[playback]:model.frame);lastUi=now;}world.renderFrame(now);
   }
   animation=requestAnimationFrame(animate);
 

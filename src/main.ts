@@ -23,7 +23,7 @@ import {
 } from './math';
 import { CameraMatrixCache } from './camera';
 import { StageTimings } from './perf/frame-clock';
-import { FrameBudgetGovernor } from './perf/runtime';
+import { DynamicResolution, resolutionQuery } from './perf/dynamic-resolution';
 import { createWorkbenchRuntime, type WorkbenchRuntime } from './engine/workbench-runtime';
 import { FrameLineStager } from './frame-lines';
 import {
@@ -441,8 +441,34 @@ function clearCoupledView(): void {
 const SI_DEMO_HOST_LAB_ID = 'titan-hauler-crash';
 let engineRuntime:WorkbenchRuntime;
 const engineTimings=new StageTimings(['step','staging','renderCpu','frame']);
-const renderGovernor=new FrameBudgetGovernor();
-const adaptiveRendering=new URLSearchParams(location.search).get('adaptive')==='1';
+/** Dynamic resolution (src/perf/dynamic-resolution.ts): the drawing buffer's scale follows the GPU frame time between 0.5
+ * of devicePixelRatio (lower on a software adapter) and the quality profile's scale. `?resolution=<scale>` fixes the scale,
+ * `?adaptive=0` keeps the profile's. Held during an engineering run, so a run's frames keep one resolution. */
+const resolutionOptions=resolutionQuery(location.search);
+let dynamicResolution:DynamicResolution|null=null;
+let dynamicResolutionKey='';
+/** WebGPU without timestamp queries: the submit-to-done latency of one frame at a time stands for its GPU time. */
+let latencyProbePending=false;
+/** Readers of the canvas that want a frame drawn at the profile's full scale (captures and run archives). */
+const fullResolutionReaders:Array<()=>void>=[];
+function readFullResolutionFrame(read:()=>void):void {
+  fullResolutionReaders.push(read);
+  // A loop that draws nothing (recovery, a GPU example holding frames) must not hold the capture for ever.
+  setTimeout(()=>{const index=fullResolutionReaders.indexOf(read);if(index>=0){fullResolutionReaders.splice(index,1);read();}},3000);
+}
+function syncDynamicResolution():DynamicResolution {
+  const key=`${quality.id}:${rendererKind}:${rendererSwitches}`;
+  if(!dynamicResolution||key!==dynamicResolutionKey){
+    dynamicResolutionKey=key;
+    const timestamps=renderer instanceof WebGPURenderer&&renderer.gpuTimingInfo().supported;
+    dynamicResolution=new DynamicResolution({ceiling:QUALITY_PROFILES[quality.id].resolutionScale,software:renderer.softwareAdapter,
+      source:renderer instanceof WebGPURenderer||timestamps?'gpu':'interval',...resolutionOptions});
+    ui.canvas.dataset.dynamicResolution=dynamicResolution.adaptive?'adaptive':'fixed';ui.canvas.dataset.softwareAdapter=String(renderer.softwareAdapter);
+  }
+  if(quality.resolutionScale!==dynamicResolution.ratio)quality={...quality,resolutionScale:dynamicResolution.ratio};
+  ui.canvas.dataset.renderScale=dynamicResolution.ratio.toFixed(2);
+  return dynamicResolution;
+}
 // `?pressure=multigrid`: the Lab's volumetric flows solve their pressure with the multigrid preconditioner instead of
 // MIC(0) (docs/FLUID.md, "Cost"): the same tolerance, other bits, fewer iterations on large grids.
 if(new URLSearchParams(location.search).get('pressure')==='multigrid')setFluidPressureSolverDefault('multigrid');
@@ -452,6 +478,7 @@ let rendererFailed=false;
 let frameDisposed=false;
 let frameRequest=0;
 let lastGovernorSample=-1;
+let lastRenderedFrameAt=0;
 let stopRendererLoss:()=>void=()=>{};
 let currentLab: WorkbenchLabDefinition = WORKBENCH_LABS[0];
 let currentScene: ScenePreset = resolveWorkbenchLabScene(currentLab);
@@ -2293,7 +2320,7 @@ function refreshModalCaptureUi(): void {
 }
 
 function archiveCompletedRunFrame(record: RunRecordV1): void {
-  ui.canvas.toBlob((blob) => {
+  readFullResolutionFrame(() => ui.canvas.toBlob((blob) => {
     if (!blob) return;
     const previous = completedRunFrameUrls.get(record.runId);
     if (previous) URL.revokeObjectURL(previous);
@@ -2314,7 +2341,7 @@ function archiveCompletedRunFrame(record: RunRecordV1): void {
       });
     }
     syncCorrelationWorkSnapshot();
-  }, 'image/png');
+  }, 'image/png'));
 }
 
 function syncCorrelationWorkSnapshot(): void {
@@ -3226,7 +3253,7 @@ function ensureNumericalActionAllowed(action: string): boolean {
 }
 
 function captureCurrentFrame(): void {
-  ui.canvas.toBlob((blob) => {
+  readFullResolutionFrame(() => ui.canvas.toBlob((blob) => {
     if (!blob) {
       appendLog('Frame capture is unavailable on this WebGPU surface.');
       return;
@@ -3239,7 +3266,7 @@ function captureCurrentFrame(): void {
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
     appendLog(`Captured ${activeLab?.title ?? currentScene.title} as a PNG frame.`);
-  }, 'image/png');
+  }, 'image/png'));
 }
 
 function runRecordV1(): RunRecordV1 | null {
@@ -4963,13 +4990,14 @@ async function main(): Promise<void> {
       || activeWorkspace === 'field'
       || engineeringWorkspaces?.getLayout() === 'material-lab'
       || activeEngineeringModel?.detailLevel === 'flagship';
+    const resolution=syncDynamicResolution(),captureFrame=fullResolutionReaders.length>0;
     renderer.writeSceneUniforms({
       viewProjection: matrices.viewProjection,
       lightViewProjection: matrices.lightViewProjection,
       cameraPosition: matrices.eye,
       timeSeconds: globalTime,
       lightDirection: LIGHT_DIRECTION,
-      quality,
+      quality: captureFrame&&resolution.adaptive ? {...quality,resolutionScale:resolution.ceiling} : quality,
       fogColor: studioMode ? STUDIO_FOG_COLOR : FOG_COLOR,
       studioMode,
     });
@@ -5080,14 +5108,22 @@ async function main(): Promise<void> {
       renderer.device.queue.onSubmittedWorkDone().then(done, done);
     }
     engineTimings.sample('renderCpu',renderMs);engineTimings.sample('frame',performance.now()-frameStart);
-    if(adaptiveRendering&&engineeringRun?.state!=='running'){
-      const timing=renderer.gpuTimingInfo(),fresh=timing.latest?.frameId!==lastGovernorSample;
-      if(!timing.latest||fresh){
-        if(timing.latest)lastGovernorSample=timing.latest.frameId;
-        const direction=renderGovernor.sample(timing.latest?.totalPassMs??(performance.now()-frameStart));
-        if(direction){const scale=clamp(quality.resolutionScale+direction*.05,.5,QUALITY_PROFILES[quality.id].resolutionScale);if(scale!==quality.resolutionScale)quality={...quality,resolutionScale:scale};}
-      }
+    if(captureFrame)for(const read of fullResolutionReaders.splice(0))read();
+    const measured=!captureFrame&&engineeringRun?.state!=='running'&&resolution.adaptive;
+    if(measured){
+      const timing=renderer.gpuTimingInfo();
+      if(timing.supported){
+        if(timing.latest&&timing.latest.frameId!==lastGovernorSample){lastGovernorSample=timing.latest.frameId;resolution.sample(timing.latest.totalPassMs);}
+      }else if(renderer instanceof WebGPURenderer){
+        if(!latencyProbePending){
+          latencyProbePending=true;const submitted=performance.now(),probed=resolution;
+          const done=(ok:boolean)=>()=>{latencyProbePending=false;if(ok&&probed===dynamicResolution)probed.sample(performance.now()-submitted);};
+          renderer.device.queue.onSubmittedWorkDone().then(done(true),done(false));
+        }
+      // WebGL: the presented-frame interval, less this frame's simulation (on this thread, and not a cost of resolution).
+      }else if(lastRenderedFrameAt>0)resolution.sample(Math.max(0,now-lastRenderedFrameAt-simMs));
     }
+    lastRenderedFrameAt=measured?now:0;
     statsFrames++;
     statsSteps += steps;
     statsSimMs += simMs;

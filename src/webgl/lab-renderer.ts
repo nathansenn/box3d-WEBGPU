@@ -30,6 +30,7 @@ import {
 } from './lab-streams.ts';
 import * as S from './lab-shaders.ts';
 import type { LabRenderer } from './renderer-selection.ts';
+import { SOFTWARE_FLOOR, isSoftwareAdapter, webglRendererName } from '../perf/dynamic-resolution.ts';
 
 const CUBE_VERTEX_COUNT = 36;
 const SPHERE_VERTEX_COUNT = sphereVertexCount();
@@ -135,6 +136,8 @@ export class WebGL2LabRenderer implements LabRenderer {
   private width = 0;
   private height = 0;
   private resolutionScale = 1;
+  /** A CPU rasteriser (SwiftShader, llvmpipe): dynamic resolution starts lower (src/perf/dynamic-resolution.ts). */
+  softwareAdapter = false;
   private sampleCount: 1 | 4 = 4;
   private shadowStrength = 1;
   private lastUploadedBytes = 0;
@@ -233,7 +236,9 @@ export class WebGL2LabRenderer implements LabRenderer {
     }
     const hdr = gl.getExtension('EXT_color_buffer_float') !== null;
     options.onStartupProgress?.('Compiling WebGL2 programs');
-    return new WebGL2LabRenderer(canvas, gl, maxInstances, hdr);
+    const renderer = new WebGL2LabRenderer(canvas, gl, maxInstances, hdr);
+    renderer.softwareAdapter = isSoftwareAdapter(null, webglRendererName(gl));
+    return renderer;
   }
 
   private shader(type: number, source: string, label: string): WebGLShader {
@@ -331,7 +336,7 @@ export class WebGL2LabRenderer implements LabRenderer {
     if (!this.active()) return;
     const q = state.quality;
     this.sampleCount = q.sampleCount;
-    this.resolutionScale = Math.max(0.5, Math.min(1.35, q.resolutionScale));
+    this.resolutionScale = Math.max(SOFTWARE_FLOOR, Math.min(1.35, q.resolutionScale));
     this.shadowStrength = q.shadowStrength;
     this.resize();
     const d = this.uniformData;
