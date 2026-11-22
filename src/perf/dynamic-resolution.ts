@@ -25,6 +25,9 @@ export interface DynamicResolutionOptions {
   /** Off: the ratio stays at the ceiling. */
   enabled?: boolean;
   source?: FrameCostSource;
+  /** Under-target samples before an upward step (default 45 GPU samples, 120 intervals). A source that samples one frame in
+   * N (the Lab's timestamp queries: one in 30) passes fewer so the ratio recovers in seconds, not minutes. */
+  upwardSamples?: number;
 }
 
 /** Ratios are kept on a grid of this step so a render target is not reallocated for a 1% change. */
@@ -62,7 +65,7 @@ export class DynamicResolution {
     const hardwareFloor = Math.min(this.ceiling, options.floor ?? HARDWARE_FLOOR);
     this.floor = this.software ? Math.min(hardwareFloor, SOFTWARE_FLOOR) : hardwareFloor;
     this.targetMs = options.targetMs ?? (this.source === 'gpu' ? 14 : 19);
-    this.upwardPatience = this.source === 'gpu' ? 45 : 120;
+    this.upwardPatience = Math.max(1, Math.round(options.upwardSamples ?? (this.source === 'gpu' ? 45 : 120)));
     const fixed = options.fixed;
     this.adaptive = options.enabled !== false && !(fixed !== undefined && fixed !== null && Number.isFinite(fixed));
     if (!this.adaptive) this.current = fixed !== undefined && fixed !== null && Number.isFinite(fixed) ? Math.max(0.1, fixed) : this.ceiling;
