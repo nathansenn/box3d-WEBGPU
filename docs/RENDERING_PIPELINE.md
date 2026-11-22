@@ -258,7 +258,7 @@ uses). The Lab feeds it each frame's GPU time: the timestamp-query pass total wh
 (one sample per 30 frames), else the submit-to-done latency of one frame at a time, and on WebGL2 the presented-frame
 interval less the frame's simulation time. It holds 14 ms (19 ms for intervals): four samples above 1.2 times the
 target lower the scale by sqrt(target / cost), at most to 0.6 of it per step; a run of samples below 0.6 times the target
-(45 GPU samples, 120 intervals) raises it by one 0.05 step, and the run needed doubles after each raise that had to be
+(6 timestamp samples, i.e. about 180 frames; 45 latency samples; 120 intervals) raises it by one 0.05 step, and the run needed doubles after each raise that had to be
 undone. The floor is 0.5; on a software adapter (`isFallbackAdapter`, SwiftShader, llvmpipe) the scale starts at 0.5 and
 may go to 0.35. It is held during an engineering run. Captures and run archives draw one frame at the profile's scale
 and read it in the same task. `?resolution=<scale>` fixes the scale (tests, comparisons), `?adaptive=0` keeps the

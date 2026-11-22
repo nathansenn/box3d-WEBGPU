@@ -461,8 +461,9 @@ function syncDynamicResolution():DynamicResolution {
   if(!dynamicResolution||key!==dynamicResolutionKey){
     dynamicResolutionKey=key;
     const timestamps=renderer instanceof WebGPURenderer&&renderer.gpuTimingInfo().supported;
+    // Timestamp queries sample one frame in sampleEveryFrames (30): 6 samples below target are 180 frames, about 3 s.
     dynamicResolution=new DynamicResolution({ceiling:QUALITY_PROFILES[quality.id].resolutionScale,software:renderer.softwareAdapter,
-      source:renderer instanceof WebGPURenderer||timestamps?'gpu':'interval',...resolutionOptions});
+      source:renderer instanceof WebGPURenderer||timestamps?'gpu':'interval',...(timestamps?{upwardSamples:6}:{}),...resolutionOptions});
     ui.canvas.dataset.dynamicResolution=dynamicResolution.adaptive?'adaptive':'fixed';ui.canvas.dataset.softwareAdapter=String(renderer.softwareAdapter);
   }
   if(quality.resolutionScale!==dynamicResolution.ratio)quality={...quality,resolutionScale:dynamicResolution.ratio};

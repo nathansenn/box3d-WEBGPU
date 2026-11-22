@@ -86,3 +86,11 @@ test('no solver reads the render resolution: physics results cannot depend on it
   assert.ok(files.length>50,`${files.length} solver files`);
   for(const file of files){const text=readFileSync(file,'utf8');assert.ok(!/dynamic-resolution|devicePixelRatio|renderRatio|resolutionScale/.test(text),path.relative(root,file));}
 });
+
+test('a sparse sampler recovers in few samples when it says so',()=>{
+  const c=new DynamicResolution({ceiling:1,upwardSamples:6});feed(c,80,40);assert.equal(c.ratio,HARDWARE_FLOOR);
+  const ratios=feed(c,2,200);assert.equal(c.ratio,1);
+  // Ten 0.05 steps of 6 samples and 3 settling samples each, after about 10 samples for the average to fall from 80 ms.
+  assert.ok(ratios.indexOf(1)<=10*(6+3)+12,`full ratio after ${ratios.indexOf(1)} samples`);
+  const slow=new DynamicResolution({ceiling:1});feed(slow,80,40);assert.ok(feed(slow,2,200).at(-1)<1,'the default needs 45 samples a step');
+});
