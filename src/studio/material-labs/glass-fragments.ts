@@ -36,9 +36,15 @@ export function fragmentContact():{glass:{friction:number;restitution:number};ri
  * linear slop (5 mm); a shard against a crack face of the held glass overlaps it in the plane of the pane, where its hull is
  * no thicker than the glass, so without the margin a drawn shard went 2.1 mm into the drawn pane (frosted fracture). */
 export const HELD_MARGIN=.0025;
-/** A held tile's collision outline: its four corners (relative to its node, 12 numbers) moved out from their centre so that
- * the edges of a square tile move out by `margin`. */
-export function heldOutline(corners:ArrayLike<number>,margin=HELD_MARGIN):Float64Array {
+/** Fragments collide as tiles whose outlines are this much wider, m. A pile of tiles touches edge to edge, in the plane of a
+ * tile, where its hull is no thicker than the glass: with the drawn outlines the toughened pane's 567 tiles crossed by up to
+ * their 8 mm thickness while falling into the tray (79 of 96 samples above 2 mm, every 4th tick over 4 s) and still by 2.9 mm
+ * at rest; with 6 mm by up to 4.2 mm (8 of 96 above 2 mm) and 1.0 mm at rest. Adjacent shards released together overlap by
+ * twice this in the plane and are pushed apart by Box3D. */
+export const FRAGMENT_MARGIN=.006;
+/** A tile's collision outline: its four corners (relative to its node, 12 numbers) moved out from their centre so that the
+ * edges of a square tile move out by `margin` (the held glass by HELD_MARGIN, fragments by FRAGMENT_MARGIN). */
+export function widenOutline(corners:ArrayLike<number>,margin:number):Float64Array {
   const out=Float64Array.from(corners as ArrayLike<number>);let cx=0,cy=0;for(let k=0;k<12;k+=3){cx+=corners[k]/4;cy+=corners[k+1]/4;}
   for(let k=0;k<12;k+=3){const dx=corners[k]-cx,dy=corners[k+1]-cy,l=Math.hypot(dx,dy);if(l>0){out[k]+=dx/l*margin*Math.SQRT2;out[k+1]+=dy/l*margin*Math.SQRT2;}}
   return out;
@@ -176,7 +182,7 @@ export class GlassFragmentWorld {
    * clamp (a pad or the held glass) and collides with none until `collideWithClamps`. */
   add(f:FragmentRelease,clamps=true):number {
     const t=this.hull/2,hull=(corners:ArrayLike<number>)=>{const p:number[]=[];for(let k=0;k<corners.length;k+=3)p.push(corners[k],corners[k+1],corners[k+2]-t,corners[k],corners[k+1],corners[k+2]+t);return p;};
-    let groups=f.tiles.map(tile=>Array.from(tile));
+    let groups=f.tiles.map(tile=>Array.from(widenOutline(tile,FRAGMENT_MARGIN)));
     // More tiles than a body can hold: neighbouring tiles (in release order, the plate's node order) are merged into one
     // hull, which covers their union and the gaps between their outlines.
     if(groups.length>CHILDREN){const per=Math.ceil(groups.length/CHILDREN),merged:number[][]=[];for(let k=0;k<groups.length;k+=per)merged.push(groups.slice(k,k+per).flat());groups=merged;}
@@ -192,7 +198,7 @@ export class GlassFragmentWorld {
   /** The tile of a node of the glass still held in the frame, as a kinematic hull (its four corners relative to the pose, in
    * the pose's x-y plane, widened by HELD_MARGIN, `hull` thick) that collides with fragments only. Glass on glass. */
   holdTile(node:number,corners:ArrayLike<number>,position:P3,rotation:[number,number,number,number]):void {
-    if(this.held.has(node))return;const t=this.hull/2,points:number[]=[];corners=heldOutline(corners);
+    if(this.held.has(node))return;const t=this.hull/2,points:number[]=[];corners=widenOutline(corners,HELD_MARGIN);
     for(let k=0;k<12;k+=3)points.push(corners[k],corners[k+1],corners[k+2]-t,corners[k],corners[k+1],corners[k+2]+t);
     const glass=this.contact.glass,body=this.world.createBody({shape:{kind:'hull',points},type:'kinematic',position,rotation,friction:glass.friction,restitution:glass.restitution,filter:{categoryBits:CATEGORY.clamp,maskBits:CATEGORY.fragment}});
     if(!body)throw new Error('The fragment world is full.');this.held.set(node,body);

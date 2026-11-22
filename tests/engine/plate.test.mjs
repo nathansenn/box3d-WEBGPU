@@ -220,3 +220,48 @@ test('graded grid: von Karman centre deflection and edge tension against Levy (T
     assert.ok(r.converged);close(p.w[c]/.01,w,.01,`graded held ${load}`);close(edgeTension,tension,.04,`graded edge tension ${load}`);
   }
 });
+
+// ---- Implicit fine cells (`implicitCells`): the bending terms of the 0.05 m cells implicit, the rest explicit ----
+const seeded=seed=>{let s=seed;return()=>{s=(s*16807)%2147483647;return s/2147483647-.5;};};
+/** The implicit fine cells' checks: the step's own energy over 1 s from a random state, the momentum of a free graded plate,
+ * the (1,1) mode, statics, and the step against the 0.1 m grid's. */
+function implicitChecks(){
+  const equal=simplySupported([26,20]),explicit=gradedPane(),p=gradedPane({implicitCells:.075});
+  const step={implicit:p.stableTimeStep(),explicit:explicit.stableTimeStep(),equal:equal.stableTimeStep()};
+  // Statics do not step: the same deflection to the bit.
+  for(const q of [explicit,p]){for(let n=0;n<q.nodeCount;n++)q.force[n]=Q*q.area[n];q.solveStatic({tolerance:1e-13});}
+  const staticSame=p.w.every((v,n)=>v===explicit.w[n]);
+  // Energy: random deflections and velocities (every mode, the fine cells' fastest included), no damping, steps of 0.9 of the limit.
+  const e=gradedPane({implicitCells:.075}),r=seeded(7);for(let n=0;n<e.nodeCount;n++)if(!e.fixed[n]){e.w[n]=1e-4*r();e.v[n]=.05*r();}
+  const h=.9*e.stableTimeStep();e.advance(h);const E0=e.stepEnergy(h);let energy=0;
+  for(let k=0;k<Math.round(1/h);k++){e.advance(h);if(k%10===0)energy=Math.max(energy,Math.abs(e.stepEnergy(h)/E0-1));}
+  // Momentum: a free graded plate (no supports) with random velocities.
+  const f=new PlateBody({size:[A,B],cells:[PANE_LINES.x.length-1,PANE_LINES.y.length-1],lines:PANE_LINES,thickness:T,material:GLASS,implicitCells:.075}),s=seeded(11);
+  for(let n=0;n<f.nodeCount;n++){f.w[n]=1e-4*s();f.v[n]=.05*s();}
+  const sum=()=>{let a=0,b=0;for(let n=0;n<f.nodeCount;n++){a+=f.mass[n]*f.v[n];b+=f.mass[n]*Math.abs(f.v[n]);}return {a,b};},P0=sum(),hf=.9*f.stableTimeStep();
+  for(let k=0;k<2000;k++)f.advance(hf);const P1=sum(),momentum=Math.abs(P1.a-P0.a)/P0.b;
+  // The (1,1) mode, released from its shape, at 0.9 of the limit.
+  const q=gradedPane({implicitCells:.075}),cq=centreOf(q);for(let n=0;n<q.nodeCount;n++)q.w[n]=1e-3*Math.sin(Math.PI*q.x(n)/A)*Math.sin(Math.PI*q.y(n)/B);
+  const hq=.9*q.stableTimeStep();let prev=q.w[cq];const crossings=[];
+  for(let k=0;k<200000&&crossings.length<12;k++){q.advance(hq);const w=q.w[cq];if(prev>0&&w<=0)crossings.push((k+prev/(prev-w))*hq);prev=w;}
+  const frequency=(crossings.length-1)/(crossings.at(-1)-crossings[0]),theory=plateFrequency(A,B,q.rigidity,GLASS.density*T,1,1);
+  return {step,staticSame,energy,momentum,frequency,theory,factorizations:e.factorizations};
+}
+test('implicit fine cells: the 0.05 m cells no longer set the step; the step keeps its own energy and the momentum; the first mode and statics are unchanged',()=>{
+  const c=implicitChecks();
+  console.log(`# implicit fine cells: step ${(c.step.implicit*1e6).toFixed(2)} us against ${(c.step.explicit*1e6).toFixed(2)} us all explicit and ${(c.step.equal*1e6).toFixed(2)} us on the 0.1 m grid; energy of the step within ${c.energy.toExponential(2)} over 1 s from a random state; momentum of a free plate within ${c.momentum.toExponential(2)}; (1,1) mode ${c.frequency.toFixed(5)} Hz against Kirchhoff ${c.theory.toFixed(5)} Hz (${((c.frequency/c.theory-1)*100).toFixed(3)} %); statics identical: ${c.staticSame}`);
+  assert.ok(Math.abs(c.step.implicit/c.step.equal-1)<1e-9,'the step of the 0.1 m grid');assert.ok(c.step.implicit>3.9*c.step.explicit,'four times the all-explicit step');
+  assert.ok(c.staticSame,'statics do not step');
+  assert.ok(c.energy<1e-12,`energy ${c.energy}`);assert.ok(c.momentum<1e-10,`momentum ${c.momentum}`);
+  assert.ok(Math.abs(c.frequency/c.theory-1)<2.5e-3,'(1,1) mode within the graded grid\'s 0.25 %');
+  assert.throws(()=>{const p=gradedPane({implicitCells:.075});p.advance(1.01*p.stableTimeStep());},/stability limit/);
+});
+test('implicit fine cells: a cracking plate restored from saveState() continues bit for bit',async()=>{
+  const {encodeState,decodeState}=await import('../../src/engine/checkpoint.ts');
+  const make=()=>gradedPane({implicitCells:.075,fracture:{strength:41e6}}),load=(p,s)=>{p.force.fill(0);if(s<300){const c=centreOf(p);p.force[c]=-4e4;}};
+  const a=make(),h=.5*a.stableTimeStep();for(let s=0;s<150;s++){load(a,s);a.advance(h);}
+  const b=make();b.restoreState(decodeState(encodeState(a.saveState())));
+  for(let s=150;s<600;s++){load(a,s);load(b,s);a.advance(h);b.advance(h);}
+  assert.ok(a.broken.some(Boolean),'it cracked');assert.ok(a.factorizations>1,'and formed the implicit factor again');
+  assert.deepEqual([...b.w],[...a.w]);assert.deepEqual([...b.v],[...a.v]);assert.deepEqual([...b.broken],[...a.broken]);
+});

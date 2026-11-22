@@ -44,7 +44,7 @@ const escape=(s:string)=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 export async function bootMaterialLab(id:LabId):Promise<void>{
   const lifetime=new AbortController();
   const lab=LABS[id],root=document.getElementById('studio')!,query=new URLSearchParams(location.search);
-  // Glass: `cracks=fine` runs the plate on the grid refined around the impact (about 4 to 6 times the cost; STUDIO_MATERIAL_LABS.md).
+  // Glass: `cracks=fine` runs the plate on the grid refined around the impact, its fine cells implicit (about twice the cost; STUDIO_MATERIAL_LABS.md).
   const fineCracks=id==='glass'&&query.get('cracks')==='fine';
   let settings=readSettings(id,query),model=createModel(id,settings,{fineCracks}),running=false,ready=false,disposed=false,playback=-1,speed=1,previous=0,accumulator=0,lastUi=0,nextSample=0,animation=0;
   const candidate=lab.experiments.find(e=>e.id===(query.get('experiment')??lab.experiments[0].id));

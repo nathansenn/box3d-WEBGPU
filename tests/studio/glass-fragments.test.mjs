@@ -141,11 +141,11 @@ for(const id of ['radial-impact','frosted-fracture','edge-strike','tempered-dice
       assert.ok(model.releaseError.linear<1e-6&&model.releaseError.angular<1e-6,'momentum at release (Box3D holds float32)');
       assert.ok(fixed<.005,`a corner ${fixed} m inside the floor, tray or frame (Box3D's linear slop is 5 mm)`);
       for(const key of ['bob','pad','held'])assert.ok(clamps[key]<.002,`a corner ${clamps[key]} m inside the ${key}`);
-      // Between the drawn (8 mm) shards, which collide as 16 mm hulls: a few dozen falling shards stay within 3 mm. In the
-      // toughened pane's rain of 567 tiles into the tray two drawn tiles can cross by up to their thickness for a few ticks
-      // (never through each other), and at rest within 5 mm.
+      // Between the drawn (8 mm) shards, which collide as 16 mm hulls 6 mm wider than drawn (FRAGMENT_MARGIN): a few dozen
+      // falling shards stay within 3 mm. In the toughened pane's rain of 567 tiles into the tray two drawn tiles can cross by
+      // up to 4 mm for a few ticks (by their full 8 mm thickness without the margin), and at rest within 2 mm (2.9 mm without).
       const tempered=id==='tempered-dice';
-      assert.ok(pair<(tempered?model.thickness+1e-6:.003),`fragments overlap by ${pair} m`);assert.ok(end.pair<(tempered?.005:.003),`at the end ${end.pair} m`);
+      assert.ok(pair<(tempered?.005:.003),`fragments overlap by ${pair} m`);assert.ok(end.pair<(tempered?.002:.003),`at the end ${end.pair} m`);
       // A tile on the pane's edge has its node, so its centre, on its own edge: standing upright it has its centre on the floor.
       assert.ok(low>-.002,'nothing falls through the floor');
     }finally{model.dispose();}

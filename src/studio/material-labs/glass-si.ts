@@ -4,7 +4,7 @@ import {PlateBody,type PlateFragment} from '../../engine/plate';
 import {materialProperty,contactPair} from '../../engine/materials';
 import {GLASS_RIG,glassBobPosition,glassBobTangent} from './glass-rig';
 import {LabModel,DT,random,type V3} from './lab-model';
-import {GlassFragmentWorld,eulerQuaternion,tilePrism,boxPrism,prismOverlap,nearestOnTile,heldOutline,padColliders,type FragmentRelease} from './glass-fragments';
+import {GlassFragmentWorld,eulerQuaternion,tilePrism,boxPrism,prismOverlap,nearestOnTile,widenOutline,padColliders,HELD_MARGIN,FRAGMENT_MARGIN,type FragmentRelease} from './glass-fragments';
 import type {NativeWorldPool} from '../../engine/native-world';
 import type {LabSettings} from './catalog';
 
@@ -26,6 +26,9 @@ export function glassLines(refine:GlassRefinement,x:number,y:number):{x:number[]
   };
   return {x:line(GLASS_CELLS[0],GLASS_RIG.panelWidth,x),y:line(GLASS_CELLS[1],GLASS_RIG.panelHeight,y)};
 }
+/** On the refined grid the bending terms of cells narrower than this are implicit (PlateBody `implicitCells`): the 0.05 m cells
+ * no longer set the time step, which stays that of the 0.1 m cells. */
+export const IMPLICIT_CELLS=.075;
 /** Nominal PVB interlayer of a laminate, m (Stratobel xx.2, AGC sheet). */
 export const PVB_THICKNESS=.76e-3;
 /** Wired glass: a square steel wire mesh of 1/2 inch (12.7 mm), as AGC's wired patterned glass sheet states ("The
@@ -40,9 +43,10 @@ export const DICING_SPEED=1466;
 export const FRAGMENTS_PER_MPA=1;
 /** Rubber of the clamp pads (natural rubber, library) and their geometry from the rig: 24 mm thick, 210 mm tall, 55 mm over the pane edge. */
 const PAD={thickness:.024,height:.21,overlap:.055};
-/** A fragment whose hulls overlap a clamp (pad or held glass) by more than this at release starts inside it, m: it collides with
- * the clamps only once clear of them. Less is touching (a crack face against its other side). */
-export const CLAMP_TOUCH=1e-3;
+/** A fragment whose collision hulls overlap a clamp's (pad or held glass) by more than this at release starts inside it, m (a
+ * rounding tolerance): it collides with the clamps only once clear of them. A shard released along a crack does, through the
+ * outline margins. */
+export const CLAMP_TOUCH=1e-6;
 /** Mass damping of the plate, 1/s: about 0.6% of critical at the first mode of the 8 mm pane. Assumed, not measured (unverified). */
 export const PLATE_DAMPING=.6;
 
@@ -144,7 +148,7 @@ export class GlassModel extends LabModel {
     const lines=this.refine?glassLines(this.refine,this.impactX+r.panelWidth/2,r.panelHeight/2):undefined;
     const cells:[number,number]=lines?[lines.x.length-1,lines.y.length-1]:options.cells??GLASS_CELLS;
     this.plate=new PlateBody({size:[r.panelWidth,r.panelHeight],cells,membrane:options.membrane??true,thickness:this.thickness,origin:[-r.panelWidth/2,r.panelCenterY-r.panelHeight/2],
-      ...(lines?{lines}:{}),material:{youngModulus:spec.youngModulus,poissonRatio:spec.poissonRatio,density:spec.density},addedArealMass:spec.addedArealMass,massDamping:PLATE_DAMPING,
+      ...(lines?{lines,implicitCells:IMPLICIT_CELLS}:{}),material:{youngModulus:spec.youngModulus,poissonRatio:spec.poissonRatio,density:spec.density},addedArealMass:spec.addedArealMass,massDamping:PLATE_DAMPING,
       fracture:{strength:spec.strength,prestress:spec.prestress,dicingSpeed:spec.dicing?DICING_SPEED:0,tie:spec.tie}});
     const plate=this.plate,pads:number[]=[];
     // Rubber pads on both faces at x = +-1.32 m, y = 1.6, 2.45, 3.3 m: two springs E A / t in parallel per pad, shared by the nodes under it.
@@ -256,7 +260,15 @@ export class GlassModel extends LabModel {
       // Gravity on the bob: potential m g y(angle), so the generalized force is -m g dy/dangle.
       const spring=this.contact(),tangentZ=glassBobTangent(this.angle)[2];
       // Until the bob first touches it the pane is exactly at rest (no load reaches w): its step would change nothing but its clock.
-      if(this.still&&!this.touching.length)plate.time+=h;else{this.still=false;this.bonds+=plate.advance(h);}
+      if(this.still&&!this.touching.length)plate.time+=h;
+      else{
+        this.still=false;
+        // The step is chosen from the stiffness of the last evaluation; if this one finds the plate stiffer (a membrane
+        // tightening within a step), the plate refuses the step without changing its state, and the rest of the tick is
+        // split again from the new limit.
+        try{this.bonds+=plate.advance(h);}
+        catch(error){if((error as {code?:string}).code!=='UNSTABLE_TIME_STEP')throw error;h=left/Math.ceil(left/(.9*plate.stableTimeStep()));continue;}
+      }
       this.substeps++;
       // The dashpots' force is the one the plate saw over the step, from the nodes' new velocities.
       let damper=0;for(const n of this.touching)damper+=plate.drag[n]*(plate.dragVelocity[n]-plate.v[n]);
@@ -366,11 +378,12 @@ export class GlassModel extends LabModel {
     const j0=below(plate.ys,lo[1]-margin-plate.origin[1]),j1=Math.min(plate.cy,below(plate.ys,hi[1]+margin-plate.origin[1])+1);
     for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++)visit(j*plate.nx+i);
   }
-  /** Largest overlap of a fragment's hulls (its tiles at a pose, `hull` thick) with the clamp pads and the held glass, m. */
+  /** Largest overlap of a fragment's collision hulls (its tiles at a pose, widened by FRAGMENT_MARGIN, `hull` thick) with the
+   * clamp pads and the held glass's hulls, m. */
   private clampOverlap(center:readonly number[],rotation:readonly number[],tiles:Float64Array[]|null,fragment:RigidFragment|null):number {
     const rigid=this.rigid!,half=rigid.hull/2,prisms:ReturnType<typeof tilePrism>[]=[];
-    if(tiles)for(const t of tiles)prisms.push(tilePrism(t,0,center,rotation,half));
-    else if(fragment)for(let k=0;k<fragment.nodes.length;k++)prisms.push(tilePrism(fragment.corners,12*k,center,rotation,half));
+    if(tiles)for(const t of tiles)prisms.push(tilePrism(widenOutline(t,FRAGMENT_MARGIN),0,center,rotation,half));
+    else if(fragment)for(let k=0;k<fragment.nodes.length;k++)prisms.push(tilePrism(widenOutline(fragment.corners.subarray(12*k,12*k+12),FRAGMENT_MARGIN),0,center,rotation,half));
     let worst=0;const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];
     for(const P of prisms)for(const p of P)for(let a=0;a<3;a++){lo[a]=Math.min(lo[a],p[a]);hi[a]=Math.max(hi[a],p[a]);}
     for(const pad of this.pads){
@@ -380,7 +393,7 @@ export class GlassModel extends LabModel {
     const plate=this.plate;
     this.nodesNear(lo,hi,.12,n=>{
       if(!plate.active[n]||!rigid.isHeld(n))return;const z=plate.w[n];if(z-.06>hi[2]||z+.06<lo[2])return;
-      const pose=this.tilePose(n),H=tilePrism(heldOutline(this.tileCorners(n)),0,pose.position,pose.rotation,half);
+      const pose=this.tilePose(n),H=tilePrism(widenOutline(this.tileCorners(n),HELD_MARGIN),0,pose.position,pose.rotation,half);
       for(const P of prisms)worst=Math.max(worst,prismOverlap(P,H));
     });
     return worst;

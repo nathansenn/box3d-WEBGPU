@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 752,
-  "passed": 752,
+  "cases": 756,
+  "passed": 756,
   "failed": 0,
   "domains": 23
  },
@@ -385,8 +385,8 @@
     "Tempered glass dicing is a front that breaks every bond it reaches; its speed and the fragment size quoted by the Studio are inputs from the literature, not results.",
     "Bridging layers (PVB, wire mesh) are strings with the in-plane displacement neglected; they never tear. No impact validation: the contact with the pendulum is a penalty spring and dashpot, and fragments fall as rigid bodies that do not collide with each other."
    ],
-   "cases": 30,
-   "passed": 30
+   "cases": 34,
+   "passed": 34
   },
   {
    "id": "frame",
@@ -20381,6 +20381,120 @@
     "measured": "1.838512",
     "error": "-0.406%",
     "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "plate.implicit.step",
+   "domain": "plate",
+   "title": "Implicit fine cells: the time step of the graded pane",
+   "quantity": "stable step of the graded pane (0.05 m cells within 0.3 m of the centre) with their bending terms implicit, over that of the 0.1 m grid",
+   "unit": "1",
+   "formula": "the explicit terms are those of 0.1 m cells: their limit, 2 / sqrt(max row / m)",
+   "reference": 1,
+   "measured": 1,
+   "error": -1.66533454e-15,
+   "relativeError": -1.66533454e-15,
+   "tolerance": {
+    "kind": "relative",
+    "value": 1e-9
+   },
+   "pass": true,
+   "note": "With every term explicit the graded pane takes a quarter of this step (49.08 against 196.31 us).",
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "implicit fine cells: the 0.05 m cells no longer set the step; the step keeps its own energy and the momentum; the first mode and statics are unchanged",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1",
+    "error": "-1.67e-15 rel.",
+    "tolerance": "±1e-9 rel."
+   }
+  },
+  {
+   "id": "plate.implicit.energy",
+   "domain": "plate",
+   "title": "Implicit fine cells: energy of the step without damping",
+   "quantity": "largest relative change over 1 s (5,660 steps at 0.9 of the limit) from random deflections and velocities of the step's own energy 1/2 v (M - h^2/4 K_e + (h0^2 - h^2)/4 K_f) v + 1/2 wm K wm",
+   "unit": "1",
+   "formula": "conserved exactly by central differences with the mass M + h0^2/4 K_f (rounding only)",
+   "reference": 0,
+   "measured": 7.32747196e-15,
+   "error": 7.32747196e-15,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-12
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "implicit fine cells: the 0.05 m cells no longer set the step; the step keeps its own energy and the momentum; the first mode and statics are unchanged",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "7.327472e-15",
+    "error": "+7.33e-15",
+    "tolerance": "±1e-12"
+   }
+  },
+  {
+   "id": "plate.implicit.momentum",
+   "domain": "plate",
+   "title": "Implicit fine cells: momentum of a free plate",
+   "quantity": "change of sum m v over 2000 steps from random velocities, over sum m |v|",
+   "unit": "1",
+   "formula": "K_f 1 = 0: the implicit term adds no net force",
+   "reference": 0,
+   "measured": 1.60135839e-12,
+   "error": 1.60135839e-12,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-10
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "implicit fine cells: the 0.05 m cells no longer set the step; the step keeps its own energy and the momentum; the first mode and statics are unchanged",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "1.601358e-12",
+    "error": "+1.6e-12",
+    "tolerance": "±1e-10"
+   }
+  },
+  {
+   "id": "plate.implicit.frequency",
+   "domain": "plate",
+   "title": "Implicit fine cells: first mode of the graded pane against Kirchhoff theory",
+   "quantity": "frequency of the (1,1) mode released from its shape, steps at 0.9 of the limit",
+   "unit": "Hz",
+   "formula": "f = (pi / 2) ((1 / a)^2 + (1 / b)^2) sqrt(D / (rho t))",
+   "reference": 7.96018481,
+   "measured": 7.94158621,
+   "error": -0.0185985995,
+   "relativeError": -0.00233645322,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0025
+   },
+   "pass": true,
+   "note": "The graded pane with every term explicit: -0.23 %.",
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "implicit fine cells: the 0.05 m cells no longer set the step; the step keeps its own energy and the momentum; the first mode and statics are unchanged",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "7.960185 Hz",
+    "measured": "7.941586",
+    "error": "-0.234%",
+    "tolerance": "±0.25%"
    }
   },
   {
