@@ -6718,6 +6718,7 @@ export interface SceneFluid {
     readonly diffusion?: 'explicit' | 'crank-nicolson' | 'backward-euler';
     readonly velocity?: SceneVec3;
     readonly bodies?: readonly SceneFluidBody[];
+    readonly backend?: 'cpu' | 'gpu';
     readonly u?: readonly number[];
     readonly v?: readonly number[];
     readonly w?: readonly number[];
@@ -8562,6 +8563,7 @@ export interface SceneFluid {
     readonly diffusion?: 'explicit' | 'crank-nicolson' | 'backward-euler';
     readonly velocity?: SceneVec3;
     readonly bodies?: readonly SceneFluidBody[];
+    readonly backend?: 'cpu' | 'gpu';
     readonly u?: readonly number[];
     readonly v?: readonly number[];
     readonly w?: readonly number[];
@@ -9713,7 +9715,7 @@ export type SceneFluidRuntime<B> = {
 
 ### SceneGpuBackends · interface
 
-The subsystems of the scene sections that say `backend: 'gpu'` (shallow water, grains). The GPU backends live in
+The subsystems of the scene sections that say `backend: 'gpu'` (shallow water, grains, flows). The GPU backends live in
 src/engine/gpu (scene-backends.ts `gpuSceneBackends(compute)`); this module only calls them, so it does not depend on
 WebGPU. A scene with such a section loaded without them is refused.
 
@@ -9725,6 +9727,11 @@ export interface SceneGpuBackends<W = any, B = any> {
         stale(): boolean;
     };
     grains(coupling: GranularCoupling<B>, info: {
+        readonly id: string;
+    }): Subsystem<W, B> & {
+        stale(): boolean;
+    };
+    fluid?(target: Fluid | FluidCoupling<B>, info: {
         readonly id: string;
     }): Subsystem<W, B> & {
         stale(): boolean;
@@ -12291,6 +12298,7 @@ export declare class FluidCoupling<B> {
   force(body: B): Float64Array;
   torque(body: B): Float64Array;
   step(): void;
+  stepAsync(advance: (count: number) => Promise<void>): Promise<void>;
   diagnostics(): FluidCouplingDiagnostics;
 }
 ```
@@ -14362,6 +14370,24 @@ export declare class GpuFluid {
   pull(target: Fluid): Promise<void>;
   destroy(): void;
 }
+```
+
+### gpuFluidSubsystem · function
+
+A GPU (or float32 reference) flow: a FluidCoupling (couple stage, order 180, the rigid step) whose fluid steps run on
+the backend, or a bare Fluid (post stage, commensurate step), as fluidSubsystem. The backend is built from the Fluid,
+which keeps the obstacles: before each fluid step the backend takes their band at the poses the coupling set, after it
+the coupling reads their forces (Fluid.finishBackendObstacles). The room for obstacle faces is fixed when the section
+is built (twice the band at the scene's start plus 64 per obstacle), so a resumed run has the same room as a straight
+one; a move that needs more throws GPU_CAPACITY. No energy ledger (the backend sums no dissipation); events:
+'unconverged' when a solve stopped at its iteration limit.
+
+```ts
+export declare function gpuFluidSubsystem<W, B>(compute: GpuCompute | 'reference', target: Fluid | FluidCoupling<B>, options?: {
+    readonly id?: string;
+    readonly order?: number;
+    readonly backend?: FluidBackendOptions;
+}): GpuSceneSubsystem<W, B>;
 ```
 
 ### GpuGranular · class

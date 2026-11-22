@@ -1865,6 +1865,8 @@ export declare class FluidCoupling<B> {
     force(body: B): Float64Array;
     torque(body: B): Float64Array;
     step(): void;
+    stepAsync(advance: (count: number) => Promise<void>): Promise<void>;
+    private plan;
     diagnostics(): FluidCouplingDiagnostics;
 }
 export declare const FLUID_SUBSYSTEM_ORDER = 180;
@@ -2903,6 +2905,8 @@ export declare function defineStruct(name: string, fields: Readonly<Record<strin
 // ==== core/gpu/scene-backends.d.ts ====
 import { GranularCoupling } from '../granular.js';
 import { ShallowWater } from '../shallow-water.js';
+import type { Fluid, FluidCoupling } from '../fluid.js';
+import type { FluidBackendOptions } from './fluid-program.js';
 import type { SceneGpuBackends, Subsystem } from '../simulation.js';
 import type { GpuCompute } from './compute.js';
 import { readDemWall } from './granular-f32.js';
@@ -2918,6 +2922,11 @@ export declare function gpuShallowWaterSubsystem<W, B>(compute: GpuCompute | 're
 export declare function gpuGranularSubsystem<W, B>(compute: GpuCompute | 'reference', coupling: GranularCoupling<B>, options?: {
     readonly id?: string;
     readonly order?: number;
+}): GpuSceneSubsystem<W, B>;
+export declare function gpuFluidSubsystem<W, B>(compute: GpuCompute | 'reference', target: Fluid | FluidCoupling<B>, options?: {
+    readonly id?: string;
+    readonly order?: number;
+    readonly backend?: FluidBackendOptions;
 }): GpuSceneSubsystem<W, B>;
 export declare function gpuSceneBackends<W, B>(compute: GpuCompute | 'reference'): SceneGpuBackends<W, B>;
 export { readDemWall };
@@ -5954,6 +5963,7 @@ export interface SceneFluid {
     readonly diffusion?: 'explicit' | 'crank-nicolson' | 'backward-euler';
     readonly velocity?: SceneVec3;
     readonly bodies?: readonly SceneFluidBody[];
+    readonly backend?: 'cpu' | 'gpu';
     readonly u?: readonly number[];
     readonly v?: readonly number[];
     readonly w?: readonly number[];
@@ -6828,6 +6838,11 @@ export interface SceneGpuBackends<W = any, B = any> {
         stale(): boolean;
     };
     grains(coupling: GranularCoupling<B>, info: {
+        readonly id: string;
+    }): Subsystem<W, B> & {
+        stale(): boolean;
+    };
+    fluid?(target: Fluid | FluidCoupling<B>, info: {
         readonly id: string;
     }): Subsystem<W, B> & {
         stale(): boolean;
@@ -8681,7 +8696,7 @@ export declare function createBodiesFromMesh(world: BodyFactory, mesh: MeshLike,
 
 // ==== gpu-compute.d.ts ====
 export { acquireGpuCompute, gpuComputeSupported, GpuCompute, GpuProgram, type GpuAcquireOptions, type GpuComputeInfo, type GpuComputeNeeds } from './core/gpu/compute.js';
-export { gpuSceneBackends, gpuShallowWaterSubsystem, gpuGranularSubsystem, GPU_SCENE_BACKEND, type GpuSceneSubsystem } from './core/gpu/scene-backends.js';
+export { gpuSceneBackends, gpuShallowWaterSubsystem, gpuGranularSubsystem, gpuFluidSubsystem, GPU_SCENE_BACKEND, type GpuSceneSubsystem } from './core/gpu/scene-backends.js';
 export { GpuShallowWater, ShallowWaterRunner, SHALLOW_WATER_GPU_SOLVER_ID, type GpuShallowWaterOptions, type ShallowWaterRunnerOptions } from './core/gpu/shallow-water-gpu.js';
 export { ShallowWaterF32, SHALLOW_WATER_CHECKPOINT, type ShallowWaterF32Stats } from './core/gpu/shallow-water-f32.js';
 export { GpuGranular, GranularRunner, GpuGranularCoupling, demMemory, GRANULAR_GPU_SOLVER_ID, type GranularRunnerOptions } from './core/gpu/granular-gpu.js';

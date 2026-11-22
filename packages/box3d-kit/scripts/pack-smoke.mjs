@@ -69,7 +69,7 @@ const BUDGET = {
     './solid': 80 * KiB, './fracture': 138 * KiB, './solid-contact': 135 * KiB, './cloth': 72 * KiB, './granular': 65 * KiB, './fluid': 57 * KiB, './shallow-water': 38 * KiB,
     './materials': 40 * KiB, './geometry': 33 * KiB, './scene-format': 92 * KiB, './robot': 74 * KiB, './scene': 447 * KiB, './simulation': 446 * KiB,
     // Added 2026-11-18: the GPU backends with their float32 references and the scene sections on the GPU. It loads the
-    // grain, flow and shallow-water solvers they are built from (the scene loader is in ./simulation). Measured 150.8 KiB.
+    // grain and shallow-water solvers they are built from (the flow solver only by type: a page that runs no flow does not load it; the scene loader is in ./simulation). Measured 150.8 KiB, 152.3 KiB with the flow sections (151.1 before them).
     './gpu': 174 * KiB,
   },
 };

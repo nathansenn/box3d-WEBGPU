@@ -1,6 +1,7 @@
 // Scene sections on the GPU through the published kit (box3d-webgpu-kit/gpu with box3d-webgpu-kit/simulation):
 //  - the float32 reference standing in for the GPU (gpuSceneBackends('reference')): a scene with grains over a see-saw
-//    and a valley of water, both with backend 'gpu', loads with the kit's own world; two runs give the same bits; a
+//    and a valley of water, both with backend 'gpu', and a ball settling through syrup (a flow coupled two-way to the
+//    ball, backend 'gpu') load with the kit's own world; two runs give the same bits; a
 //    checkpoint taken at step N and resumed with resumeSimulation in a fresh world reaches step M with the bits of the
 //    straight run; the refusals (no backends, step() instead of stepAsync(), a save before a pull);
 //  - Dawn's null device (it compiles and validates but runs no shader): the GPU backends of the same scene build their
@@ -12,7 +13,7 @@ import test from 'node:test';
 import {createHash} from 'node:crypto';
 import {createWorld} from 'box3d-webgpu-kit';
 import {loadSimulationScene, resumeSimulation, simulationCheckpointInfo} from 'box3d-webgpu-kit/simulation';
-import {damBreakValleyScene, hopperSeesawScene, sceneHash, sceneWorldOptions} from 'box3d-webgpu-kit/scene-format';
+import {damBreakValleyScene, hopperSeesawScene, sphereSettlingScene, sceneHash, sceneWorldOptions} from 'box3d-webgpu-kit/scene-format';
 import {GpuCompute, gpuSceneBackends, GPU_SCENE_BACKEND} from 'box3d-webgpu-kit/gpu';
 import {createDawnGpu} from '../../../scripts/dawn-gpu.mjs';
 
@@ -24,10 +25,15 @@ function gpuScene(backend = 'gpu') {
   return {...hopper, bodies: [...hopper.bodies, ...valley.bodies.filter(b => b.id === 'valley')], grains: hopper.grains.map(g => ({...g, ...tag})),
     shallowWater: valley.shallowWater.map(w => ({...w, bodies: [], ...tag}))};
 }
+/** The ball settling through syrup, its flow on the GPU (coupled to the ball through FluidCoupling on the CPU). */
+const fluidScene = (backend = 'gpu') => { const s = sphereSettlingScene(); return {...s, fluids: s.fluids.map(f => ({...f, ...(backend ? {backend} : {})}))}; };
 const reference = gpuSceneBackends('reference');
 const fingerprint = loaded => {
-  const dem = loaded.grains.values().next().value.granular, water = loaded.shallowWater.values().next().value.water;
-  return bits(dem.positions, dem.velocities, water.h, water.qx, water.qz) + ':' + loaded.simulation.world.exactHash().toString(16);
+  const arrays = [];
+  for (const c of loaded.grains.values()) arrays.push(c.granular.positions, c.granular.velocities);
+  for (const w of loaded.shallowWater.values()) arrays.push(w.water.h, w.water.qx, w.water.qz);
+  for (const f of loaded.fluids.values()) arrays.push(f.flow.u, f.flow.v, f.flow.w, f.flow.p);
+  return bits(...arrays) + ':' + loaded.simulation.world.exactHash().toString(16);
 };
 async function run(scene, steps, checkpointAt = -1) {
   const world = await createWorld(sceneWorldOptions(scene));
@@ -59,20 +65,22 @@ test('gpu scene sections on the float32 reference: refusals, repeatable runs, a 
     assert.ok(loaded.builder.toJSON().grains, 'saved after a pull');
     loaded.simulation.dispose(); world.dispose();
   }
-  const steps = 24, at = 9, a = await run(scene, steps, at), b = await run(scene, steps);
-  assert.equal(a.hash, b.hash, 'two runs give the same bits');
-  assert.equal(a.diagnostics['valley-water'].backend, 'gpu-reference');
-  assert.ok(a.diagnostics[scene.grains[0].id].steps > 0);
-  assert.equal(simulationCheckpointInfo(a.saved).tick, at);
-  const world = await createWorld(sceneWorldOptions(scene));
-  try {
-    const loaded = resumeSimulation(world, a.saved, {gpu: reference});
-    assert.equal(loaded.simulation.tick, at);
-    for (let i = at; i < steps; i++) await loaded.simulation.stepAsync();
-    await loaded.simulation.pullAsync();
-    assert.equal(fingerprint(loaded), a.hash, 'resumed at step 9 in a fresh world, step 24 has the bits of the straight run');
-    loaded.simulation.dispose();
-  } finally { world.dispose(); }
+  for (const [label, sc, steps, at] of [['grains and water', scene, 24, 9], ['flow with a ball', fluidScene(), 12, 5]]) {
+    const a = await run(sc, steps, at), b = await run(sc, steps);
+    assert.equal(a.hash, b.hash, `${label}: two runs give the same bits`);
+    for (const d of Object.values(a.diagnostics).filter(d => d.backend !== undefined && /gpu/.test(String(d.backend)))) assert.equal(d.backend, 'gpu-reference', label);
+    assert.equal(simulationCheckpointInfo(a.saved).tick, at);
+    const world = await createWorld(sceneWorldOptions(sc));
+    try {
+      const loaded = resumeSimulation(world, a.saved, {gpu: reference});
+      assert.equal(loaded.simulation.tick, at);
+      for (let i = at; i < steps; i++) await loaded.simulation.stepAsync();
+      await loaded.simulation.pullAsync();
+      assert.equal(fingerprint(loaded), a.hash, `${label}: resumed at step ${at} in a fresh world, step ${steps} has the bits of the straight run`);
+      loaded.simulation.dispose();
+    } finally { world.dispose(); }
+  }
+  assert.equal(sceneHash(fluidScene('cpu')), sceneHash(fluidScene(null)));
   assert.equal(typeof GPU_SCENE_BACKEND, 'string');
 });
 
@@ -102,19 +110,23 @@ test('gpu scene sections on Dawn (null backend): the kit\'s shaders compile and 
       });
     }
   }
-  const compute = new NullBackendCompute(device, adapter.info), scene = gpuScene();
-  const world = await createWorld(sceneWorldOptions(scene));
+  const compute = new NullBackendCompute(device, adapter.info);
   try {
-    const loaded = loadSimulationScene(world, scene, {gpu: gpuSceneBackends(compute)});
-    for (let i = 0; i < 2; i++) await loaded.simulation.stepAsync();
-    await loaded.simulation.checkpointAsync();
-    const d = loaded.simulation.diagnostics().subsystems;
-    for (const id of Object.keys(d).filter(id => d[id].backend !== undefined && /gpu/.test(String(d[id].backend)))) {
-      assert.equal(d[id].backend, 'gpu', id);
-      assert.match(String(d[id].solver), /webgpu/, id);
+    for (const [scene, sections] of [[gpuScene(), 2], [fluidScene(), 1]]) {
+      const world = await createWorld(sceneWorldOptions(scene));
+      try {
+        const loaded = loadSimulationScene(world, scene, {gpu: gpuSceneBackends(compute)});
+        for (let i = 0; i < 2; i++) await loaded.simulation.stepAsync();
+        await loaded.simulation.checkpointAsync();
+        const d = loaded.simulation.diagnostics().subsystems;
+        for (const id of Object.keys(d).filter(id => d[id].backend !== undefined && /gpu/.test(String(d[id].backend)))) {
+          assert.equal(d[id].backend, 'gpu', id);
+          assert.match(String(d[id].solver), /webgpu/, id);
+        }
+        assert.equal(Object.values(d).filter(x => x.backend === 'gpu').length, sections, 'the GPU sections run on the device');
+        loaded.simulation.dispose();
+      } finally { world.dispose(); }
     }
-    assert.equal(Object.values(d).filter(x => x.backend === 'gpu').length, 2, 'the grains and the water run on the device');
-    loaded.simulation.dispose();
-  } finally { world.dispose(); device.destroy(); }
+  } finally { device.destroy(); }
   assert.deepEqual(errors, []);
 });

@@ -879,7 +879,7 @@ attachments.get('mooring:0').force;                    // the cable's pull on th
 
 ### Scene sections on the GPU
 
-A `grains` or `shallowWater` section of a scene may say `"backend": "gpu"`. `box3d-webgpu-kit/gpu` builds those sections as WebGPU compute backends; the simulation then steps with `await stepAsync()`:
+A `grains`, `shallowWater` or flow `fluids` section of a scene may say `"backend": "gpu"`. `box3d-webgpu-kit/gpu` builds those sections as WebGPU compute backends; the simulation then steps with `await stepAsync()`:
 
 ```ts
 import {loadSimulationScene} from 'box3d-webgpu-kit/simulation';
@@ -891,12 +891,12 @@ catch { backends = gpuSceneBackends('reference'); }               // the same fl
 const loaded = loadSimulationScene(world, scene, {gpu: backends});
 await loaded.simulation.stepAsync();                              // step() and checkpoint() are refused
 const saved = await loaded.simulation.checkpointAsync();          // restores on the GPU or on the reference
-await loaded.simulation.pullAsync();                              // the GPU state into loaded.grains and .shallowWater
+await loaded.simulation.pullAsync();                              // the GPU state into loaded.grains, .shallowWater and .fluids
 ```
 
-- **What runs where.** The grains' coupling to rigid bodies runs on the CPU around the GPU's steps (the walls' sums are read back before the rigid step). Shallow water on the GPU has no bodies.
+- **What runs where.** The grains' and the flow's couplings to rigid bodies run on the CPU around the GPU's steps (the walls' sums and the obstacles' forces are read back before the rigid step); a flow's obstacle geometry stays on the CPU in float64 and the faces near each obstacle are uploaded every step. Shallow water on the GPU has no bodies; a free-surface tank has no GPU backend.
 - **Numbers.** float32: the results are the float32 reference's bits where the repository's `docs/GPU_COMPUTE.md` says "identical", not the float64 solvers'. A run repeats bit for bit on the same device; a checkpoint resumes bit-exactly and restores on either the GPU or the reference. `test/v23-gpu-scene.test.mjs` runs the sections on the reference and encodes them on Dawn's null device.
-- **TypeScript.** The declarations of this entry name the WebGPU types: add `@webgpu/types` to your project when you import it. It loads the grain, flow and shallow-water solvers (about 151 KiB of gzip).
+- **TypeScript.** The declarations of this entry name the WebGPU types: add `@webgpu/types` to your project when you import it. It loads the grain and shallow-water solvers, and the flow solver only by type (about 152 KiB of gzip).
 
 ### No build step
 
