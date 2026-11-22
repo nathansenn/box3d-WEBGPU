@@ -70,11 +70,13 @@ const BUDGET = {
   // factors and the node-blocked LDLT kernels met (measured 136.4 KiB = 139,638 bytes).
   // Raised 2026-11-22: fracture 138 -> 144 KiB when the plane-section LDLT kernels and the reuse of friction-pass
   // evaluations joined the concrete and contact changes (measured 138.5 KiB = 141,874 bytes).
+  // Raised 2026-11-22: scene 454 -> 460 and simulation 453 -> 459 KiB when the contact line search and the strip
+  // ordering joined the mortar contact and the GPU scene sections (scene measured 454.05 KiB = 464,948 bytes).
   entry: {
     '.': 85 * KiB, './three': 3 * KiB, './babylon': 2 * KiB, './worker': 92 * KiB, './gameplay': 95 * KiB,
     './cable': 28 * KiB, './water': 4 * KiB, './coupling': 29 * KiB, './frame': 27 * KiB, './structure': 32 * KiB, './heat': 28 * KiB,
     './solid': 80 * KiB, './fracture': 144 * KiB, './solid-contact': 142 * KiB, './cloth': 72 * KiB, './granular': 65 * KiB, './fluid': 57 * KiB, './shallow-water': 38 * KiB,
-    './materials': 40 * KiB, './geometry': 33 * KiB, './scene-format': 92 * KiB, './robot': 74 * KiB, './scene': 454 * KiB, './simulation': 453 * KiB,
+    './materials': 40 * KiB, './geometry': 33 * KiB, './scene-format': 92 * KiB, './robot': 74 * KiB, './scene': 460 * KiB, './simulation': 459 * KiB,
     // Added 2026-11-18: the GPU backends with their float32 references and the scene sections on the GPU. It loads the
     // grain and shallow-water solvers they are built from (the flow solver only by type: a page that runs no flow does not load it; the scene loader is in ./simulation). Measured 150.8 KiB, 152.3 KiB with the flow sections (151.1 before them).
     './gpu': 174 * KiB,
