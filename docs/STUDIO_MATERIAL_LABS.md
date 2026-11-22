@@ -373,6 +373,32 @@ The concrete peaks move by +0.2 to +0.7 %: at the cube's peak 473 of its 625 ele
 
 "Identical" is to the printed digits of peak, strain at the peak, the stress at 1.5 and 2 times that strain, the post-peak area of the curve and the end state. With `'band'` every C30/37-family preset crushes and the machine stops on the load drop within the program (before: softening to the end, no stop, no spalling); the post-peak area of the curve falls to a fifth (cube: 3.82 against 18.72 MPa·%). A dilatancy after the peak that keeps the peaks does not localise in a band: psi kept at tan 30° moves them by -0.4 % to -5.3 % (lightweight) but the prism of SOLID_MECHANICS.md then dissipates 1.6 to 3.3 times G_c. The lab's cylinder (the cube-to-cylinder rows) gives no `bandWidth`, so its tension band is now per element; the cube's is the cell size as before.
 
+**A post-peak law for the lab (2026-11-18): not found; the lab keeps `'lagged'`.** The aim was a law that localises in one band (the engine's mesh study within 5 % of G_c A sigma_peak / f_cm) and moves no preset peak by more than 1 % from the `'lagged'` values above. With the strength-factor fix the softening surface (`'band'`) still moves them by -6.0 to +7.2 % (full 14 s programs, three runs at a time, load average 12 to 28):
+
+| Preset | `'lagged'` (the lab) | `'band'` | Peak |
+|---|---|---|---|
+| Cube compression | 49.258 MPa at 2.77 ‰, softening to the end | 51.467 MPa at 2.48 ‰; stops at 3.50 ‰ (load below 30 %) | +4.5 % |
+| Reinforced core | 58.610 MPa at 3.53 ‰ | 59.925 MPa at 2.62 ‰; stops at 3.68 ‰, 5 spalled | +2.2 % |
+| High-strength cube | 87.739 MPa at 3.28 ‰ | 88.874 MPa at 2.93 ‰; stops at 3.63 ‰ | +1.3 % |
+| Lightweight crush | 41.499 MPa at 2.40 ‰ | 39.568 MPa at 1.97 ‰; stops at 3.02 ‰ | -4.7 % |
+| Weathered spall | 35.916 MPa at 2.47 ‰ | 38.508 MPa at 2.28 ‰; stops at 3.45 ‰ | +7.2 % |
+| Fibre bridging | 49.258 MPa at 2.77 ‰ | 51.468 MPa at 2.48 ‰; stops at 3.50 ‰ | +4.5 % |
+| Low-strain comparison | 40.620 MPa | 40.620 MPa | 0 |
+| Ceramic comparison | 2141.8 MPa at 6.43 ‰, 293 spalled | 2012.7 MPa at 6.00 ‰, 10 spalled | -6.0 % |
+| Cube / cylinder (1 ‰/s to 3.4 ‰) | 49.325 / 40.951 = 1.2045 | 51.458 / 41.944 = 1.2269 (one cylinder step without equilibrium) | |
+
+Why the peaks move. At the cube's peak (`'lagged'`, 2.77 ‰) 479 of its 625 elements are past their own peak in kappa_c, by up to 1.96 times kappa_c at the peak, yet none has lost more than 0.6 % of its strength (median 0.1 %): the EN 1992-1-1 curve is flat at the peak and on the 30 mm band its descending branch is slow, and under the platens' confinement an element's stress still rises past its peak in kappa_c (EN 1992-1-1 (3.26) moves the confined peak strain to (f_ck,c / f_ck)² eps_c2; this law does not). The cube's peak is that of hundreds of such elements. `'band'` switches each of them to the softening surface at its peak in kappa_c: its confinement is frozen there and it stops expanding sideways (no lateral plastic strain). How much it then expands decides the cube's peak (measured on 2026-11-17, before the fix: 48.91 MPa with the dilatancy kept, 49.64 with none, 51.94 with -1.5, against 49.11 `'lagged'`), and freezing the confinement alone costs the lightweight cube 5.3 %, whose straight post-peak tail makes its elements soften before the cube peaks. So a law that keeps the peaks within 1 % must leave these elements on the lagged-pressure surface (dilatant, confinement following the pressure) until after the cube's peak. In the engine's prism that same post-peak dilatant flow does not localise: the weak zone keeps expanding against the stronger ends and its elements lock (the plastic volume change of linear tetrahedra), so its stress keeps rising and the softening spreads. Tried (`postPeak` variants in a scratch copy, not kept; prism energies over G_c A sigma_peak / f_cm on 10 × 1 × 1, 20 × 1 × 1, 40 × 1 × 1, 20 × 2 × 2; gate 0.95 to 1.05):
+
+| Switch to the softening surface when | Prism | Studio cube (`'lagged'`: 49.258 MPa) |
+|---|---|---|
+| kappa_c passes the peak (`'band'`) | 1.011, 1.025, 1.045, 1.009 (40 × 2 × 2: 1.005; 20 × 4 × 4: 0.990) | 51.467 MPa, +4.5 % |
+| past the peak, the element's q r + psi_s p falls in a step in which it flows (its own stress peak) | 1.043, 1.103 (four cells crush, 26 steps without equilibrium), 1.072, 1.014; peaks up to 41.5 MPa, above f_cm, from the locked dilatant flow | still rising at the end of the test program, 54.04 MPa at 3.4 ‰ (+9.7 %): the few elements that switch early (their measure dips) stop expanding and stiffen the cube |
+| the element has lost 0.25 % or 1 % of its strength on the lagged-pressure table | 1.48, 1.30, 2.44, 1.31; with 1 %: 1.15, 0.79, 2.42, 0.61 (no band crushes on three meshes within 6 ‰) | not run (fails the prism) |
+| its axial plastic strain past the peak reaches 0.5 or 1 ‰ (a strain, not an opening) | 0.99, 1.24, 1.15, 0.97; 1.21, 0.96, 1.14, 0.95; bands crush in the end cells, not the weak zone | not run |
+| kappa_c reaches (f_ck,c / f_ck)² times its peak value (EN 1992-1-1 (3.26), f_ck,c from the committed pressure) | 0.977, 0.994, 0.999, 1.113; the band forms outside the weak zone on every mesh (the zone is the most confined) | not run |
+
+The cost of any delay is set by the flat top of the curve: losing 0.1, 0.5 and 1 % of the strength on an element's own band dissipates 3.2, 7.5 and 10.8 % of G_c (C30/37; 2.0, 4.6 and 6.6 % for C60/75; 0.2, 1.0 and 2.0 % for LC25/28), in every element that gets there before one band wins. And the 1 % target is about the mesh dependence of the `'lagged'` peak itself: the cube on 10 × 10 × 10 cells (5000 elements, the same scatter law) peaks at 48.621 MPa at 3.07 ‰ with `'lagged'` (-1.3 % from 5 cells) and 50.612 MPa at 2.48 ‰ with `'band'` (+4.1 % over `'lagged'`, +4.5 % on 5 cells). What would be needed: a peak strain that grows with confinement in the hardening law itself (EN 1992-1-1 (3.26)), which moves the lab's peaks by design, or a regularisation that does not rely on the post-peak flow rule (an implicit-gradient average, or an element that does not lock under dilatant plastic flow); neither would keep the present peaks within 1 %, since the `'lagged'` peaks probably contain some of that locked post-peak flow too (inferred from the prism, not measured in the cube).
+
 Studio rows (`tests/studio/concrete-si.test.mjs` in `npm run test:studio:materials`, 8 tests; the cube, cylinder and short-cylinder runs take 29 s of CPU together at a load average of about 12):
 
 | Check | Reference | Measured |
@@ -408,7 +434,7 @@ With the first law (2026-11-12) the cube peaked at 45.0 MPa and the machine stop
 
 ### Limits
 
-- The lab keeps the lagged-pressure surface after the compressive peak (`postPeak: 'lagged'`), which does not localise compressive softening in a band: its post-peak curve depends on the 30 mm cells (see above and SOLID_MECHANICS.md, section Crack band); the 5-cell cube cannot resolve the cones of a crushed cube or splitting cracks finer than 30 mm.
+- The lab keeps the lagged-pressure surface after the compressive peak (`postPeak: 'lagged'`), which does not localise compressive softening in a band: its post-peak curve depends on the 30 mm cells (see above and SOLID_MECHANICS.md, section Crack band); the softening surface moves its peaks by -6.0 to +7.2 %, and no switching rule tried keeps them within 1 % and localises (above); the 5-cell cube cannot resolve the cones of a crushed cube or splitting cracks finer than 30 mm.
 - The platen friction 0.2 is a calibrated input of another model, not a measured coefficient; with the measured steel-on-concrete values (0.43 to 0.70) the cube would be about 1.4 times the cylinder instead of 1.23.
 - Kupfer's biaxial strength at sigma_2 / sigma_1 = 0.5 is overestimated (1.39 against 1.27 f_c).
 - Cracks unload elastically and keep their opening (plasticity, not damage); no crack closure, friction on cracks, aggregate interlock, creep, shrinkage, rate or size effects beyond the crack band.

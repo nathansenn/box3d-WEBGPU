@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — 2026-11-18 — Concrete lab: no post-peak law found that localises and keeps the peaks
+
+- **Investigated** why the crack band's softening surface (`postPeak: 'band'`) moves the Studio presets' peaks (with the strength-factor fix: -6.0 to +7.2 %, cube +4.5 %): at the cube's peak 479 of 625 elements are past their peak in kappa_c (up to 1.96 times it) with under 0.6 % of their strength lost; switching them to the non-dilatant surface with frozen confinement changes the cube's peak.
+- **Tried, not kept** (prism mesh study, gate 0.95 to 1.05 of G_c A sigma_peak / f_cm): switching at the element's own stress peak (1.04 to 1.10 and four cells crushing; the Studio cube still rising at 54.0 MPa, +9.7 %), after 0.25 or 1 % strength loss (0.61 to 2.44), after 0.5 or 1 ‰ axial plastic strain (0.95 to 1.24, bands in the end cells), at the EN 1992-1-1 (3.26) confined peak strain (0.98 to 1.11, bands outside the weak zone). The lab keeps `'lagged'`; the `'lagged'` cube itself moves by -1.3 % from 5 to 10 cells per edge. docs/STUDIO_MATERIAL_LABS.md and SOLID_MECHANICS.md.
+
 ## Unreleased — 2026-11-18 — Concrete: a strength factor scales the whole surface
 
 - **Bug fix (`src/engine/concrete-law.ts`, `ConcreteReturn` set-up):** `setStrengthFactors()` multiplied the compression surface's k but read the EN 1992-1-1 meridian at xi / f_cm instead of xi / (f f_cm), so an element of factor 0.9 peaked at 0.794 f_cm in uniaxial compression and one of 1.1 at 1.27 f_cm: the Studio's strength scatter was 2.3 times as wide in compression as stated. The factor now scales the surface in stress space: f times the law's uniaxial, equal-biaxial, confined and tensile strengths.
