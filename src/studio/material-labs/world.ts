@@ -11,6 +11,7 @@ import {watchDeviceLoss,framesSettled,initWebGL} from '../device-loss';
 import {LABS,type LabId} from './catalog';
 import {ConcreteModel,GlassModel,GranularModel,LiquidModel,RubberModel,type LabFrame,type LabModel,type V3,random} from './models';
 import {liveFaces} from './concrete-si';
+import {DynamicResolution,resolutionQuery,rendererIsSoftware} from '../../perf/dynamic-resolution';
 
 /** Triangles of a prism over an n-gon: bottom vertices 0..n-1, top n..2n-1. */
 const prismFaces=(n:number):number[]=>{const out:number[]=[];for(let k=1;k<n-1;k++)out.push(0,k+1,k,n,n+k,n+k+1);for(let a=0;a<n;a++){const b=(a+1)%n;out.push(a,b,n+b,a,n+b,n+a);}return out;};
@@ -45,7 +46,7 @@ export class MaterialLabWorld {
     r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=1;r.shadowMap.enabled=true;r.shadowMap.type=T.PCFShadowMap;
     r.domElement.setAttribute('role','img');r.domElement.setAttribute('aria-label','Interactive 3D material experiment. Drag to orbit and scroll to zoom.');this.host.append(r.domElement);return r;
   }
-  private setupControls():void {this.controls.enableDamping=true;this.controls.dampingFactor=.08;this.controls.maxPolarAngle=Math.PI*.49;this.controls.minDistance=2;this.controls.maxDistance=32;}
+  private setupControls():void {this.controls.addEventListener('change',()=>this.invalidate(false));this.controls.addEventListener('start',()=>this.invalidate(false));this.controls.enableDamping=true;this.controls.dampingFactor=.08;this.controls.maxPolarAngle=Math.PI*.49;this.controls.minDistance=2;this.controls.maxDistance=32;}
   async init():Promise<void>{
     const stage=(text:string)=>{const label=this.host.parentElement?.querySelector('.lab-loading small');if(label)label.textContent=text;};stage('Starting the graphics renderer');
     const first=this.renderer,initializing=first.init();let timeout:ReturnType<typeof setTimeout>|undefined;
@@ -85,7 +86,7 @@ export class MaterialLabWorld {
       this.materials.liquidSoil=this.own(new T.MeshStandardMaterial({map:entries[0],bumpMap:entries[0],bumpScale:.022,roughness:.97,color:'#e0d7be',vertexColors:true}));
       this.materials.liquidRock=this.own(new T.MeshStandardMaterial({map:entries[1],bumpMap:entries[1],bumpScale:.025,roughness:.93,color:'#aaa997'}));
     }
-    stage('Building the apparatus');this.buildHall();this.setModel(this.model);this.resize();
+    stage('Building the apparatus');this.buildHall();this.setModel(this.model);this.configureResolution();this.resize();
     const renderer=this.renderer;
     if(this.backend==='WebGPU'){
       const lose=(message:string)=>{this.recovery??=this.recover(renderer,message);};
@@ -111,7 +112,7 @@ export class MaterialLabWorld {
     const renderer=await initWebGL(()=>this.makeRenderer(true));if(this.disposed){renderer.dispose();renderer.domElement.remove();return;}
     this.renderer=renderer;renderer.toneMappingExposure=exposure;
     this.controls=new OrbitControls(this.camera,renderer.domElement);this.setupControls();this.setRotate(this.rotate);
-    this.buildEnvironment();this.setModel(this.model);if(frame)this.update(frame);this.recovering=false;this.resize();
+    this.buildEnvironment();this.setModel(this.model);if(frame)this.update(frame);this.recovering=false;this.configureResolution();this.resize();
     this.camera.position.copy(position);this.controls.target.copy(target);this.camera.lookAt(target);this.controls.update();
     this.onBackendChange?.();
   }
@@ -131,6 +132,8 @@ export class MaterialLabWorld {
     const m=new T.MeshBasicMaterial({map:texture});this.labelMaterials.set(key,m);return this.mesh(new T.PlaneGeometry(width,height),m,p,parent);
   }
   private readonly labelMaterials=new Map<string,T.MeshBasicMaterial>();
+  /** The liquid scene's particle meshes, kept across resets (LiquidScene.particles). */
+  private readonly liquidParticles=new Map<string,T.InstancedMesh>();
   private buildHall():void {
     if(this.panorama){
       const skybox=new GroundedSkybox(this.panorama,3,55,64);skybox.position.y=3;(skybox.material as T.MeshBasicMaterial).toneMapped=false;this.own(skybox.material as T.Material);this.hall.add(skybox);
@@ -165,17 +168,18 @@ export class MaterialLabWorld {
     for(const x of [-1.3,-1.16])this.rod([x,.1,-4.68],[x,5.9,-4.68],.022,'mullion',this.hall);
     this.label('BOX3D  /  MATERIAL STUDIES',2.6,.45,[-5.8,3.6,-4.7],'#c0c1b8','#404941',this.hall);
     }
-    this.key.position.set(-5,8,-4);this.key.castShadow=true;this.key.shadow.mapSize.set(2048,2048);Object.assign(this.key.shadow.camera,{left:-8,right:8,top:8,bottom:-8,near:.5,far:30});this.key.shadow.bias=-.0003;this.key.shadow.normalBias=.018;this.key.target.position.set(0,1,0);this.scene.add(this.key,this.key.target);
+    this.key.position.set(-5,8,-4);this.key.castShadow=true;this.key.shadow.autoUpdate=false;this.key.shadow.needsUpdate=true;this.key.shadow.mapSize.set(2048,2048);Object.assign(this.key.shadow.camera,{left:-8,right:8,top:8,bottom:-8,near:.5,far:30});this.key.shadow.bias=-.0003;this.key.shadow.normalBias=.018;this.key.target.position.set(0,1,0);this.scene.add(this.key,this.key.target);
     this.scene.add(new T.HemisphereLight('#f2f7f4','#8a8068',1.9));const rim=new T.DirectionalLight('#d9edf1',1.5);rim.position.set(2,6,-4);this.scene.add(rim);const fill=new T.DirectionalLight('#fff4df',1.6);fill.position.set(7,4,8);this.scene.add(fill);if(this.model.id==='liquid'){this.key.intensity=2.7;fill.intensity=1;this.scene.environmentIntensity=.9;}
   }
   setModel(model:LabModel):void {
+    this.invalidate();
     // The replaced apparatus is disposed after the new one has drawn its first frame (render()): its materials keep their
     // compiled render pipelines alive until then, so the new apparatus, made of materials with the same programs, reuses them.
     // Disposed first, every reset of the liquid lab compiled 32 render pipelines again, each one seconds of work under software
     // rendering.
     const retired=this.retired,hydraulics=this.hydraulics;if(hydraulics)retired.push(()=>hydraulics.dispose());this.hydraulics=undefined;
-    const shared=new Set(Object.values(this.materials));
-    this.rig.traverse(o=>{if(o instanceof T.Mesh||o instanceof T.LineSegments){const geometry=o.geometry;retired.push(()=>geometry.dispose());for(const material of Array.isArray(o.material)?o.material:[o.material])if(material!==this.tint&&!shared.has(material)&&this.extraMaterials.has(material)){const texture=(material as T.MeshBasicMaterial).map;if(texture instanceof T.CanvasTexture){retired.push(()=>texture.dispose());this.labels=this.labels.filter(t=>t!==texture);}retired.push(()=>material.dispose());this.extraMaterials.delete(material);}}});this.rig.clear();this.model=model;this.actuator=new T.Group();this.rig.add(this.actuator);
+    const shared=new Set(Object.values(this.materials)),particles=new Set<T.Object3D>(this.liquidParticles.values());
+    this.rig.traverse(o=>{if((o instanceof T.Mesh||o instanceof T.LineSegments)&&!particles.has(o)){const geometry=o.geometry;retired.push(()=>geometry.dispose());for(const material of Array.isArray(o.material)?o.material:[o.material])if(material!==this.tint&&!shared.has(material)&&this.extraMaterials.has(material)){const texture=(material as T.MeshBasicMaterial).map;if(texture instanceof T.CanvasTexture){retired.push(()=>texture.dispose());this.labels=this.labels.filter(t=>t!==texture);}retired.push(()=>material.dispose());this.extraMaterials.delete(material);}}});this.rig.clear();this.model=model;this.actuator=new T.Group();this.rig.add(this.actuator);
     this.specimen=undefined;this.intactPane=undefined;this.paneRest=undefined;this.piston=undefined;this.grains=undefined;this.water=undefined;this.waterSides=undefined;this.cracks=undefined;this.foam=undefined;this.rubberRest=undefined;
     const tint=this.tint;retired.push(()=>tint.dispose());this.extraMaterials.delete(tint);
     const id=model.id,p=model.material;
@@ -183,7 +187,7 @@ export class MaterialLabWorld {
       clearcoat:id==='liquid'||id==='glass'?1:id==='rubber'?.18:0,transparent:id==='glass'||id==='liquid',opacity:id==='glass'?.38:id==='liquid'?.82:1,side:T.DoubleSide,depthWrite:id!=='glass',envMapIntensity:id==='liquid'?1.4:.8}));
     if(id==='liquid'){this.tint.normalMap=this.ripple;this.tint.normalScale.set(.13,.13);this.tint.roughness=.075;this.tint.metalness=0;this.tint.opacity=1;this.tint.transmission=.48;this.tint.ior=1.333;this.tint.thickness=.35;this.tint.attenuationColor.set(p.color);this.tint.attenuationDistance=1.4;this.tint.color.lerp(new T.Color('#dcefee'),.12);this.ripple.repeat.set(2,2);}
     if(id==='concrete'){this.tint.map=this.library.materials.concrete.map;this.tint.bumpMap=this.library.materials.concrete.map;this.tint.bumpScale=.035;}
-    if(id==='liquid'){this.hydraulics=new LiquidScene(model as LiquidModel,this.materials,this.ripple,this.liquidMetalEnvironment?.texture,this.labelMaterials);this.hydraulics.setDisplay(this.liquidDisplay);this.hydraulics.setSection(this.liquidSection,this.sectionVisible);this.rig.add(this.hydraulics.group);}else if(id==='granular')this.buildTank();else if(id==='glass')this.buildGlassRig();else this.buildPressRig();
+    if(id==='liquid'){this.hydraulics=new LiquidScene(model as LiquidModel,this.materials,this.ripple,this.liquidMetalEnvironment?.texture,this.labelMaterials,this.liquidParticles);this.hydraulics.setDisplay(this.liquidDisplay);this.hydraulics.setSection(this.liquidSection,this.sectionVisible);this.rig.add(this.hydraulics.group);}else if(id==='granular')this.buildTank();else if(id==='glass')this.buildGlassRig();else this.buildPressRig();
     this.update(model.frame);this.fit(this.view);
   }
   private feet(width:number,depth:number,top:number,parent:T.Object3D=this.rig):void {
@@ -331,6 +335,7 @@ export class MaterialLabWorld {
     if(glass){const edges=new T.BufferGeometry();edges.setAttribute('position',new T.BufferAttribute(new Float32Array((this.model as GlassModel).plate.bondCount*12),3).setUsage(T.DynamicDrawUsage));this.cracks=new T.LineSegments(edges,this.own(new T.LineBasicMaterial({color:'#e9f6f2',transparent:true,opacity:.7})));this.cracks.frustumCulled=false;this.rig.add(this.cracks);}
   }
   update(f:LabFrame):void {
+    this.invalidate();
     this.lastFrame=f;const m=this.model;
     if(m.id==='liquid')this.hydraulics?.update(f);
     if(m.id==='granular'&&this.grains){for(let i=0;i<(m as GranularModel).count;i++){this.dummy.position.fromArray(f.positions,i*3);this.dummy.rotation.set(0,0,0);this.dummy.scale.set(1,1,1);this.dummy.updateMatrix();this.grains.setMatrixAt(i,this.dummy.matrix);}this.grains.instanceMatrix.needsUpdate=true;}
@@ -395,6 +400,7 @@ export class MaterialLabWorld {
     sides.needsUpdate=true;sideUv.needsUpdate=true;this.waterSides!.geometry.setDrawRange(0,count);this.waterSides!.geometry.computeVertexNormals();
   }
   fit(view:LabView='hero'):void {
+    this.invalidate(false);
     this.view=view;this.rig.updateMatrixWorld(true);const bounds=new T.Box3().setFromObject(this.rig),center=bounds.getCenter(new T.Vector3());
     const fitPoints:T.Vector3[]=[];
     this.rig.traverse(o=>{if(o instanceof T.Mesh&&o.visible&&!(o instanceof T.InstancedMesh)){o.geometry.computeBoundingBox();const box=o.geometry.boundingBox;if(box)for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z])fitPoints.push(new T.Vector3(x,y,z).applyMatrix4(o.matrixWorld));}});
@@ -412,27 +418,60 @@ export class MaterialLabWorld {
     }
     this.controls.target.copy(center);this.camera.lookAt(center);this.controls.update();
   }
-  setLighting(warm:boolean):void {this.key.color.set(warm?'#ffdcab':'#fff5df');this.key.intensity=warm?3:3.2;this.renderer.toneMappingExposure=warm?.9:1;}
-  setLiquidDisplay(mode:LiquidDisplay):void {this.liquidDisplay=mode;this.hydraulics?.setDisplay(mode);}
-  setLiquidSection(distance:number,visible:boolean):void {if(distance===this.liquidSection&&visible===this.sectionVisible)return;this.liquidSection=distance;this.sectionVisible=visible;this.hydraulics?.setSection(distance,visible);if(this.lastFrame)this.hydraulics?.update(this.lastFrame);}
-  setRotate(on:boolean):void {this.rotate=on;this.controls.autoRotate=on;this.controls.autoRotateSpeed=.4;}
-  resize():void {if(this.disposed||this.recovering)return;const w=this.host.clientWidth,h=this.host.clientHeight;if(!w||!h)return;this.renderer.setSize(w,h);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();if(Object.keys(this.materials).length)this.fit(this.view);}
-  /** The animation loop's frame: skipped while two frames are still on the GPU (WebGPU only), as StudioWorld.renderFrame. */
-  renderFrame():void {
+  setLighting(warm:boolean):void {this.invalidate();this.key.color.set(warm?'#ffdcab':'#fff5df');this.key.intensity=warm?3:3.2;this.renderer.toneMappingExposure=warm?.9:1;}
+  setLiquidDisplay(mode:LiquidDisplay):void {this.invalidate();this.liquidDisplay=mode;this.hydraulics?.setDisplay(mode);}
+  setLiquidSection(distance:number,visible:boolean):void {if(distance===this.liquidSection&&visible===this.sectionVisible)return;this.invalidate();this.liquidSection=distance;this.sectionVisible=visible;this.hydraulics?.setSection(distance,visible);if(this.lastFrame)this.hydraulics?.update(this.lastFrame);}
+  setRotate(on:boolean):void {this.invalidate(false);this.rotate=on;this.controls.autoRotate=on;this.controls.autoRotateSpeed=.4;}
+  resize():void {if(this.disposed||this.recovering)return;const w=this.host.clientWidth,h=this.host.clientHeight;if(!w||!h)return;this.renderer.setSize(w,h);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();this.invalidate(false);if(Object.keys(this.materials).length)this.fit(this.view);}
+  /** Dynamic resolution between HARDWARE_FLOOR (lower on a software adapter) and the 1.5 ratio cap, as StudioWorld:
+   * `?resolution=<ratio>` fixes it, `?adaptive=0` keeps the cap. */
+  private configureResolution():void {
+    const device=(this.renderer.backend as unknown as {device?:unknown}).device;this.software=rendererIsSoftware(this.renderer.backend);
+    this.resolution=new DynamicResolution({ceiling:Math.min(devicePixelRatio,1.5),software:this.software,source:device?'gpu':'interval',...resolutionQuery(location.search)});
+    this.applyResolution();
+  }
+  private applyResolution():void {
+    const r=this.resolution,canvas=this.renderer.domElement;
+    if(this.renderer.getPixelRatio()!==r.ratio){this.renderer.setPixelRatio(r.ratio);this.resize();}
+    canvas.dataset.renderRatio=r.ratio.toFixed(2);canvas.dataset.renderScale=r.scale.toFixed(2);
+    canvas.dataset.dynamicResolution=r.adaptive?'adaptive':'fixed';canvas.dataset.softwareAdapter=String(this.software);this.invalidate(false);
+  }
+  private sampleFrameCost(ms:number):void {if(!this.disposed&&!this.recovering&&this.resolution.sample(ms))this.applyResolution();}
+  private software=false;
+  private resolution=new DynamicResolution({ceiling:1,enabled:false});
+  /** Asks for a frame; a still apparatus is not redrawn (StudioWorld.invalidate), apart from a redraw every second (30 s on a
+   * software adapter) for changes no setter reports. `shadows` also redraws the key light's shadow map, which a camera move
+   * leaves as it is. */
+  invalidate(shadows=true):void {this.redraws=this.software?1:3;if(shadows)this.key.shadow.needsUpdate=true;}
+  private redraws=3;private lastDrawn=0;private previousDrawn=false;
+  /** The animation loop's frame: drawn when invalidated, orbiting or in damped camera motion, and skipped while two frames
+   * are still on the GPU (WebGPU only), as StudioWorld.renderFrame. Each frame's cost feeds dynamic resolution. */
+  renderFrame(now=performance.now()):void {
+    if(this.disposed||this.recovering)return;
     const device=(this.renderer.backend as unknown as {device?:{queue:{onSubmittedWorkDone():Promise<unknown>}}|null}).device;
-    if(!device||this.recovering){this.render();return;}
-    if(this.framesInFlight>=2){this.controls.update();return;}
-    this.framesInFlight++;this.render();
-    const done=()=>{this.framesInFlight--;};device.queue.onSubmittedWorkDone().then(done,done);
+    if(device&&this.framesInFlight>=2){this.controls.update();this.previousDrawn=false;return;}
+    const moved=this.controls.update(),refresh=now-this.lastDrawn>(this.software?30000:1000);
+    if(!(moved||this.redraws>0||this.rotate||refresh)){this.previousDrawn=false;return;}
+    if(this.redraws>0)this.redraws--;
+    if(!device){if(this.previousDrawn)this.sampleFrameCost(now-this.lastDrawn);this.lastDrawn=now;this.previousDrawn=true;this.render(false);return;}
+    const idle=this.framesInFlight===0,start=performance.now();
+    this.framesInFlight++;this.lastDrawn=now;this.previousDrawn=true;this.render(false);
+    const done=()=>{this.framesInFlight--;if(idle)this.sampleFrameCost(performance.now()-start);};device.queue.onSubmittedWorkDone().then(done,done);
   }
   private framesInFlight=0;
-  render():void {
-    if(this.disposed||this.recovering)return;this.controls.update();this.renderer.render(this.scene,this.camera);
+  render(updateControls=true):void {
+    if(this.disposed||this.recovering)return;if(updateControls)this.controls.update();this.renderer.render(this.scene,this.camera);
     if(this.retired.length){const retired=this.retired.splice(0);for(const dispose of retired)dispose();}
   }
   /** Disposals of a replaced apparatus, run after the next frame (setModel). */
   private retired:(()=>void)[]=[];
-  async capture():Promise<string>{await this.renderer.renderAsync(this.scene,this.camera);return this.renderer.domElement.toDataURL('image/png');}
+  /** A PNG of the current view at the full ratio (the dynamic one is restored after). */
+  async capture():Promise<string>{
+    const dynamic=this.renderer.getPixelRatio(),full=this.resolution.adaptive?this.resolution.ceiling:dynamic;
+    if(full!==dynamic){this.renderer.setPixelRatio(full);this.resize();}
+    try{await this.renderer.renderAsync(this.scene,this.camera);return this.renderer.domElement.toDataURL('image/png');}
+    finally{if(full!==dynamic){this.renderer.setPixelRatio(dynamic);this.resize();}this.invalidate(false);}
+  }
   get backend():string{return (this.renderer.backend as unknown as {isWebGPUBackend?:boolean}).isWebGPUBackend?'WebGPU':'WebGL';}
-  dispose():void {if(this.disposed)return;this.disposed=true;this.observer.disconnect();for(const dispose of this.retired.splice(0))dispose();this.hydraulics?.dispose();this.controls.dispose();this.scene.traverse(o=>{if(o instanceof T.Mesh||o instanceof T.LineSegments)o.geometry.dispose();});this.labels.forEach(t=>t.dispose());this.labelMaterials.forEach(m=>{m.map?.dispose();m.dispose();});this.extraMaterials.forEach(m=>m.dispose());this.ripple.dispose();this.library.dispose();this.environment?.dispose();this.liquidMetalEnvironment?.dispose();this.liquidTextures.forEach(t=>t.dispose());this.panorama?.dispose();this.renderer.dispose();this.renderer.domElement.remove();}
+  dispose():void {if(this.disposed)return;this.disposed=true;this.observer.disconnect();for(const dispose of this.retired.splice(0))dispose();this.hydraulics?.dispose();for(const mesh of this.liquidParticles.values()){mesh.geometry.dispose();(mesh.material as T.Material).dispose();mesh.dispose();}this.liquidParticles.clear();this.controls.dispose();this.scene.traverse(o=>{if(o instanceof T.Mesh||o instanceof T.LineSegments)o.geometry.dispose();});this.labels.forEach(t=>t.dispose());this.labelMaterials.forEach(m=>{m.map?.dispose();m.dispose();});this.extraMaterials.forEach(m=>m.dispose());this.ripple.dispose();this.library.dispose();this.environment?.dispose();this.liquidMetalEnvironment?.dispose();this.liquidTextures.forEach(t=>t.dispose());this.panorama?.dispose();this.renderer.dispose();this.renderer.domElement.remove();}
 }

@@ -10,8 +10,9 @@ import {chromium} from 'playwright';
 // stretch with the CPU share a busy machine leaves: they are multiplied by the 1-minute load average per core, at least 1
 // and at most 8, measured before each page (`loadFactor` in the report). Measured on a 4-core sandbox at load 12 to 30:
 // boots of 44 to 170 s, post-reset screenshots of 14 to 68 s, clicks of up to 38 s, a liquid frame of 5.4 to 7.6 s at
-// 1028 x 742 against 0.9 s at a quarter of the pixels; CI, unloaded, passes the unscaled budgets except for the bridge
-// (docs/ENGINEERING-STUDIO.md).
+// 1028 x 742 against 0.9 s at a quarter of the pixels; CI, unloaded, passed the unscaled budgets except for the bridge.
+// Since 2026-11-18 (shadow maps reused, 1024 on software, frames on demand, dynamic resolution) every page passes here at
+// load 14 to 25, post-reset screenshots 0.7 to 7 s and the bridge's 46 to 48 s (docs/ENGINEERING-STUDIO.md).
 const output=path.resolve(process.env.BOX3D_QA_OUTPUT||path.join(os.tmpdir(),'box3d-release-qa'));
 // BOX3D_STUDIES=plate,bridge,physics-lab,mobile runs only the rows named (for diagnosis; the gate runs them all).
 const only=(process.env.BOX3D_STUDIES??'').split(',').filter(Boolean),wanted=name=>only.length===0||only.includes(name);

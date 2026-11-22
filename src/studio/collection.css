@@ -132,4 +132,4 @@
 .setup-shortcut{margin:0 14px 20px;padding:10px 8px;display:flex;gap:7px;justify-content:flex-start;text-align:left;font-size:10px;color:var(--muted);background:var(--raised)}
 .setup-shortcut .ph{font-size:15px;color:var(--accent)}
 .setup-shortcut .ph:last-child{margin-left:auto;font-size:12px;color:var(--dim)}
-#studio[data-theme=atelier] .collection-dialog{--dim:#69746d;--muted:#59655e}
+#studio[data-theme=atelier] .collection-dialog{--dim:#666e69;--muted:#59655e}

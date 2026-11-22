@@ -20,6 +20,8 @@ export type LabRendererRequest = 'auto' | LabRendererKind;
 /** What the Lab's frame loop calls on its renderer; WebGPURenderer and WebGL2LabRenderer both have it. */
 export interface LabRenderer {
   readonly maxInstances: number;
+  /** A CPU rasteriser: dynamic resolution starts lower and may go lower (src/perf/dynamic-resolution.ts). */
+  readonly softwareAdapter: boolean;
   writeSceneUniforms(state: SceneUniformState): void;
   uploadInstances(source: InstanceBufferSource, count: number): number;
   uploadRopeGrid(grid: RopeGridFrame | null, baseInstance: number): number;

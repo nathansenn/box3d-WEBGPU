@@ -1042,7 +1042,7 @@ function workspaceMarkup(prefix: string): string {
       </div>
     </section>
 
-    <input id="${id('file-input')}" class="eng-sr-only" type="file" data-eng-file-input accept=".csv,.json,image/*,video/*">
+    <input id="${id('file-input')}" class="eng-sr-only" type="file" aria-label="Import evidence file (CSV, JSON, image or video)" data-eng-file-input accept=".csv,.json,image/*,video/*">
     <div class="eng-live-region eng-sr-only" aria-live="polite" data-eng-live-region></div>
     <div data-eng-first-run-host></div>
 

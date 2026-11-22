@@ -18,8 +18,9 @@ export class LiquidScene {
   private shore:T.Mesh<T.BufferGeometry>;
   private clearWater:boolean;private clearColor=new T.Color('#eff6f2');
   private measurement=new T.Group();private probeMarkers:T.Group[]=[];private sectionPlane?:T.Mesh;private sectionDistance=3;
-  /** `labels` keeps the label materials across rebuilds (the lab world owns and disposes them): see MaterialLabWorld.label. */
-  constructor(readonly model:LiquidModel,shared:Record<string,T.Material>,ripple:T.Texture,metalEnvironment?:T.Texture,private readonly labels?:Map<string,T.MeshBasicMaterial>){
+  /** `labels` keeps the label materials across rebuilds (the lab world owns and disposes them): see MaterialLabWorld.label.
+   * `particles` keeps the foam, current, rain and drop meshes the same way (see particles()). */
+  constructor(readonly model:LiquidModel,shared:Record<string,T.Material>,ripple:T.Texture,metalEnvironment?:T.Texture,private readonly labels?:Map<string,T.MeshBasicMaterial>,private readonly sharedParticles?:Map<string,T.InstancedMesh>){
     const c=model.liquid,surface=surfaceFor(c.surface),own=<M extends T.Material>(m:M):M=>{this.owned.push(m);return m;};
     this.mats={...shared,
       steel:own(new T.MeshStandardMaterial({color:'#a1b4b7',roughness:.26,metalness:.82,envMapIntensity:1.2,envMap:metalEnvironment})),
@@ -46,19 +47,24 @@ export class LiquidScene {
     const shoreGeo=new T.BufferGeometry(),shoreCapacity=this.initialIndices.length*2;for(const [name,size] of [['position',3],['uv',2],['color',3]] as const)shoreGeo.setAttribute(name,new T.BufferAttribute(new Float32Array(shoreCapacity*size),size).setUsage(T.DynamicDrawUsage));this.shore=this.mesh(shoreGeo,[0,0,0],this.waterMat);this.shore.frustumCulled=false;this.shore.castShadow=false;
     const sideGeo=new T.BufferGeometry();sideGeo.setAttribute('uv',new T.BufferAttribute(new Float32Array((model.nx+model.nz)*2*6*2),2));sideGeo.setAttribute('position',new T.BufferAttribute(new Float32Array((model.nx+model.nz)*2*6*3),3).setUsage(T.DynamicDrawUsage));this.sides=this.mesh(sideGeo,[0,0,0],this.waterMat);this.sides.castShadow=false;this.sides.frustumCulled=false;
     const spillGeo=new T.BufferGeometry();spillGeo.setAttribute('uv',new T.BufferAttribute(new Float32Array(model.nz*12*6*2),2));spillGeo.setAttribute('position',new T.BufferAttribute(new Float32Array(model.nz*12*6*3),3).setUsage(T.DynamicDrawUsage));this.spill=this.mesh(spillGeo,[0,0,0],this.waterMat);this.spill.castShadow=false;this.spill.frustumCulled=false;
-    const foamMat=own(new T.MeshBasicMaterial({color:'#e3f3e6',transparent:true,opacity:.58,depthWrite:false}));
-    this.foam=new T.InstancedMesh(new T.SphereGeometry(.024,6,4),foamMat,400);this.foam.frustumCulled=false;this.group.add(this.foam);
-    const traceMat=own(new T.MeshBasicMaterial({color:'#d0eee5',transparent:true,opacity:.42,depthWrite:false}));
-    this.currents=new T.InstancedMesh(new T.PlaneGeometry(.085,.009),traceMat,400);this.currents.frustumCulled=false;this.group.add(this.currents);
-    const rainMat=own(new T.MeshBasicMaterial({color:'#d4e9e6',transparent:true,opacity:.67,depthWrite:false}));
-    this.rain=new T.InstancedMesh(new T.CylinderGeometry(.0027,.0027,.12,3),rainMat,800);this.rain.frustumCulled=false;this.group.add(this.rain);
-    const impactMat=own(new T.MeshBasicMaterial({color:'#effdf3',transparent:true,opacity:.35,depthWrite:false,side:T.DoubleSide}));
-    this.drops=new T.InstancedMesh(new T.RingGeometry(.028,.033,16),impactMat,220);this.drops.frustumCulled=false;this.group.add(this.drops);
+    this.foam=this.particles('foam',()=>new T.InstancedMesh(new T.SphereGeometry(.024,6,4),new T.MeshBasicMaterial({color:'#e3f3e6',transparent:true,opacity:.58,depthWrite:false}),400));
+    this.currents=this.particles('currents',()=>new T.InstancedMesh(new T.PlaneGeometry(.085,.009),new T.MeshBasicMaterial({color:'#d0eee5',transparent:true,opacity:.42,depthWrite:false}),400));
+    this.rain=this.particles('rain',()=>new T.InstancedMesh(new T.CylinderGeometry(.0027,.0027,.12,3),new T.MeshBasicMaterial({color:'#d4e9e6',transparent:true,opacity:.67,depthWrite:false}),800));
+    this.drops=this.particles('drops',()=>new T.InstancedMesh(new T.RingGeometry(.028,.033,16),new T.MeshBasicMaterial({color:'#effdf3',transparent:true,opacity:.35,depthWrite:false,side:T.DoubleSide}),220));
     const rng=random(model.settings.seed);this.rainSeeds=Float32Array.from({length:2400},rng);
     this.gutter=this.box([.43,.02,2.03],[3.36,.4,0],this.waterMat);this.gutter.castShadow=false;
     const rimGeo=new T.BufferGeometry();rimGeo.setAttribute('position',new T.BufferAttribute(new Float32Array((model.nx+model.nz)*2*6*3),3).setUsage(T.DynamicDrawUsage));rimGeo.setAttribute('uv',new T.BufferAttribute(new Float32Array((model.nx+model.nz)*2*6*2),2));this.rimSpill=this.mesh(rimGeo,[0,0,0],this.waterMat);this.rimSpill.castShadow=false;this.rimSpill.frustumCulled=false;
     this.buildMeasurement();this.update(model.frame);
   }
+  /** An instanced mesh of at most 1024 instances keeps its matrices in a uniform buffer that three.js names after the node
+   * (NodeBuffer_<id>) in the shader, so a new mesh is a new shader and a new render pipeline: the four particle meshes were
+   * the 5 pipelines every liquid reset compiled (the drops twice, double-sided). The world keeps them across rebuilds. */
+  private particles(key:string,make:()=>T.InstancedMesh):T.InstancedMesh {
+    let mesh=this.sharedParticles?.get(key);
+    if(!mesh){mesh=make();mesh.frustumCulled=false;if(this.sharedParticles)this.sharedParticles.set(key,mesh);else{this.owned.push(mesh.material as T.Material);this.ownedParticles.push(mesh);}}
+    mesh.count=0;this.group.add(mesh);return mesh;
+  }
+  private ownedParticles:T.InstancedMesh[]=[];
   private buildMeasurement():void {
     this.group.add(this.measurement);this.measurement.visible=false;
     const cyan=new T.MeshBasicMaterial({color:'#21c6ce',transparent:true,opacity:.09,depthWrite:false,side:T.DoubleSide});this.owned.push(cyan);
@@ -248,5 +254,5 @@ export class LiquidScene {
     });
     this.gutter.visible=h.drained>0;this.gutter.position.y=.35+Math.min(.13,h.drained/1.2);
   }
-  dispose():void {this.group.traverse(o=>{if(o instanceof T.InstancedMesh)o.dispose();});this.owned.forEach(m=>m.dispose());this.textures.forEach(t=>t.dispose());}
+  dispose():void {const shared=new Set(this.sharedParticles?.values());this.group.traverse(o=>{if(o instanceof T.InstancedMesh&&!shared.has(o))o.dispose();});this.ownedParticles.forEach(m=>m.geometry.dispose());this.owned.forEach(m=>m.dispose());this.textures.forEach(t=>t.dispose());}
 }

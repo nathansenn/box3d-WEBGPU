@@ -27,12 +27,23 @@ import { pass, vec3, vec4, mix, mrt, output, normalView, renderOutput, texture, 
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { fxaa } from 'three/addons/tsl/display/FXAANode.js';
 import { FailureSimulation, STUDIES, terrainHeight, type Snapshot, type Vec, type StudyId } from './physics';
+import { DynamicResolution, resolutionQuery, rendererIsSoftware } from '../perf/dynamic-resolution';
 
 const UP = new T.Vector3(0,1,0);
 const seeded = (n: number) => { const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x); };
 
 /** Frames the animation loop lets the GPU have queued (StudioWorld.renderFrame). */
 const FRAMES_IN_FLIGHT=2;
+/** Frames drawn after the last change: a few, so that work three.js finishes lazily (environment maps, shadow maps,
+ * texture uploads) reaches the screen; one on a software adapter, where each costs seconds. */
+const REDRAW_FRAMES=3;
+/** A still scene is redrawn this often anyway (every 30 s on a software adapter), so that a change no setter reported (an
+ * asynchronous texture) appears within this time. */
+const IDLE_REDRAW_MS=1000,SOFTWARE_IDLE_REDRAW_MS=30000;
+/** The sun's shadow map on a software adapter. three.js draws a shadow map into a colour and a depth target of this size,
+ * so at 4096 the shadow pass rasterised 16.8 M texels a frame, 25 times the press view's 0.66 M pixels: under SwiftShader
+ * (load 25) a press frame took 19 to 21 s with 4096 and 7.6 to 8.0 s with 1024, at the same 1080 × 610 view. */
+const SOFTWARE_SHADOW_MAP=1024;
 /** Visible structures are geometry. Generated concepts appear only in the comparison UI. */
 export class StudioWorld {
   renderer: T.WebGPURenderer;
@@ -129,6 +140,8 @@ export class StudioWorld {
   private disposed=false;
   private graphicsLost?: (message:string)=>void;
   private lossMessage?: string;
+  private software=false;
+  private resolution=new DynamicResolution({ceiling:1,enabled:false});
 
   /** `forceWebGL` rebuilds the scene on WebGL after a WebGPU device has been lost. */
   constructor(private host: HTMLElement, simulation: FailureSimulation, forceWebGL=false) {
@@ -155,6 +168,7 @@ export class StudioWorld {
     this.lossMessage=message;this.graphicsLost?.(message);
   }
   private configureControls():void {
+    this.controls.addEventListener('change',()=>this.invalidate(false));this.controls.addEventListener('start',()=>this.invalidate(false));
     this.controls.enableDamping=true;this.controls.dampingFactor=.075;
     this.controls.maxPolarAngle=Math.PI*.49;
     this.controls.minDistance=3;this.controls.maxDistance=110;
@@ -187,6 +201,7 @@ export class StudioWorld {
       }
     }
     const renderer=this.renderer;if(renderer!==first)watchDeviceLoss(renderer,message=>this.reportLoss(renderer,message));
+    this.software=rendererIsSoftware(renderer.backend);this.configureResolution();
     progress('Loading surfaces and lighting');
     this.interiorEnvironment=studioEnvironment(this.renderer);
     this.environmentGenerator=new T.PMREMGenerator(this.renderer);
@@ -256,16 +271,20 @@ export class StudioWorld {
     const outdoor=sim.id==='bridge';
     this.controls.maxDistance=outdoor?260:110;
     this.hemisphere=new T.HemisphereLight();this.root.add(this.hemisphere);
-    this.sun=new T.DirectionalLight();this.sun.castShadow=true;const shadowSize=(this.renderer.backend as unknown as {isWebGPUBackend?:boolean}).isWebGPUBackend?4096:2048;this.sun.shadow.mapSize.set(shadowSize,shadowSize);
+    this.sun=new T.DirectionalLight();this.sun.castShadow=true;const shadowSize=this.software?SOFTWARE_SHADOW_MAP:(this.renderer.backend as unknown as {isWebGPUBackend?:boolean}).isWebGPUBackend?4096:2048;this.sun.shadow.mapSize.set(shadowSize,shadowSize);
     const extent=outdoor?35:15;
     Object.assign(this.sun.shadow.camera,{left:-extent,right:extent,top:extent,bottom:-extent,near:.1,far:110});
     this.sun.shadow.bias=-.0002;this.sun.shadow.normalBias=.028;this.root.add(this.sun);
+    // Drawn again only when something casting a shadow moves or the sun does (invalidate): the map is the frame's largest
+    // fixed cost, and orbiting the camera does not change it.
+    this.sun.shadow.autoUpdate=false;this.sun.shadow.needsUpdate=true;
     this.fill=new T.DirectionalLight();this.fill.position.set(12,9,-15);this.root.add(this.fill);
     if(outdoor) {this.buildLandscape();this.buildBridge();}
     else {this.buildHall();if(sim.id==='canopy')this.buildCanopy();else this.buildPress();this.buildSurface();}
     this.mergeStaticGeometry();this.surroundings=surroundingsFor(sim.id,this.surroundings.id);this.setLighting(this.look);this.setSurroundings(this.surroundings);this.fit();this.update(sim.snapshot(),false);
+    this.invalidate();
   }
-  attach(host:HTMLElement):void {this.resizeObserver.disconnect();this.host=host;host.append(this.renderer.domElement);this.resizeObserver.observe(host);this.resize();}
+  attach(host:HTMLElement):void {this.resizeObserver.disconnect();this.host=host;host.append(this.renderer.domElement);this.resizeObserver.observe(host);this.resize();this.invalidate();}
   async changeStudy(sim:FailureSimulation):Promise<void> {
     if(this.disposed)return;
     await this.library.ensureStudy(sim.id);await this.prepareStudyMaterials(sim.id);
@@ -290,12 +309,12 @@ export class StudioWorld {
     if(this.disposed||revision!==this.finishRevision){this.library.releaseFinish(next);return;}
     const key=p.study==='canopy'?'fabric':p.study==='plate'?'sheet':'wood',previous=this.materials[key];
     this.root.traverse(o=>{if(o instanceof T.Mesh&&o.material===previous)o.material=next;});
-    next.userData.studioFinish=true;this.materials[key]=next;this.currentFinish=p;
+    next.userData.studioFinish=true;this.materials[key]=next;this.currentFinish=p;this.invalidate();
     if(this.surface){this.naturalMaterial=next;if(!this.responseMode)this.surface.material=next;}
     this.library.releaseFinish(previous);
   }
   setLighting(p:LightingPreset):void {
-    this.look=p;
+    this.look=p;this.invalidate();
     const outdoor=this.sim.id==='bridge',sky=skyTexture(p),oldSky=this.sky,oldEnvironment=this.exteriorEnvironment;
     this.sky=sky;this.scene.background=sky;
     this.scene.backgroundBlurriness=.008;
@@ -313,7 +332,7 @@ export class StudioWorld {
   }
   setSurroundings(p:SurroundingPreset):void {
     if((this.sim.id==='bridge')!==(p.habitat==='valley'))return;
-    this.surroundings=p;
+    this.surroundings=p;this.invalidate();
     for(const key of ['floor','wall','steel','leaf','grass','rock'] as const)this.materials[key].color.set(p[key]);
     this.materials.leaf.color.set(p.leaf).lerp(new T.Color('#ffffff'),.66);
     this.woodlandLeaves.forEach(m=>m.color.set(p.leaf).lerp(new T.Color('#ffffff'),.62));
@@ -325,15 +344,39 @@ export class StudioWorld {
   }
   setQuality(quality:'balanced'|'ultra'):void {
     this.renderQuality=quality;
-    const nativeRatio=Math.min(window.devicePixelRatio,2);
-    this.renderer.setPixelRatio(quality==='ultra'?nativeRatio:Math.min(nativeRatio*.75,1.25));
     // Keep the shadow target stable. Resizing it after compilation leaves stale
     // WebGPU bindings in the current Three.js node pipeline. Balanced reduces
     // output resolution while retaining the same fine shadow detail.
-    this.resize();
+    this.configureResolution();
   }
-  setRiver(settings:RiverSettings):void {this.riverSettings=normalizeRiver(settings);this.water?.configure(this.riverSettings);}
-  setAutoRotate(enabled:boolean):void {this.controls.autoRotate=enabled;this.controls.autoRotateSpeed=.45;}
+  /** The quality setting's pixel ratio: the ceiling of dynamic resolution and the ratio of captures. */
+  private qualityRatio():number {const native=Math.min(window.devicePixelRatio,2);return this.renderQuality==='ultra'?native:Math.min(native*.75,1.25);}
+  /** Dynamic resolution between HARDWARE_FLOOR (lower on a software adapter) and the quality ratio, holding a 14 ms GPU
+   * frame (WebGPU: submit-to-done latency of frames sent to an idle queue) or a 60 Hz presented-frame interval (WebGL).
+   * `?resolution=<ratio>` fixes the ratio and `?adaptive=0` keeps the quality ratio. */
+  private configureResolution():void {
+    const device=(this.renderer.backend as unknown as {device?:unknown}).device;
+    this.resolution=new DynamicResolution({ceiling:this.qualityRatio(),software:this.software,source:device?'gpu':'interval',...resolutionQuery(location.search)});
+    this.applyResolution();
+  }
+  private applyResolution():void {
+    const r=this.resolution,canvas=this.renderer.domElement;
+    if(this.renderer.getPixelRatio()!==r.ratio){this.renderer.setPixelRatio(r.ratio);this.resize();}
+    canvas.dataset.renderRatio=r.ratio.toFixed(2);canvas.dataset.renderScale=r.scale.toFixed(2);
+    canvas.dataset.dynamicResolution=r.adaptive?'adaptive':'fixed';canvas.dataset.softwareAdapter=String(this.software);
+    this.invalidate(false);
+  }
+  private sampleFrameCost(ms:number):void {if(!this.disposed&&this.resolution.sample(ms))this.applyResolution();}
+  /** Draws the current view at the quality setting's full ratio and hands the canvas to `read` (toBlob/toDataURL take
+   * their copy synchronously), then returns to the dynamic ratio: captures never carry the reduced resolution. */
+  readFullResolution<R>(read:(canvas:HTMLCanvasElement)=>R):R {
+    const dynamic=this.renderer.getPixelRatio(),full=this.resolution.adaptive?this.resolution.ceiling:dynamic;
+    if(full!==dynamic){this.renderer.setPixelRatio(full);this.resize();}
+    try{this.render(performance.now()/1000);return read(this.renderer.domElement);}
+    finally{if(full!==dynamic){this.renderer.setPixelRatio(dynamic);this.resize();}this.invalidate(false);}
+  }
+  setRiver(settings:RiverSettings):void {this.riverSettings=normalizeRiver(settings);this.water?.configure(this.riverSettings);this.invalidate(false);}
+  setAutoRotate(enabled:boolean):void {this.controls.autoRotate=enabled;this.controls.autoRotateSpeed=.45;this.invalidate(false);}
   private prepareModelStorage():void {
     this.topology=new SurfaceTopology(this.sim.faces);
     this.sectionSampler=this.sim.id==='plate'?new PressSectionSampler(this.sim):undefined;
@@ -345,9 +388,9 @@ export class StudioWorld {
       for(let i=0;i<this.sim.config.cols-1;i++)for(let side=0;side<2;side++)this.deckLinkIndices[i*2+side]=this.sim.links.findIndex(e=>e.a===i*4+side&&e.b===(i+1)*4+side&&e.kind==='deck');
     }else this.deckFrameStorage=undefined;
   }
-  resetModel(sim:FailureSimulation):void {this.sim=sim;this.prepareModelStorage();this.lastSnapshot=undefined;this.update(sim.snapshot(),this.responseMode);}
+  resetModel(sim:FailureSimulation):void {this.invalidate();this.sim=sim;this.prepareModelStorage();this.lastSnapshot=undefined;this.update(sim.snapshot(),this.responseMode);}
   setPressSection(axis:SectionAxis,offset:number,visible:boolean):void {
-    this.sectionAxis=axis;this.sectionOffset=offset;this.sectionVisible=visible;
+    this.sectionAxis=axis;this.sectionOffset=offset;this.sectionVisible=visible;this.invalidate();
     if(this.lastSnapshot)this.updatePressSection(this.lastSnapshot);
   }
   private updatePressSection(snapshot:Snapshot):void {
@@ -808,7 +851,7 @@ export class StudioWorld {
   }
 
   update(snapshot:Snapshot,responseMode:boolean):void {
-    if(this.disposed)return;
+    if(this.disposed)return;this.invalidate();
     this.lastSnapshot=snapshot;this.responseMode=responseMode;
     const sim=this.sim;
     for(let i=0;i<this.positionScratch.length;i++){const p=this.positionScratch[i];p[0]=snapshot.positions[i*3];p[1]=snapshot.positions[i*3+1];p[2]=snapshot.positions[i*3+2];}
@@ -912,6 +955,7 @@ export class StudioWorld {
     return Math.max(rect.width*.4,usable)/Math.max(1,rect.height);
   }
   fit(second=false):void {
+    this.invalidate(false);
     this.controls.maxPolarAngle=Math.PI*.49;
     this.cameraPreset=second?'reverse':'hero';
     const c=STUDIES[this.sim.id];this.camera.fov=c.fov;
@@ -938,6 +982,7 @@ export class StudioWorld {
     this.camera.updateProjectionMatrix();this.controls.update();
   }
   setCamera(mode:CameraPreset):void {
+    this.invalidate();
     this.applyWorkspaceOffset();
     if(this.pressHead)this.pressHead.visible=mode!=='plan';
     if(this.sim.id==='plate')this.ram.visible=mode!=='plan';
@@ -1007,7 +1052,7 @@ export class StudioWorld {
   }
   focusBridgePoint(point:Vec):void {
     if(this.sim.id!=='bridge')return;
-    this.setCamera('detail');this.controls.target.set(...point);
+    this.invalidate(false);this.setCamera('detail');this.controls.target.set(...point);
     this.camera.position.copy(this.controls.target).add(new T.Vector3(-8,6,12));
     this.camera.fov=45;this.camera.updateProjectionMatrix();this.controls.update();
   }
@@ -1034,23 +1079,44 @@ export class StudioWorld {
   resize():void {
     if(this.disposed)return;
     const w=this.host.clientWidth,h=this.host.clientHeight;if(w<1||h<1)return;
-    this.renderer.setSize(w,h);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();
+    this.renderer.setSize(w,h);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();this.invalidate(false);
     const studio=this.host.closest<HTMLElement>('#studio'),layout=[w,h,studio?.dataset.theme,studio?.dataset.deskPanel,studio?.dataset.reviewMode,studio?.classList.contains('scene-focus'),studio?.classList.contains('desk-collapsed'),studio?.classList.contains('reference-workflow'),studio?.classList.contains('response-open')].join(':');
     if(layout!==this.cameraLayout){this.cameraLayout=layout;this.setCamera(this.cameraPreset);}
   }
-  /** The animation loop's frame: skipped while FRAMES_IN_FLIGHT frames are still on the GPU (WebGPU only). Software rendering
-   * takes seconds per frame and the queue grew behind it: a 5 s press run under SwiftShader left 53 s of work queued (17 s
-   * with the limit), which every later screenshot waited for. On a GPU a frame completes within its interval and none is
-   * skipped. */
+  /** Asks for a frame: the loop draws only when something changed (a snapshot, the camera, a setting, a resize) or while
+   * something moves on its own (the river, orbiting, damped camera motion). A still scene is not redrawn: under software
+   * rendering every redraw held the compositor for seconds, so screenshots and clicks waited behind frames that showed
+   * nothing new. `shadows` also redraws the sun's shadow map, which is otherwise kept (sun.shadow.autoUpdate is off): it
+   * follows the sun, not the camera, so a camera move (`invalidate(false)`) reuses it. */
+  invalidate(shadows=true):void {this.redraws=this.software?1:REDRAW_FRAMES;if(shadows&&this.sun)this.sun.shadow.needsUpdate=true;}
+  private redraws=REDRAW_FRAMES;
+  /** Time of the last drawn frame, for the periodic redraw of a still scene. */
+  private lastDrawn=0;
+  /** True while something on screen moves without a snapshot: the animated river (not on a software adapter, where it
+   * moves with the frames something else asks for: every frame there takes seconds of CPU) or auto-rotation. */
+  private animating():boolean {return (!!this.water&&this.riverSettings.animate&&!this.software)||this.controls.autoRotate;}
+  /** The animation loop's frame: drawn when invalidated or animating (see invalidate), and skipped while FRAMES_IN_FLIGHT
+   * frames are still on the GPU (WebGPU only). Software rendering takes seconds per frame and the queue grew behind it: a
+   * 5 s press run under SwiftShader left 53 s of work queued (17 s with the limit), which every later screenshot waited
+   * for. On a GPU a frame completes within its interval and none is skipped. Each frame's cost feeds dynamic resolution. */
   renderFrame(time:number):void {
+    if(this.disposed)return;
     const device=(this.renderer.backend as unknown as {device?:{queue:{onSubmittedWorkDone():Promise<unknown>}}|null}).device;
-    if(!device){this.render(time);return;}
-    if(this.framesInFlight>=FRAMES_IN_FLIGHT){this.controls.update();return;}
-    this.framesInFlight++;this.render(time);
-    const done=()=>{this.framesInFlight--;};device.queue.onSubmittedWorkDone().then(done,done);
+    if(device&&this.framesInFlight>=FRAMES_IN_FLIGHT){this.controls.update();this.previousDrawn=false;return;}
+    const ms=time*1000,moved=this.controls.update(),refresh=ms-this.lastDrawn>(this.software?SOFTWARE_IDLE_REDRAW_MS:IDLE_REDRAW_MS);
+    if(!(moved||this.redraws>0||this.animating()||refresh)){this.previousDrawn=false;return;}
+    if(this.redraws>0)this.redraws--;
+    if(!device){
+      if(this.previousDrawn)this.sampleFrameCost(ms-this.lastDrawn);
+      this.lastDrawn=ms;this.previousDrawn=true;this.render(time,false);return;
+    }
+    const idle=this.framesInFlight===0,start=performance.now();
+    this.framesInFlight++;this.lastDrawn=ms;this.previousDrawn=true;this.render(time,false);
+    const done=()=>{this.framesInFlight--;if(idle)this.sampleFrameCost(performance.now()-start);};device.queue.onSubmittedWorkDone().then(done,done);
   }
+  private previousDrawn=false;
   private framesInFlight=0;
-  render(time:number):void {
+  render(time:number,updateControls=true):void {
     if(this.disposed)return;
     this.water?.advance(time);
     if(this.water&&this.sim.id==='bridge'){
@@ -1060,7 +1126,7 @@ export class StudioWorld {
     this.frame++;
     this.fpsFrames++;
     if(time-this.lastFpsTime>1){this.fps=this.fpsFrames/Math.max(.001,time-this.lastFpsTime);this.fpsFrames=0;this.lastFpsTime=time;}
-    this.controls.update();if(this.pipeline)this.pipeline.render();else this.renderer.render(this.scene,this.camera);
+    if(updateControls)this.controls.update();if(this.pipeline)this.pipeline.render();else this.renderer.render(this.scene,this.camera);
   }
   cameraState():object {return {position:this.camera.position.toArray(),target:this.controls.target.toArray(),fov:this.camera.fov};}
   /** Draws one frame and reports whether the graphics device outlived it. */
