@@ -9,7 +9,7 @@ import {
   spawnBoxes, applyImpulses, BodyRing, detectEnvironment, LICENSE_NOTICE,
 } from 'box3d-webgpu-kit';
 import {bindThinInstances, syncThinInstances} from 'box3d-webgpu-kit/babylon';
-import {CORE, transformCore, repo, pkg} from '../scripts/sync-core.mjs';
+import {CORE, coreTarget, transformCore, repo, pkg} from '../scripts/sync-core.mjs';
 
 const wasmPath = new URL('../wasm/box3d.wasm', import.meta.url);
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -39,7 +39,7 @@ test('load failures surface as WASM_UNAVAILABLE instead of a silent fallback', a
 test('drift check: packaged core and WASM are exactly what the app sources produce', () => {
   for (const entry of CORE) {
     const expected = transformCore(entry, readFileSync(`${repo}/${entry.from}`, 'utf8'));
-    const actual = readFileSync(`${pkg}/src/core/${entry.from.split('/').pop()}`, 'utf8');
+    const actual = readFileSync(`${pkg}/src/core/${coreTarget(entry)}`, 'utf8');
     assert.equal(actual, expected, `${entry.from} drifted; run npm run build`);
   }
   for (const name of ['box3d.wasm', 'box3d.js']) {

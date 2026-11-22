@@ -1865,6 +1865,8 @@ export declare class FluidCoupling<B> {
     force(body: B): Float64Array;
     torque(body: B): Float64Array;
     step(): void;
+    stepAsync(advance: (count: number) => Promise<void>): Promise<void>;
+    private plan;
     diagnostics(): FluidCouplingDiagnostics;
 }
 export declare const FLUID_SUBSYSTEM_ORDER = 180;
@@ -2242,6 +2244,974 @@ export declare function parseSTL(data: BinaryLike | string): TriangleMesh;
 export declare function parseGLTF(json: string | object, buffers?: GLTFBuffers): TriangleMesh[];
 export declare function parseGLB(data: BinaryLike, buffers?: GLTFBuffers): TriangleMesh[];
 export {};
+
+// ==== core/gpu/compute.d.ts ====
+export interface GpuComputeNeeds {
+    readonly storageBuffers?: number;
+    readonly storageBytes?: number;
+    readonly workgroups?: number;
+    readonly invocations?: number;
+}
+export interface GpuComputeInfo {
+    readonly vendor: string;
+    readonly architecture: string;
+    readonly device: string;
+    readonly description: string;
+    readonly software: boolean;
+    readonly limits: {
+        readonly storageBuffers: number;
+        readonly storageBytes: number;
+        readonly bufferBytes: number;
+        readonly workgroups: number;
+        readonly invocations: number;
+    };
+}
+export interface GpuAcquireOptions extends GpuComputeNeeds {
+    readonly gpu?: GPU;
+    readonly powerPreference?: GPUPowerPreference;
+    readonly label?: string;
+}
+export declare const gpuComputeSupported: () => boolean;
+export declare function acquireGpuCompute(options?: GpuAcquireOptions): Promise<GpuCompute>;
+export interface GpuDispatch {
+    readonly pipeline: GPUComputePipeline;
+    readonly bindGroups: readonly GPUBindGroup[];
+    readonly workgroups: readonly [number, number?, number?];
+    readonly offsets?: readonly number[];
+    readonly label?: string;
+}
+export declare class GpuProgram {
+    readonly dispatches: GpuDispatch[];
+    add(dispatch: GpuDispatch): this;
+    encode(encoder: GPUCommandEncoder, label?: string): void;
+}
+export declare class PingPong {
+    private flip;
+    readonly a: GPUBuffer;
+    readonly b: GPUBuffer;
+    constructor(a: GPUBuffer, b: GPUBuffer);
+    get read(): GPUBuffer;
+    get write(): GPUBuffer;
+    get parity(): 0 | 1;
+    swap(): void;
+    destroy(): void;
+}
+type TypedArray = Float32Array | Uint32Array | Int32Array | Uint8Array;
+export declare class GpuCompute {
+    readonly info: GpuComputeInfo;
+    private lostMessage;
+    private readonly listeners;
+    private readonly owned;
+    readonly device: GPUDevice;
+    constructor(device: GPUDevice, adapterInfo?: Partial<GPUAdapterInfo> | null);
+    get lost(): boolean;
+    get lossReason(): string | null;
+    onLost(listener: (reason: string) => void): void;
+    assertAlive(): void;
+    buffer(label: string, size: number, usage: GPUBufferUsageFlags, data?: ArrayBufferView | ArrayBuffer): GPUBuffer;
+    storage(label: string, size: number, data?: ArrayBufferView | ArrayBuffer): GPUBuffer;
+    write(buffer: GPUBuffer, data: ArrayBufferView | ArrayBuffer, offset?: number): void;
+    release(buffer: GPUBuffer): void;
+    scoped<T>(label: string, work: () => T | Promise<T>): Promise<T>;
+    module(label: string, code: string): Promise<GPUShaderModule>;
+    pipeline(label: string, module: GPUShaderModule, entryPoint: string, layout?: GPUPipelineLayout | 'auto'): Promise<GPUComputePipeline>;
+    layout(label: string, bindings: readonly ('uniform' | 'uniform-dynamic' | 'read' | 'write')[]): GPUBindGroupLayout;
+    bind(label: string, layout: GPUBindGroupLayout, buffers: readonly (GPUBuffer | {
+        readonly buffer: GPUBuffer;
+        readonly size: number;
+    })[]): GPUBindGroup;
+    read(sources: readonly {
+        readonly buffer: GPUBuffer;
+        readonly offset?: number;
+        readonly size?: number;
+    }[]): Promise<ArrayBuffer[]>;
+    readTyped<T extends TypedArray>(buffer: GPUBuffer, Type: {
+        new (buffer: ArrayBuffer): T;
+    }, offset?: number, size?: number): Promise<T>;
+    destroy(): void;
+}
+export {};
+
+// ==== core/gpu/fluid-f32.d.ts ====
+import { Fluid, type FluidObstacleBand } from '../fluid.js';
+import { KERNELS } from './fluid-kernels.js';
+import { FluidProgram, type FluidBackendOptions, type FluidCommand } from './fluid-program.js';
+export declare const FLUID_F32_SOLVER_ID = "fluid-mac-projection-jacobi-pcg-f32-reference-v1";
+export declare class FluidF32 {
+    readonly solver = "fluid-mac-projection-jacobi-pcg-f32-reference-v1";
+    readonly program: FluidProgram;
+    readonly fluid: Fluid;
+    readonly F: Float32Array;
+    readonly I: Uint32Array;
+    readonly S: Float32Array;
+    obstacleSums: {
+        J: Float64Array;
+        M: Float64Array;
+        Mstart: Float64Array | null;
+    } | null;
+    readonly stats: {
+        steps: number;
+        pressureIterations: number;
+        viscousIterations: number;
+        divergence: number;
+        unconverged: number;
+    };
+    time: number;
+    private readonly passes;
+    constructor(fluid: Fluid, options?: FluidBackendOptions);
+    setObstacles(band: FluidObstacleBand): void;
+    private pass;
+    run(program: Generator<FluidCommand, void, Float32Array>): void;
+    step(count?: number): void;
+    project(): void;
+    checkpoint(): Uint8Array;
+    restoreCheckpoint(bytes: Uint8Array): void;
+    reload(): void;
+    velocity(c: number): Float32Array;
+    pressure(): Float32Array;
+}
+export { KERNELS };
+
+// ==== core/gpu/fluid-gpu.d.ts ====
+import type { Fluid, FluidObstacleBand } from '../fluid.js';
+import { GpuCompute } from './compute.js';
+import { FluidProgram, type FluidBackendOptions, type FluidProgramSource } from './fluid-program.js';
+export declare const FLUID_GPU_SOLVER_ID = "fluid-mac-projection-jacobi-pcg-webgpu-f32-v1";
+export declare function fluidMemory(source: Fluid | FluidProgramSource): {
+    data: number;
+    indices: number;
+};
+export declare class GpuFluid {
+    readonly solver = "fluid-mac-projection-jacobi-pcg-webgpu-f32-v1";
+    readonly compute: GpuCompute;
+    readonly program: FluidProgram;
+    readonly dataBuffer: GPUBuffer;
+    readonly stats: {
+        steps: number;
+        pressureIterations: number;
+        viscousIterations: number;
+        divergence: number;
+        unconverged: number;
+    };
+    obstacleSums: {
+        J: Float64Array;
+        M: Float64Array;
+        Mstart: Float64Array | null;
+    } | null;
+    time: number;
+    readonly dt: number;
+    private host;
+    private readonly indexBuffer;
+    private readonly scalarBuffer;
+    private readonly blockBuffer;
+    private readonly pipelines;
+    private readonly group;
+    private written;
+    private destroyed;
+    private lastScalars;
+    private constructor();
+    static create(compute: GpuCompute, fluid: Fluid | FluidProgramSource, state?: {
+        velocity: readonly ArrayLike<number>[];
+        pressure: ArrayLike<number>;
+        time: number;
+    } | null, options?: FluidBackendOptions): Promise<GpuFluid>;
+    setObstacles(band: FluidObstacleBand): void;
+    get regions(): Readonly<Record<string, number>>;
+    get padded(): number;
+    private alive;
+    private run;
+    step(count?: number): Promise<void>;
+    project(): Promise<void>;
+    load(velocity: readonly ArrayLike<number>[], pressure: ArrayLike<number>): void;
+    read(): Promise<{
+        u: Float32Array;
+        v: Float32Array;
+        w: Float32Array;
+        p: Float32Array;
+    }>;
+    checkpoint(): Promise<Uint8Array>;
+    restoreCheckpoint(bytes: Uint8Array): void;
+    pull(target: Fluid): Promise<void>;
+    destroy(): void;
+}
+export declare class FluidRunner {
+    backend: 'gpu' | 'cpu';
+    fallback: {
+        reason: string;
+        atTime: number;
+        resumedFrom: number;
+        stepsRerun: number;
+    } | null;
+    readonly fluid: Fluid;
+    gpu: GpuFluid | null;
+    private readonly every;
+    private sinceSnapshot;
+    private snapshotSteps;
+    private stepsTaken;
+    private constructor();
+    static create(fluid: Fluid, compute: GpuCompute | null, options?: FluidBackendOptions & {
+        readonly snapshotEvery?: number;
+    }): Promise<FluidRunner>;
+    get steps(): number;
+    get time(): number;
+    step(count?: number): Promise<void>;
+    private fallBack;
+    destroy(): void;
+}
+
+// ==== core/gpu/fluid-kernels.d.ts ====
+export declare const FLUID_PASS: import("./layout.js").GpuStruct;
+export declare const KERNELS: readonly ["copyPairs", "ghosts", "setFixed", "advect", "gradient", "predict", "listCopy", "scatter", "divergence", "partial", "finish", "shift", "mulConst", "mulArray", "copyRegion", "applyA", "scalar", "cgUpdate", "cgDirection", "vUpdate", "vDirection", "viscB", "viscR", "viscQ", "correct", "addRegion", "oConstrain", "oScatter", "oZero", "oImpulse", "oMomentum", "segSum"];
+export type KernelName = typeof KERNELS[number];
+export declare const groupSize: (k: KernelName) => number;
+export declare const SCALAR_PSTART = 0, SCALAR_VSTART = 1, SCALAR_ALPHA = 2, SCALAR_PCHECK = 3, SCALAR_VCHECK = 4, SCALAR_BETA = 5, SCALAR_PEND = 6;
+export declare const SLOT_RZ = 0, SLOT_DOT = 1, SLOT_ALPHA = 2, SLOT_BETA = 3, SLOT_RMAX = 4, SLOT_TOL = 5, SLOT_DONE = 6, SLOT_IT = 7, SLOT_BMAX = 8, SLOT_RZNEW = 9, SOLVE_SLOTS = 12;
+export declare const FLUID_WGSL: string;
+export interface PassValues {
+    u: Uint32Array;
+    f: Float32Array;
+}
+export declare function runKernelF32(k: KernelName, p: PassValues, F: Float32Array, I: Uint32Array, S: Float32Array): void;
+
+// ==== core/gpu/fluid-program.d.ts ====
+import type { Fluid, FluidBackendDescription, FluidObstacleBand } from '../fluid.js';
+import { SLOT_BMAX, SLOT_DONE, SLOT_IT, SLOT_RZ, SLOT_RZNEW, type KernelName } from './fluid-kernels.js';
+export declare const FLUID_BATCH = 16;
+export declare const S_PRESSURE = 0, S_VISCOUS = 12, S_SUM: number, S_VMAX: number, S_COMPONENT_MAX: number, S_DIVMAX: number, S_UNCONVERGED: number, S_VISCOUS_IT: number, FLUID_SCALARS = 64;
+export declare const FLUID_MAX_OBSTACLES = 1024;
+export interface FluidOp {
+    readonly kernel: KernelName;
+    readonly block: number;
+    readonly n: number;
+    readonly groups: readonly [number, number];
+}
+export type FluidCommand = {
+    readonly type: 'op';
+    readonly op: FluidOp;
+} | {
+    readonly type: 'clear';
+    readonly offset: number;
+    readonly length: number;
+} | {
+    readonly type: 'sync';
+};
+export interface FluidBackendOptions {
+    readonly pressureTolerance?: number;
+    readonly viscousReduction?: number;
+    readonly viscousFloor?: number;
+    readonly obstacleCapacity?: number;
+}
+export interface FluidPlan {
+    readonly description: FluidBackendDescription;
+    readonly P: number;
+    readonly N: number;
+    readonly F: Record<string, number>;
+    readonly I: Record<string, number>;
+    readonly floats: number;
+    readonly words: number;
+    readonly initialF: Float32Array;
+    readonly initialI: Uint32Array;
+    readonly blocks: ArrayBuffer;
+    blockCount: number;
+    readonly pressureTolerance: number;
+    readonly viscousReduction: number;
+    readonly viscousFloor: number;
+    readonly maxIterations: number;
+    readonly implicit: boolean;
+    readonly advect: boolean;
+    readonly obstacles: number;
+    readonly obstacleCapacity: number;
+    readonly scalars: number;
+}
+export declare const obstacleSlots: (obstacles: number) => {
+    J: number;
+    M: number;
+    Mstart: number;
+};
+export interface FluidBandUpload {
+    readonly entries: Uint32Array;
+    readonly floats: Float32Array;
+    readonly header: Uint32Array;
+    readonly fresh: boolean;
+}
+export declare const BLOCK_STRIDE = 256, MAX_BLOCKS = 1024;
+export interface FluidProgramSource {
+    readonly description: FluidBackendDescription;
+    readonly cells: number;
+    readonly h: number;
+    readonly density: number;
+    readonly nu: number;
+    readonly dt: number;
+    readonly theta: number;
+    readonly gravity: readonly number[];
+    readonly bodyForce: readonly number[];
+    readonly advection: 'central' | 'upwind' | 'none';
+    readonly pressureTolerance: number;
+    readonly maxIterations: number;
+    readonly obstacles?: number;
+    readonly obstacleFaces?: number;
+}
+export declare function fluidProgramSource(fluid: Fluid): FluidProgramSource;
+export declare class FluidProgram {
+    readonly plan: FluidPlan;
+    hasPrev: boolean;
+    band: FluidBandUpload | null;
+    private unknownAt;
+    private readonly ops;
+    private readonly view;
+    private readonly fluid;
+    constructor(source: Fluid | FluidProgramSource, options?: FluidBackendOptions);
+    op(kernel: KernelName, u: readonly number[], fv?: readonly number[]): FluidCommand;
+    get blockCount(): number;
+    setBand(band: FluidObstacleBand): FluidBandUpload;
+    obstacleSums(S: Float32Array): {
+        J: Float64Array;
+        M: Float64Array;
+        Mstart: Float64Array | null;
+    };
+    private fillComponent;
+    private fillVelocity;
+    private reduce;
+    private stopped;
+    private obstacleOp;
+    private obstacleMomentum;
+    private project;
+    private viscous;
+    step(): Generator<FluidCommand, void, Float32Array>;
+    projectOnly(): Generator<FluidCommand, void, Float32Array>;
+    load(F: Float32Array, velocity: readonly ArrayLike<number>[], pressure: ArrayLike<number>): void;
+}
+export declare const FLUID_PROGRAM_CHECKPOINT = "fluid-program-f32-v1";
+export interface FluidProgramState {
+    readonly vel: Float32Array;
+    readonly prev: Float32Array;
+    readonly p: Float32Array;
+    readonly hasPrev: boolean;
+    readonly time: number;
+    readonly stats: Readonly<Record<string, number>>;
+}
+export declare function writeFluidProgramCheckpoint(plan: FluidPlan, state: FluidProgramState): Uint8Array;
+export declare function readFluidProgramCheckpoint(plan: FluidPlan, bytes: Uint8Array): FluidProgramState;
+export declare function fluidStepStats(S: Float32Array): {
+    pressureIterations: number;
+    viscousIterations: number;
+    divergence: number;
+    unconverged: boolean;
+    vmax: number;
+};
+export { SLOT_BMAX, SLOT_RZ, SLOT_RZNEW, SLOT_IT, SLOT_DONE };
+
+// ==== core/gpu/granular-f32.d.ts ====
+import { Granular, type GranularBackendDescription } from '../granular.js';
+export interface DemOptions {
+    readonly historySlots?: number;
+    readonly bucketSlots?: number;
+    readonly tableSize?: number;
+}
+export interface DemSetup {
+    readonly capacity: number;
+    count: number;
+    readonly K: number;
+    readonly M: number;
+    readonly HS: 1 | 2;
+    readonly T: number;
+    readonly wallCount: number;
+    readonly blocks: number;
+    readonly rolling: boolean;
+    readonly dt: number;
+    readonly cell: number;
+    readonly pos: Float32Array;
+    readonly vel: Float32Array;
+    readonly spin: Float32Array;
+    readonly ft: Float32Array;
+    readonly walls: ArrayBuffer;
+    readonly params: Record<string, number | number[]>;
+}
+export declare function packDemWalls(description: GranularBackendDescription, target: ArrayBuffer, state?: boolean): void;
+export declare function demSetup(granular: Granular, options?: DemOptions): DemSetup;
+export declare function packDemGrains(granular: Granular, setup: DemSetup): void;
+export declare const demParams: (setup: DemSetup, h: number) => Record<string, number | number[]>;
+export interface DemStats {
+    steps: number;
+    contacts: number;
+    wallContacts: number;
+    overlap: number;
+    maxOverlap: number;
+    removed: number;
+    bucketOverflow: number;
+    historyOverflow: number;
+}
+export declare const GRANULAR_CHECKPOINT = "granular-f32-v1";
+export interface GranularF32State {
+    readonly pos: Float32Array;
+    readonly vel: Float32Array;
+    readonly spin: Float32Array;
+    readonly ft: Float32Array;
+    readonly history: Uint32Array;
+    readonly walls: Uint8Array;
+    readonly meter: Uint32Array;
+    readonly time: number;
+    readonly stats: DemStats;
+}
+export declare function writeGranularCheckpoint(s: DemSetup, state: GranularF32State): Uint8Array;
+export declare function readGranularCheckpoint(s: DemSetup, bytes: Uint8Array): GranularF32State;
+export declare class GranularF32 {
+    readonly solver = "granular-dem-hash-grid-f32-reference-v1";
+    readonly setup: DemSetup;
+    readonly pos: Float32Array;
+    readonly vel: Float32Array;
+    readonly spin: Float32Array;
+    readonly ft: Float32Array;
+    readonly wallF: Float32Array;
+    readonly wallU: Uint32Array;
+    readonly stats: DemStats;
+    time: number;
+    private hOld;
+    private hNew;
+    private readonly bits;
+    private readonly word;
+    private readonly grid;
+    private readonly sums;
+    private h;
+    private hh;
+    private readonly P;
+    private readonly g;
+    private readonly bmin;
+    private readonly bmax;
+    private pairContacts;
+    private pairOverlap;
+    private readonly C;
+    private load;
+    private readonly hit;
+    constructor(source: Granular | DemSetup, options?: DemOptions);
+    get count(): number;
+    checkpoint(): Uint8Array;
+    restoreCheckpoint(bytes: Uint8Array): void;
+    refresh(): void;
+    step(count?: number): void;
+    private evaluate;
+    private pairHistoryOverflow;
+    private cellOf;
+    private bucket;
+    private integrate;
+    private sortBucket;
+    private oldSlot;
+    private fromBits;
+    private toBits;
+    private turned;
+    private contact;
+    private store;
+    private pairs;
+    private wallDistance;
+    private readonly lf;
+    private readonly lt;
+    private readonly ll;
+    private readonly lc;
+    private wallContacts;
+    private kick;
+    private wallOpen;
+    private wallClose;
+}
+export declare function readDemWall(walls: ArrayBuffer | Float32Array, k: number): {
+    position: number[];
+    rotation: number[];
+    linearVelocity: number[];
+    angularVelocity: number[];
+    force: number[];
+    torque: number[];
+    impulse: number[];
+    angularImpulse: number[];
+    normalLoad: number;
+    contacts: number;
+};
+
+// ==== core/gpu/granular-gpu.d.ts ====
+import { Granular, GranularCoupling } from '../granular.js';
+import { GpuCompute } from './compute.js';
+import { packDemGrains, packDemWalls, type DemOptions, type DemSetup, type DemStats } from './granular-f32.js';
+export declare const GRANULAR_GPU_SOLVER_ID = "granular-dem-hash-grid-webgpu-f32-v1";
+export declare function demMemory(capacity: number, options?: {
+    readonly historySlots?: number;
+    readonly bucketSlots?: number;
+    readonly tableSize?: number;
+    readonly rolling?: boolean;
+    readonly walls?: number;
+}): {
+    grains: number;
+    forces: number;
+    history: number;
+    grid: number;
+    sums: number;
+    total: number;
+    largest: number;
+};
+export interface GpuGranularSnapshot {
+    readonly time: number;
+    readonly steps: number;
+    readonly count: number;
+    readonly pos: Float32Array;
+    readonly vel: Float32Array;
+    readonly spin: Float32Array;
+    readonly walls: Float32Array;
+    readonly meter: Uint32Array;
+}
+export declare class GpuGranular {
+    readonly solver = "granular-dem-hash-grid-webgpu-f32-v1";
+    readonly compute: GpuCompute;
+    readonly setup: DemSetup;
+    readonly positionBuffer: GPUBuffer;
+    readonly stats: DemStats;
+    time: number;
+    private readonly vel;
+    private readonly spin;
+    private readonly ft;
+    private readonly history;
+    private readonly grid;
+    private readonly walls;
+    private readonly sums;
+    private readonly meter;
+    private readonly params;
+    private readonly pipelines;
+    private readonly groups;
+    private parity;
+    private destroyed;
+    private constructor();
+    static fromGranular(compute: GpuCompute, granular: Granular, options?: DemOptions): Promise<GpuGranular>;
+    static create(compute: GpuCompute, setup: DemSetup): Promise<GpuGranular>;
+    get count(): number;
+    get capacity(): number;
+    private alive;
+    private writeParams;
+    private submit;
+    step(count?: number): Promise<void>;
+    upload(what?: {
+        readonly grains?: boolean;
+        readonly walls?: boolean;
+    }): void;
+    uploadWalls(): void;
+    private book;
+    readWalls(): Promise<Float32Array>;
+    sync(): Promise<void>;
+    read(): Promise<GpuGranularSnapshot>;
+    checkpoint(): Promise<Uint8Array>;
+    restoreCheckpoint(bytes: Uint8Array): void;
+    pull(target: Granular, snapshot?: GpuGranularSnapshot): Promise<GpuGranularSnapshot>;
+    destroy(): void;
+}
+export declare function applyDemSnapshot(target: Granular, snap: {
+    readonly count: number;
+    readonly time: number;
+    readonly pos: Float32Array;
+    readonly vel: Float32Array;
+    readonly spin: Float32Array;
+    readonly walls: Float32Array;
+}): void;
+export interface GranularRunnerOptions extends DemOptions {
+    readonly snapshotEvery?: number;
+}
+export declare class GranularRunner {
+    backend: 'gpu' | 'cpu';
+    fallback: {
+        reason: string;
+        atTime: number;
+        resumedFrom: number;
+        stepsRerun: number;
+    } | null;
+    readonly granular: Granular;
+    gpu: GpuGranular | null;
+    private readonly every;
+    private sinceSnapshot;
+    private snapshotSteps;
+    private stepsTaken;
+    private constructor();
+    static create(granular: Granular, compute: GpuCompute | null, options?: GranularRunnerOptions): Promise<GranularRunner>;
+    get steps(): number;
+    get time(): number;
+    step(count?: number): Promise<void>;
+    snapshot(): Promise<void>;
+    private fallBack;
+    destroy(): void;
+}
+export declare class GpuGranularCoupling<B> {
+    readonly coupling: GranularCoupling<B>;
+    readonly gpu: Pick<GpuGranular, 'setup' | 'uploadWalls' | 'step' | 'readWalls'>;
+    readonly latency: 0 | 1;
+    private pending;
+    steps: number;
+    constructor(coupling: GranularCoupling<B>, gpu: Pick<GpuGranular, 'setup' | 'uploadWalls' | 'step' | 'readWalls'>, options?: {
+        readonly latency?: 0 | 1;
+    });
+    private apply;
+    step(): Promise<void>;
+}
+export { packDemGrains, packDemWalls };
+
+// ==== core/gpu/granular-wgsl.d.ts ====
+export declare const DEM_BLOCK = 64;
+export declare const DEM_MAX_WALLS = 16;
+export declare const DEM_EMPTY = 4294967295;
+export declare const DEM_WALL_KEY = 2147483648;
+export declare const DEM_METER_BUCKET_OVERFLOW = 0, DEM_METER_HISTORY_OVERFLOW = 1, DEM_METER_REMOVED = 2, DEM_METER_CONTACTS = 3, DEM_METER_OVERLAP = 4, DEM_METER_FLAGS = 5, DEM_METER_SLOTS = 8;
+export declare const DEM_PARAMS: import("./layout.js").GpuStruct;
+export declare const DEM_WALL: import("./layout.js").GpuStruct;
+export interface DemShaderOptions {
+    readonly historySlots: number;
+    readonly bucketSlots: number;
+    readonly rolling: boolean;
+}
+export declare function demShaders(options: DemShaderOptions): {
+    integrate: string;
+    sort: string;
+    pairs: string;
+    walls: string;
+    wallStep: string;
+};
+
+// ==== core/gpu/layout.d.ts ====
+export type GpuScalar = 'f32' | 'u32' | 'i32';
+export type GpuVector = 'vec2f' | 'vec3f' | 'vec4f' | 'vec2u' | 'vec3u' | 'vec4u' | 'vec2i' | 'vec3i' | 'vec4i';
+export type GpuMatrix = 'mat3x3f' | 'mat4x4f';
+export type GpuArray = {
+    readonly array: GpuScalar | GpuVector | GpuMatrix;
+    readonly count: number;
+};
+export type GpuFieldType = GpuScalar | GpuVector | GpuMatrix | GpuArray;
+export interface GpuField {
+    readonly name: string;
+    readonly type: GpuFieldType;
+    readonly offset: number;
+    readonly size: number;
+    readonly align: number;
+    readonly scalar: GpuScalar;
+    readonly components: number;
+}
+export type GpuStructValues = Record<string, number | ArrayLike<number>>;
+export interface GpuStruct {
+    readonly name: string;
+    readonly size: number;
+    readonly align: number;
+    readonly fields: readonly GpuField[];
+    readonly stride: number;
+    readonly wgsl: string;
+    field(name: string): GpuField;
+    write(target: ArrayBuffer | DataView, values: GpuStructValues, index?: number): void;
+    read(source: ArrayBuffer | DataView, index?: number): Record<string, number | number[]>;
+    create(count?: number): ArrayBuffer;
+}
+export declare function defineStruct(name: string, fields: Readonly<Record<string, GpuFieldType>>, options?: {
+    readonly usage?: 'uniform' | 'storage';
+}): GpuStruct;
+
+// ==== core/gpu/scene-backends.d.ts ====
+import { GranularCoupling } from '../granular.js';
+import { ShallowWater } from '../shallow-water.js';
+import type { Fluid, FluidCoupling } from '../fluid.js';
+import type { FluidBackendOptions } from './fluid-program.js';
+import type { SceneGpuBackends, Subsystem } from '../simulation.js';
+import type { GpuCompute } from './compute.js';
+import { readDemWall } from './granular-f32.js';
+export declare const GPU_SCENE_BACKEND = "scene-section-gpu-f32-v1";
+export interface GpuSceneSubsystem<W, B> extends Subsystem<W, B> {
+    stale(): boolean;
+    readonly backend: 'gpu' | 'reference';
+}
+export declare function gpuShallowWaterSubsystem<W, B>(compute: GpuCompute | 'reference', water: ShallowWater, options?: {
+    readonly id?: string;
+    readonly order?: number;
+}): GpuSceneSubsystem<W, B>;
+export declare function gpuGranularSubsystem<W, B>(compute: GpuCompute | 'reference', coupling: GranularCoupling<B>, options?: {
+    readonly id?: string;
+    readonly order?: number;
+}): GpuSceneSubsystem<W, B>;
+export declare function gpuFluidSubsystem<W, B>(compute: GpuCompute | 'reference', target: Fluid | FluidCoupling<B>, options?: {
+    readonly id?: string;
+    readonly order?: number;
+    readonly backend?: FluidBackendOptions;
+}): GpuSceneSubsystem<W, B>;
+export declare function gpuSceneBackends<W, B>(compute: GpuCompute | 'reference'): SceneGpuBackends<W, B>;
+export { readDemWall };
+
+// ==== core/gpu/shallow-water-f32.d.ts ====
+import { ShallowWater } from '../shallow-water.js';
+export interface ShallowWaterPlan {
+    readonly substeps: number;
+    readonly sub: number;
+    readonly rate: number;
+}
+export declare function planShallowWaterSubsteps(duration: number, rateX: number, rateZ: number, grid: {
+    readonly dx: number;
+    readonly dz: number;
+    readonly nz: number;
+    readonly cfl: number;
+    readonly maxSubsteps: number;
+}, safety?: number): ShallowWaterPlan;
+export interface ShallowWaterSetup {
+    readonly nx: number;
+    readonly nz: number;
+    readonly dx: number;
+    readonly dz: number;
+    readonly origin: readonly [number, number];
+    readonly gravity: number;
+    readonly density: number;
+    readonly cfl: number;
+    readonly order: 1 | 2;
+    readonly dryDepth: number;
+    readonly maxSubsteps: number;
+    readonly viscosity: number;
+    readonly hasManning: boolean;
+    readonly hasSoil: boolean;
+    readonly hasSolid: boolean;
+    readonly skipZ: boolean;
+    readonly fixed: Float32Array;
+    readonly state: Float32Array;
+    readonly aux: Float32Array;
+    readonly sides: Float32Array;
+    readonly wetArea: number;
+}
+export declare function shallowWaterSetup(water: ShallowWater): ShallowWaterSetup;
+export interface ShallowWaterF32Stats {
+    substeps: number;
+    totalSubsteps: number;
+    courant: number;
+    maxWaveSpeed: number;
+    wetCells: number;
+}
+export declare const SHALLOW_WATER_CHECKPOINT = "shallow-water-f32-v1";
+export interface ShallowWaterF32State {
+    readonly state: Float32Array;
+    readonly aux: Float32Array;
+    readonly time: number;
+    readonly steps: number;
+    readonly lastSub: number;
+    readonly rainVolume: number;
+    readonly stats: ShallowWaterF32Stats;
+    readonly initialVolume: number;
+    readonly infiltratedAtStart: number;
+    readonly maxCourant: number;
+    readonly courantExceeded: number;
+}
+export declare function writeShallowWaterCheckpoint(nx: number, nz: number, s: ShallowWaterF32State): Uint8Array;
+export declare function readShallowWaterCheckpoint(nx: number, nz: number, bytes: Uint8Array): ShallowWaterF32State;
+export declare class ShallowWaterF32 {
+    readonly solver = "shallow-water-hr-muscl-hll-f32-reference-v1";
+    readonly setup: ShallowWaterSetup;
+    readonly water: ShallowWater;
+    readonly nx: number;
+    readonly nz: number;
+    readonly dx: number;
+    readonly dz: number;
+    readonly state: Float32Array;
+    readonly aux: Float32Array;
+    readonly fixed: Float32Array;
+    readonly stats: ShallowWaterF32Stats;
+    rainVolume: number;
+    initialVolume: number;
+    dt: number;
+    time: number;
+    steps: number;
+    safety: number;
+    private readonly stage1;
+    private readonly sides;
+    private readonly g;
+    private readonly dry;
+    private readonly fdx;
+    private readonly fdz;
+    private readonly ox;
+    private readonly oz;
+    private readonly viscosity;
+    private lastSub;
+    private pdt;
+    private rain;
+    private rainU;
+    private rainV;
+    private leadDt;
+    private trailDt;
+    private countWet;
+    private rateX;
+    private rateZ;
+    private measureX;
+    private measureZ;
+    private wet;
+    private second;
+    secondX: number;
+    secondZ: number;
+    private src;
+    private readonly R;
+    private readonly F;
+    private readonly T;
+    constructor(water: ShallowWater);
+    get cells(): number;
+    depth(c: number): number;
+    volume(): number;
+    ledger(): {
+        inflow: number;
+        rain: number;
+        infiltrated: number;
+        clipped: number;
+    };
+    private infiltratedAtStart;
+    volumeError(): number;
+    checkpoint(): Uint8Array;
+    restoreCheckpoint(bytes: Uint8Array): void;
+    private countWetCells;
+    step(count?: number): void;
+    measure(): [number, number];
+    advance(duration: number): void;
+    private lead;
+    substep(sub: number, last: boolean, led?: boolean): void;
+    private sh;
+    private sc;
+    private settle;
+    private friction;
+    private log1p;
+    private greenAmpt;
+    private cell;
+    private readonly ca;
+    private readonly cm;
+    private readonly cb;
+    private readonly cn;
+    private readonly sa;
+    private readonly sm;
+    private readonly sb;
+    private solidAt;
+    private edgeSlope;
+    private slope;
+    private hll;
+    private interior;
+    private boundaryFace;
+    private axisResidual;
+    private residual;
+}
+
+// ==== core/gpu/shallow-water-gpu.d.ts ====
+import { ShallowWater } from '../shallow-water.js';
+import { GpuCompute } from './compute.js';
+import { type ShallowWaterF32Stats, type ShallowWaterSetup } from './shallow-water-f32.js';
+export declare const SHALLOW_WATER_GPU_SOLVER_ID = "shallow-water-hr-muscl-hll-webgpu-f32-v1";
+export interface GpuShallowWaterOptions {
+    readonly rateLatency?: number;
+    readonly safety?: number;
+    readonly rateWait?: boolean;
+}
+export interface GpuShallowWaterSnapshot {
+    readonly time: number;
+    readonly steps: number;
+    readonly state: Float32Array;
+    readonly aux: Float32Array;
+}
+export declare class GpuShallowWater {
+    readonly solver = "shallow-water-hr-muscl-hll-webgpu-f32-v1";
+    readonly nx: number;
+    readonly nz: number;
+    readonly dx: number;
+    readonly dz: number;
+    readonly stats: ShallowWaterF32Stats;
+    maxCourant: number;
+    courantExceeded: number;
+    rainVolume: number;
+    initialVolume: number;
+    dt: number;
+    time: number;
+    steps: number;
+    readonly rateLatency: number;
+    readonly safety: number;
+    readonly rateWait: boolean;
+    private readonly arrived;
+    private readonly outstanding;
+    private infiltratedAtStart;
+    private lastSub;
+    private readonly pending;
+    private latest;
+    private readonly blocks;
+    private encodedSub;
+    private destroyed;
+    readonly compute: GpuCompute;
+    readonly water: ShallowWater;
+    readonly setup: ShallowWaterSetup;
+    readonly stateBuffer: GPUBuffer;
+    readonly fixedBuffer: GPUBuffer;
+    private readonly stageBuffer;
+    private readonly auxBuffer;
+    private readonly meterBuffer;
+    private readonly paramBuffer;
+    private readonly pipelines;
+    private readonly forward;
+    private readonly backward;
+    private constructor();
+    static create(compute: GpuCompute, water: ShallowWater, options?: GpuShallowWaterOptions): Promise<GpuShallowWater>;
+    get cells(): number;
+    private alive;
+    private groups;
+    private flags;
+    private writeBlock;
+    private encodedTime;
+    private led;
+    private decode;
+    private measure;
+    private book;
+    private lastPlanSub;
+    private unbooked;
+    step(count?: number): Promise<void>;
+    advance(duration: number): Promise<void>;
+    private readonly bookSubs;
+    sync(): Promise<void>;
+    private checkpointable;
+    checkpoint(): Promise<Uint8Array>;
+    restoreCheckpoint(bytes: Uint8Array): void;
+    read(): Promise<GpuShallowWaterSnapshot>;
+    budget(snapshot: GpuShallowWaterSnapshot): {
+        volume: number;
+        inflow: number;
+        rain: number;
+        infiltrated: number;
+        clipped: number;
+        error: number;
+    };
+    pull(target?: ShallowWater, snapshot?: GpuShallowWaterSnapshot): Promise<GpuShallowWaterSnapshot>;
+    destroy(): void;
+}
+export interface ShallowWaterRunnerOptions extends GpuShallowWaterOptions {
+    readonly snapshotEvery?: number;
+}
+export declare class ShallowWaterRunner {
+    backend: 'gpu' | 'cpu';
+    fallback: {
+        reason: string;
+        atTime: number;
+        resumedFrom: number;
+        stepsRerun: number;
+    } | null;
+    private sinceSnapshot;
+    private snapshotSteps;
+    readonly water: ShallowWater;
+    gpu: GpuShallowWater | null;
+    private readonly every;
+    private constructor();
+    static create(water: ShallowWater, compute: GpuCompute | null, options?: ShallowWaterRunnerOptions): Promise<ShallowWaterRunner>;
+    get time(): number;
+    get steps(): number;
+    step(count?: number): Promise<void>;
+    snapshot(): Promise<void>;
+    private fallBack;
+    destroy(): void;
+}
+
+// ==== core/gpu/shallow-water-wgsl.d.ts ====
+export declare const SW_MANNING = 1, SW_SOIL = 2, SW_SKIP_Z = 4, SW_SOLID = 8, SW_COUNT_WET = 16, SW_RAIN = 32;
+export declare const SW_METER_RATE_X = 0, SW_METER_RATE_Z = 1, SW_METER_WET = 2, SW_METER_FLAGS = 3, SW_METER_MEASURE_X = 4, SW_METER_MEASURE_Z = 5, SW_METER_SECOND_X = 6, SW_METER_SECOND_Z = 7, SW_METER_SLOTS = 8;
+export declare const SW_FAR = 3e+38;
+export declare const SW_PARAMS: import("./layout.js").GpuStruct;
+export declare const SHALLOW_WATER_WGSL: string;
+export declare const SHALLOW_WATER_ENTRY_POINTS: readonly ["measure", "lead", "stage", "finish"];
+
+// ==== core/gpu/wgsl.d.ts ====
+export type WgslDefine = string | number | boolean;
+export interface WgslOptions {
+    readonly defines?: Readonly<Record<string, WgslDefine>>;
+    readonly includes?: Readonly<Record<string, string>>;
+}
+export declare function wgslFloat(value: number): string;
+export declare function preprocessWgsl(source: string, options?: WgslOptions): string;
 
 // ==== core/granular-kernels.d.ts ====
 export declare const HN = 13;
@@ -4993,6 +5963,7 @@ export interface SceneFluid {
     readonly diffusion?: 'explicit' | 'crank-nicolson' | 'backward-euler';
     readonly velocity?: SceneVec3;
     readonly bodies?: readonly SceneFluidBody[];
+    readonly backend?: 'cpu' | 'gpu';
     readonly u?: readonly number[];
     readonly v?: readonly number[];
     readonly w?: readonly number[];
@@ -5867,6 +6838,11 @@ export interface SceneGpuBackends<W = any, B = any> {
         stale(): boolean;
     };
     grains(coupling: GranularCoupling<B>, info: {
+        readonly id: string;
+    }): Subsystem<W, B> & {
+        stale(): boolean;
+    };
+    fluid?(target: Fluid | FluidCoupling<B>, info: {
         readonly id: string;
     }): Subsystem<W, B> & {
         stale(): boolean;
@@ -7775,6 +8751,17 @@ export interface MeshBodies {
 }
 export declare function createBodiesFromMesh(world: BodyFactory, mesh: MeshLike, options?: MeshBodiesOptions): MeshBodies;
 
+// ==== gpu-compute.d.ts ====
+export { acquireGpuCompute, gpuComputeSupported, GpuCompute, GpuProgram, type GpuAcquireOptions, type GpuComputeInfo, type GpuComputeNeeds } from './core/gpu/compute.js';
+export { gpuSceneBackends, gpuShallowWaterSubsystem, gpuGranularSubsystem, gpuFluidSubsystem, GPU_SCENE_BACKEND, type GpuSceneSubsystem } from './core/gpu/scene-backends.js';
+export { GpuShallowWater, ShallowWaterRunner, SHALLOW_WATER_GPU_SOLVER_ID, type GpuShallowWaterOptions, type ShallowWaterRunnerOptions } from './core/gpu/shallow-water-gpu.js';
+export { ShallowWaterF32, SHALLOW_WATER_CHECKPOINT, type ShallowWaterF32Stats } from './core/gpu/shallow-water-f32.js';
+export { GpuGranular, GranularRunner, GpuGranularCoupling, demMemory, GRANULAR_GPU_SOLVER_ID, type GranularRunnerOptions } from './core/gpu/granular-gpu.js';
+export { GranularF32, GRANULAR_CHECKPOINT, type DemOptions, type DemStats } from './core/gpu/granular-f32.js';
+export { GpuFluid, FluidRunner, fluidMemory, FLUID_GPU_SOLVER_ID } from './core/gpu/fluid-gpu.js';
+export { FluidF32, FLUID_F32_SOLVER_ID } from './core/gpu/fluid-f32.js';
+export { FLUID_MAX_OBSTACLES, FLUID_PROGRAM_CHECKPOINT, type FluidBackendOptions } from './core/gpu/fluid-program.js';
+
 // ==== gpu.d.ts ====
 import { type UpAxis } from './axes.js';
 import type { InstanceSource } from './three.js';
@@ -8148,15 +9135,15 @@ export declare class SharedFrameReader {
 }
 
 // ==== simulation.d.ts ====
-import { Simulation, type LoadedSimulationScene as CoreLoadedSimulationScene, type SimulationOptions } from './core/simulation.js';
+import { Simulation, type LoadedSimulationScene as CoreLoadedSimulationScene, type SceneSimulationOptions, type SimulationOptions } from './core/simulation.js';
 import type { Body, PhysicsWorld } from './world.js';
 export * from './core/simulation.js';
 export { CHECKPOINT_VERSION, CHECKPOINT_ERROR, checkpointInfo, type CheckpointInfo, type StateValue } from './core/checkpoint.js';
 export type WorldSimulation = Simulation<PhysicsWorld, Body>;
 export type LoadedSimulationScene = CoreLoadedSimulationScene<PhysicsWorld>;
 export declare function createSimulation(world: PhysicsWorld, options?: SimulationOptions): WorldSimulation;
-export declare function loadSimulationScene(world: PhysicsWorld, scene: unknown): LoadedSimulationScene;
-export declare function resumeSimulation(world: PhysicsWorld, bytes: Uint8Array): LoadedSimulationScene;
+export declare function loadSimulationScene(world: PhysicsWorld, scene: unknown, options?: SceneSimulationOptions): LoadedSimulationScene;
+export declare function resumeSimulation(world: PhysicsWorld, bytes: Uint8Array, options?: SceneSimulationOptions): LoadedSimulationScene;
 
 // ==== solid-contact.d.ts ====
 export * from './core/solid-contact.js';

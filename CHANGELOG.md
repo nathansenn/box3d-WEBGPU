@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — 2026-11-18 — Flow sections on the GPU
+
+- **Scene format:** a flow (`fluids`, kind `flow`) may say `"backend": "gpu"`, with its bodies; `"cpu"` is the default and is left out of the normal form (no existing scene hash moves: every example scene's normal form is checked to have no `backend`). A free-surface tank with `"gpu"` is refused. A save of a GPU flow is refused until it is pulled.
+- **Engine:** `gpuFluidSubsystem` (`src/engine/gpu/scene-backends.ts`): the flow's steps on the GPU (or the float32 reference), its obstacles' geometry and the coupling on the CPU. `FluidCoupling.stepAsync(advance)` runs the coupling step with the fluid steps taken by a backend; `step()` now runs the same code (the CPU fluid examples keep their bits: hashes after 40 and 20 steps compared before and after). The room for obstacle faces is fixed from the scene's start, so a resumed run has the straight run's room.
+- **Validation (`tests/engine/gpu-scene-fluid.test.mjs`, in `test:gpu`):** the settling ball, the cylinder in a channel and an 8^3 cavity with backend `gpu` on the float32 reference: two runs bit-identical; checkpoints at steps 7 and 4 resumed in a fresh world reach steps 16 and 10 with the straight run's bits; through `GpuFluid` on a stand-in device that runs the kernels, the reference's bits with the rigid world; against the float64 scene the face velocities agree to 1.8e-6, 3.6e-6 and 3.6e-7 of the largest speed (bound 1e-5). The kit's v23 test runs the settling ball too. docs/GPU_COMPUTE.md, docs/SCENE_FORMAT.md.
+
+## Unreleased — 2026-11-18 — GPU scene sections in the kit
+
+- **Kit (`box3d-webgpu-kit/gpu`, new entry):** the WebGPU backends of the grains, the shallow water and the flow, their float32 CPU references and `gpuSceneBackends`, copied from `src/engine/gpu/` by `scripts/sync-core.mjs` into `core/gpu/`; `loadSimulationScene` and `resumeSimulation` take `{gpu}`. 150.8 KiB of gzip with the solvers it loads (budget 174 KiB in `test:pack`, which also loads a GPU grain section from the tarball and type-checks a consumer with `@webgpu/types`).
+- **Kit gate (`test/v23-gpu-scene.test.mjs`):** a scene with grains over a see-saw and a valley of water on the GPU, run on the float32 reference with the kit's WebAssembly world: two runs bit-identical, a checkpoint at step 9 resumed in a fresh world reaches step 24 with the straight run's bits; on Dawn's null device the scene's pipelines build from the kit's shader copies and two steps and a checkpoint encode without a validation error. docs/GPU_COMPUTE.md.
+
 ## Unreleased — 2026-11-18 — Rendering: dynamic resolution, frames on demand, the Studio's slow pages explained
 
 - **Why the press, canopy and bridge pages were slow under SwiftShader:** the sun's shadow pass drew a 4096 x 4096 colour and depth target every frame (16.8 M texels against the view's 0.66 M; three.js gives a shadow map a colour attachment too). A Chrome trace showed the GPU process's main thread waiting 22 to 29 s per WebGPU flush for SwiftShader, compositing 1.7 s in all; a press frame took as long at 144 x 81 as at 1080 x 610. Side by side at load 25: 19 to 21 s per press frame with the 4096 map, 7.6 to 8.0 s with 1024.

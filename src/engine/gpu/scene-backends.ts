@@ -1,18 +1,21 @@
 /**
- * The subsystems a scene section with `backend: 'gpu'` runs as (shallow water and grains): pass
+ * The subsystems a scene section with `backend: 'gpu'` runs as (shallow water, grains and flows): pass
  * `gpuSceneBackends(compute)` as the `gpu` option of loadSimulationScene / buildSceneSimulation / resumeSimulationScene.
  *
  * They are asynchronous: they step in `await simulation.stepAsync()` (in their place in the stage order: grains in the
- * couple stage, before the rigid step, waiting for the walls' sums; shallow water in the post stage) and checkpoint in
+ * couple stage, before the rigid step, waiting for the walls' sums; a flow with bodies in the couple stage, waiting for
+ * the obstacles' sums, one without in the post stage; shallow water in the post stage) and checkpoint in
  * `await simulation.checkpointAsync()`. `simulation.step()` refuses a simulation that has one.
  *
  * The backend is built from the float64 solver the scene loader made (the starting state) at the first asynchronous
  * step, so loading stays synchronous. After that the float64 solver is a mirror: the grains' walls and coupled bodies
- * (the coupling runs on the CPU), and nothing for the shallow water. `await simulation.pullAsync()` writes the GPU state
+ * (the coupling runs on the CPU), the flow's obstacles (their geometry in float64, their poses and forces: the backend
+ * takes their band from it before each step and hands it their sums after), and nothing for the shallow water.
+ * `await simulation.pullAsync()` writes the GPU state
  * into the mirrors (for reading them, or saving the scene: a save of a section whose state was not pulled since its last
  * step is refused).
  *
- * `gpuSceneBackends('reference')` runs the same float32 programs on the CPU (ShallowWaterF32, GranularF32): no device,
+ * `gpuSceneBackends('reference')` runs the same float32 programs on the CPU (ShallowWaterF32, GranularF32, FluidF32): no device,
  * slower than the float64 solvers, and the bits SwiftShader's GPU gives (docs/GPU_COMPUTE.md, where the agreement is
  * "identical"). Determinism: a run repeats bit for bit on the same device and browser, and a checkpoint taken on one
  * backend restores on either (the formats are shared); results are float32 and are not the float64 solvers' bits.
@@ -21,6 +24,11 @@ import {EngineError} from '../contracts.ts';
 import {checkpointError,type StateValue} from '../checkpoint.ts';
 import {GRANULAR_SUBSYSTEM_ORDER,GranularCoupling} from '../granular.ts';
 import {ShallowWater} from '../shallow-water.ts';
+// Types only: ./gpu of the kit then does not load the flow solver for a page that runs no flow (40 KiB of gzip).
+import type {Fluid,FluidCoupling} from '../fluid.ts';
+import {GpuFluid} from './fluid-gpu.ts';
+import {FluidF32} from './fluid-f32.ts';
+import type {FluidBackendOptions} from './fluid-program.ts';
 import type {SceneGpuBackends,Subsystem,StepContext} from '../simulation.ts';
 import type {GpuCompute} from './compute.ts';
 import {GpuGranular,GpuGranularCoupling,applyDemSnapshot} from './granular-gpu.ts';
@@ -28,6 +36,9 @@ import {GranularF32,demSetup,readDemWall} from './granular-f32.ts';
 import {GpuShallowWater} from './shallow-water-gpu.ts';
 import {ShallowWaterF32} from './shallow-water-f32.ts';
 
+/** Where a flow with bodies runs in the couple stage: FLUID_SUBSYSTEM_ORDER of fluid.ts (as fluidSubsystem). */
+const FLUID_COUPLING_ORDER=180;
+/** The tag of a GPU section's state in a simulation checkpoint. */
 export const GPU_SCENE_BACKEND='scene-section-gpu-f32-v1';
 
 /** What `pullAsync` and the scene save need of a GPU section. */
@@ -134,11 +145,81 @@ export function gpuGranularSubsystem<W,B>(compute:GpuCompute|'reference',couplin
   };
 }
 
+interface FlowBackend {step(count:number):Promise<void>;checkpoint():Promise<Uint8Array>;restoreCheckpoint(bytes:Uint8Array):void;pull():Promise<void>;
+  stats:{steps:number;pressureIterations:number;viscousIterations:number;divergence:number;unconverged:number};time:number;solver:string;destroy():void}
+
+/**
+ * A GPU (or float32 reference) flow: a FluidCoupling (couple stage, order 180, the rigid step) whose fluid steps run on
+ * the backend, or a bare Fluid (post stage, commensurate step), as fluidSubsystem. The backend is built from the Fluid,
+ * which keeps the obstacles: before each fluid step the backend takes their band at the poses the coupling set, after it
+ * the coupling reads their forces (Fluid.finishBackendObstacles). The room for obstacle faces is fixed when the section
+ * is built (twice the band at the scene's start plus 64 per obstacle), so a resumed run has the same room as a straight
+ * one; a move that needs more throws GPU_CAPACITY. No energy ledger (the backend sums no dissipation); events:
+ * 'unconverged' when a solve stopped at its iteration limit.
+ */
+export function gpuFluidSubsystem<W,B>(compute:GpuCompute|'reference',target:Fluid|FluidCoupling<B>,options:{readonly id?:string;readonly order?:number;readonly backend?:FluidBackendOptions}={}):GpuSceneSubsystem<W,B> {
+  // A FluidCoupling holds its fluid; a Fluid describes itself to a backend (no instanceof: see the import above).
+  const coupling='fluid' in target&&'substeps' in target?target as FluidCoupling<B>:null,fluid=coupling?coupling.fluid:target as Fluid;
+  if(!fluid||typeof (fluid as {backendObstacleBand?:unknown}).backendObstacleBand!=='function')throw new EngineError('INVALID_PAYLOAD','gpuFluidSubsystem needs a Fluid or a FluidCoupling.');
+  const id=options.id??'fluid';
+  let faces=0;
+  if(fluid.obstacleCount>0){const band=fluid.backendObstacleBand();for(const c of band.components)faces+=c.face.length;}
+  const backendOptions:FluidBackendOptions={...(fluid.obstacleCount>0?{obstacleCapacity:2*faces+64*fluid.obstacleCount}:{}),...options.backend};
+  let backend:FlowBackend|null=null,pending:Uint8Array|null=null,stale=false,unconverged=0;
+  const ready=async():Promise<FlowBackend>=>{
+    if(backend)return backend;
+    if(compute==='reference'){
+      const r=new FluidF32(fluid,backendOptions);
+      backend={step:async(count:number)=>{r.step(count);},checkpoint:async()=>r.checkpoint(),restoreCheckpoint:b=>r.restoreCheckpoint(b),
+        pull:async()=>{fluid.u.set(r.velocity(0));fluid.v.set(r.velocity(1));fluid.w.set(r.velocity(2));fluid.p.set(r.pressure());fluid.time=r.time;},
+        get stats(){return r.stats;},get time(){return r.time;},solver:r.solver,destroy(){}};
+    }else{
+      const g=await GpuFluid.create(compute,fluid,null,backendOptions);
+      backend={step:(count:number)=>g.step(count),checkpoint:()=>g.checkpoint(),restoreCheckpoint:b=>g.restoreCheckpoint(b),pull:()=>g.pull(fluid),
+        get stats(){return g.stats;},get time(){return g.time;},solver:g.solver,destroy:()=>g.destroy()};
+    }
+    if(pending){backend.restoreCheckpoint(pending);pending=null;}
+    return backend;
+  };
+  return {
+    id,kind:coupling?'fluid-coupling-gpu':'fluid-gpu',stage:coupling?'couple':'post',order:options.order??(coupling?FLUID_COUPLING_ORDER:510),backend:compute==='reference'?'reference':'gpu',
+    timeStep:{dt:coupling?coupling.dt:fluid.dt,rule:coupling?'equal':'commensurate'},
+    validate(){fluid.checkTimeStep();},
+    step(){refuseSync(id);},
+    async stepAsync(ctx:StepContext<W>){
+      const b=await ready();
+      if(coupling)await coupling.stepAsync(count=>b.step(count));else await b.step(ctx.substeps);
+      stale=true;
+    },
+    finish(ctx){
+      if(!backend)return;
+      const now=backend.stats.unconverged;
+      if(now!==unconverged){ctx.emit('unconverged',{iterations:backend.stats.pressureIterations,divergence:backend.stats.divergence});unconverged=now;}
+    },
+    checkpoint(){return refuseSync(id);},
+    // The backend's bytes and, on the CPU, the obstacles' poses, forces and momentum records with the coupling's (the
+    // Fluid's own field in that state is not the flow: the flow is in the bytes).
+    async checkpointAsync(){const b=await ready();return {backend:GPU_SCENE_BACKEND,bytes:await b.checkpoint(),host:(coupling??fluid).saveState(),unconverged};},
+    restore(state:StateValue){
+      const s=state as {backend?:unknown;bytes?:unknown;host?:StateValue;unconverged?:unknown}|null;
+      if(!s||s.backend!==GPU_SCENE_BACKEND||!(s.bytes instanceof Uint8Array)||typeof s.unconverged!=='number')throw checkpointError(`Subsystem "${id}": the saved state is not one of a GPU flow section.`);
+      (coupling??fluid).restoreState(s.host);
+      if(backend)backend.restoreCheckpoint(s.bytes);else pending=s.bytes;
+      unconverged=s.unconverged;stale=true;
+    },
+    async pullAsync(){if(backend&&stale)await backend.pull();stale=false;},
+    stale:()=>stale,
+    diagnostics(){return {solver:backend?.solver??null,backend:compute==='reference'?'gpu-reference':'gpu',cells:fluid.cells,time:backend?.time??fluid.time,dt:fluid.dt,substeps:coupling?coupling.substeps:1,obstacles:fluid.obstacleCount,...(backend?backend.stats:{})};},
+    dispose(){backend?.destroy();backend=null;},
+  };
+}
+
 /** The `gpu` option of the scene loaders: GPU subsystems for the sections that say backend: 'gpu'. */
 export function gpuSceneBackends<W,B>(compute:GpuCompute|'reference'):SceneGpuBackends<W,B> {
   return {
     shallowWater:(water,info)=>gpuShallowWaterSubsystem<W,B>(compute,water,{id:info.id}),
     grains:(coupling,info)=>gpuGranularSubsystem<W,B>(compute,coupling,{id:info.id}),
+    fluid:(target,info)=>gpuFluidSubsystem<W,B>(compute,target,{id:info.id}),
   };
 }
 export {readDemWall};

@@ -18,6 +18,7 @@ import {DEM_BLOCK,DEM_EMPTY,DEM_MAX_WALLS,DEM_METER_BUCKET_OVERFLOW,DEM_METER_HI
 import {checkpointError,readCheckpoint,writeCheckpoint,type StateObject} from '../checkpoint.ts';
 
 const f=Math.fround;
+/** Capacities of a grain backend: contact-history slots per grain, grains per hash bucket, the hash table size (a power of two). */
 export interface DemOptions {
   /** History slots per grain, K. Default 10. Memory: capacity * K * 16 bytes (32 with rolling friction), twice. */
   readonly historySlots?:number;
@@ -84,6 +85,7 @@ export function packDemGrains(granular:Granular,setup:DemSetup):void {
 /** DEM_PARAMS for one evaluation with step h (0: evaluate the forces only). */
 export const demParams=(setup:DemSetup,h:number):Record<string,number|number[]>=>({...setup.params,count:setup.count,blocks:Math.ceil(setup.count/DEM_BLOCK),h,hh:.5*h});
 
+/** Counters of a grain backend after its last step: contacts, the largest overlap, grains removed, and the overflows (history slots, hash buckets). */
 export interface DemStats {steps:number;contacts:number;wallContacts:number;overlap:number;maxOverlap:number;removed:number;bucketOverflow:number;historyOverflow:number}
 /** Field offsets of DEM_WALL in float32 words. */
 const WO=Object.fromEntries(DEM_WALL.fields.map(field=>[field.name,field.offset/4])) as Record<string,number>,WS=DEM_WALL.stride/4;
@@ -111,6 +113,7 @@ export function readGranularCheckpoint(s:DemSetup,bytes:Uint8Array):GranularF32S
   return {pos:t.pos as Float32Array,vel:t.vel as Float32Array,spin:t.spin as Float32Array,ft:t.ft as Float32Array,history:t.history as Uint32Array,walls:t.walls as Uint8Array,meter:t.meter as Uint32Array,time:t.time as number,stats:{...(t.stats as unknown as DemStats)}};
 }
 
+/** The grain program run on the CPU in float32, pass by pass over the shaders' buffer layouts: the GPU's bits where the two agree. */
 export class GranularF32 {
   readonly solver='granular-dem-hash-grid-f32-reference-v1';
   readonly setup:DemSetup;
