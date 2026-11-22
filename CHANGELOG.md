@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 2026-11-18 — Sparse LDLᵀ plane-section kernels; contact friction passes reuse their starting evaluation (same answers)
+
+- **`SparseLDL` (`src/engine/sparse-ldl.ts`):** when one component is constrained at every node (the press brake's plane-strain section holds z), the factorization and substitutions skip it (`planar`): the same numbers to the bit (tested against the column-by-column references). Press section per call: factor 3.6 → 2.2 ms, solve 0.12 → 0.07 ms.
+- **`SolidContact` (`src/engine/solid-contact.ts`):** a friction pass that starts where the previous one ended takes that state's energy and internal forces from the last accepted line-search trial instead of evaluating the solid again (171 of 1433 evaluations over the concrete cube's first 4 s). The same numbers to the bit (test against a run that evaluates every pass afresh; state hashes unchanged: all seven press presets over the whole stroke, the eight elastomer presets over 6 s and the eight concrete presets over 4 s). The new scratch fields are not part of the checkpoint.
+- **Measured** (press, model s per CPU s, against the previous commit, load 31 to 35): 0.88 to 1.12 times, within the noise of the loaded machine; the kernels' own times above are the measured gain. docs/SOLID_MECHANICS.md (Linear solver), docs/SOLID_CONTACT.md.
+
 ## Unreleased — 2026-11-18 — GPU flow coupling rows through the Box3D WebAssembly world
 
 - **`src/engine/gpu/coupling-scenes.ts`:** the fluid coupling rows (terminal velocity of a settling sphere, equal and opposite impulses with the total momentum, buoyancy of a static sphere in water at rest) as scenes with a GPU flow and a body of the world, so they run where the GPU is driven instead of through the float64 stand-in world.

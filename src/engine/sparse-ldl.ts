@@ -16,6 +16,8 @@
  * - **Isolated unknowns** (a zero row and column, such as a node whose elements have all eroded) are pivoted on their own
  *   diagonal, which is exact for them however small it is, and do not count as reset pivots.
  * - **Constrained components** have unit rows: `fixed` components take no entries and solve to zero.
+ * - **Plane sections:** a component constrained at every node (`planar`, the press brake's z) is skipped by the kernels, with
+ *   the same numbers.
  *
  * Self-contained. See docs/SOLID_MECHANICS.md (Linear solver).
  */
@@ -99,7 +101,13 @@ export class SparseLDL {
   begin(fixed:Uint8Array):void {
     this.values.fill(0);this.D.fill(0);
     for(let a=0;a<this.nodes;a++){const s=3*this.position[a];for(let p=0;p<3;p++)this.fixed[s+p]=fixed[3*a+p];}
+    // A component constrained at every node (a plane-strain section) has zero rows and columns throughout: the kernels then
+    // skip it (planar), with the same numbers, since every entry it would touch is zero or set to zero.
+    this.planar=-1;
+    for(let c=2;c>=0&&this.planar<0;c--){let all=this.nodes>0;for(let s=0;s<this.nodes&&all;s++)if(!this.fixed[3*s+c])all=false;if(all)this.planar=c;}
   }
+  /** The component constrained at every node (0, 1 or 2), or -1: the kernels skip it. */
+  planar=-1;
   /** Index of node b's rows in node a's column (dof 0), or -1 when b is not a higher neighbour of a. */
   private find(a:number,b:number):number {
     const lo0=this.upperStart[a],target=this.position[b];let lo=lo0,hi=this.upperStart[a+1]-1;
@@ -174,6 +182,7 @@ export class SparseLDL {
    * the same order as a column-by-column factorization gives them (earlier columns first, in order), so the factor is the
    * same to the bit. */
   private factorOnce():void {
+    if(this.planar>=0){this.factorPlanar(this.planar);return;}
     const N=this.nodes,D=this.D,values=this.values,rows=this.rows,cs=this.columnStart,fixed=this.fixed;
     const rs=this.rowStart,rc=this.rowColumn,re=this.rowEntry,iso=this.isolated,x0=this.work,x1=this.work1,x2=this.work2;let modified=0,largest=0;
     for(let j=0;j<this.size;j++)if(!fixed[j])largest=Math.max(largest,Math.abs(D[j]));
@@ -226,10 +235,97 @@ export class SparseLDL {
     }
     this.modified=modified;
   }
+  /** factorOnce for a component c constrained at every node: the same operations on the two free components a < b, without
+   * the updates of c's rows, which are zero and stay zero (and are set to zero at the end of the pass, as factorOnce leaves them). */
+  private factorPlanar(c:number):void {
+    const N=this.nodes,D=this.D,values=this.values,rows=this.rows,cs=this.columnStart,fixed=this.fixed;
+    const rs=this.rowStart,rc=this.rowColumn,re=this.rowEntry,iso=this.isolated,xa=this.work,xb=this.work1;let modified=0,largest=0;
+    const a=c===0?1:0,b=c===2?1:2;
+    for(let j=0;j<this.size;j++)if(!fixed[j])largest=Math.max(largest,Math.abs(D[j]));
+    const tiny=1e-12*largest||1;
+    const pivot=(j:number,d:number,diagonal:number):number=>{
+      if(iso[j]){if(!(d>0))d=Math.max(Math.abs(d),tiny);}
+      else if(!(d>1e-6*Math.abs(diagonal))||!(d>tiny)){d=Math.max(Math.abs(d),Math.abs(diagonal),tiny);modified++;}
+      return d;
+    };
+    for(let s=0;s<N;s++){
+      const j0=3*s,ja=j0+a,jb=j0+b,jc=j0+c,aa=!fixed[ja],ab=!fixed[jb],ca=cs[ja],cb=cs[jb],cEnd=cs[ja+1],bEnd=cs[jb+1];
+      const diagA=D[ja],diagB=D[jb];let da=diagA,db=diagB;
+      if(aa)for(let e=ca;e<cEnd;e++)xa[rows[e]]=values[e];
+      if(ab)for(let e=cb;e<bEnd;e++)xb[rows[e]]=values[e];
+      // Row jb in column ja: offset b - a - 1 among ja's intra rows.
+      const abOff=b-a-1;
+      for(let r=rs[j0];r<rs[j0+1];r++){
+        const k=rc[r],entry=re[r],stop=cs[k+1],Dk=D[k];
+        const la=aa?values[entry+a]:0,lb=ab?values[entry+b]:0;
+        if(la===0&&lb===0)continue;
+        let fa=0,fb=0;
+        if(la!==0){fa=la*Dk;da-=la*fa;if(b>a)xa[jb]-=values[entry+b]*fa;}
+        if(lb!==0){fb=lb*Dk;db-=lb*fb;}
+        if(la!==0&&lb!==0){
+          for(let e=entry+3;e<stop;e+=3){const t=rows[e],va=values[e+a],vb=values[e+b];xa[t+a]-=va*fa;xb[t+a]-=va*fb;xa[t+b]-=vb*fa;xb[t+b]-=vb*fb;}
+        }else if(la!==0){
+          for(let e=entry+3;e<stop;e+=3){const t=rows[e];xa[t+a]-=values[e+a]*fa;xa[t+b]-=values[e+b]*fa;}
+        }else{
+          for(let e=entry+3;e<stop;e+=3){const t=rows[e];xb[t+a]-=values[e+a]*fb;xb[t+b]-=values[e+b]*fb;}
+        }
+      }
+      // Column ja, its update of jb; column jb; column jc (constrained).
+      if(!aa){D[ja]=1;for(let e=ca;e<cEnd;e++)values[e]=0;}
+      else{da=pivot(ja,da,diagA);D[ja]=da;const inv=1/da;for(let e=ca;e<cEnd;e++){const i=rows[e];values[e]=xa[i]*inv;xa[i]=0;}}
+      {
+        const lb=ab?values[ca+abOff]:0;
+        if(lb!==0){
+          const f=lb*D[ja];db-=lb*f;
+          // Rows of column ja after jb: its remaining intra rows (c, when c > b) and the higher nodes' rows.
+          const first=ca+(2-a);
+          for(let e=first;e<cEnd;e+=3){const t=rows[e];xb[t+a]-=values[e+a]*f;xb[t+b]-=values[e+b]*f;}
+        }
+      }
+      if(!ab){D[jb]=1;for(let e=cb;e<bEnd;e++)values[e]=0;}
+      else{db=pivot(jb,db,diagB);D[jb]=db;const inv=1/db;for(let e=cb;e<bEnd;e++){const i=rows[e];values[e]=xb[i]*inv;xb[i]=0;}}
+      D[jc]=1;for(let e=cs[jc];e<cs[jc+1];e++)values[e]=0;
+    }
+    this.modified=modified;
+  }
+  /** solve for a component c constrained at every node: the same operations on the two free components. */
+  private solvePlanar(r:ArrayLike<number>,z:Float64Array,c:number):void {
+    const N=this.nodes,y=this.scratch,L=this.values,cs=this.columnStart,D=this.D,order=this.order,fixed=this.fixed,us=this.upperStart,up=this.upperRows;
+    const a=c===0?1:0,b=c===2?1:2,abOff=b-a-1;
+    for(let s=0;s<N;s++){const o=3*order[s];y[3*s]=r[o];y[3*s+1]=r[o+1];y[3*s+2]=r[o+2];}
+    for(let s=0;s<N;s++){
+      const j=3*s,ja=j+a,jb=j+b,o=order[s],k0=us[o],k1=us[o+1];
+      if(fixed[ja])y[ja]=0;const va=y[ja];
+      if(va!==0)y[jb]-=L[cs[ja]+abOff]*va;
+      if(fixed[jb])y[jb]=0;const vb=y[jb];
+      y[j+c]=0;
+      let ea=cs[ja]+(2-a)+a,eb=cs[jb]+(2-b)+a;const db=b-a;
+      if(va!==0&&vb!==0){
+        for(let k=k0;k<k1;k++,ea+=3,eb+=3){const t=up[k];y[t+a]=y[t+a]-L[ea]*va-L[eb]*vb;y[t+b]=y[t+b]-L[ea+db]*va-L[eb+db]*vb;}
+      }else if(va!==0){
+        for(let k=k0;k<k1;k++,ea+=3){const t=up[k];y[t+a]-=L[ea]*va;y[t+b]-=L[ea+db]*va;}
+      }else if(vb!==0){
+        for(let k=k0;k<k1;k++,eb+=3){const t=up[k];y[t+a]-=L[eb]*vb;y[t+b]-=L[eb+db]*vb;}
+      }
+    }
+    for(let j=0;j<this.size;j++)y[j]/=D[j];
+    for(let s=N-1;s>=0;s--){
+      const j=3*s,ja=j+a,jb=j+b,o=order[s],k0=us[o],k1=us[o+1],db=b-a;
+      let e=cs[jb]+(2-b)+a,v=y[jb];
+      for(let k=k0;k<k1;k++,e+=3){const t=up[k];v-=L[e]*y[t+a];v-=L[e+db]*y[t+b];}
+      y[jb]=fixed[jb]?0:v;
+      e=cs[ja];v=y[ja];v-=L[e+abOff]*y[jb];e+=(2-a)+a;
+      for(let k=k0;k<k1;k++,e+=3){const t=up[k];v-=L[e]*y[t+a];v-=L[e+db]*y[t+b];}
+      y[ja]=fixed[ja]?0:v;
+      y[j+c]=0;
+    }
+    for(let s=0;s<N;s++){const o=3*order[s];z[o]=y[3*s];z[o+1]=y[3*s+1];z[o+2]=y[3*s+2];}
+  }
   /** z = (L D L^T)^-1 r, original dof numbering. r and z may be the same array. Node-blocked: a node's three columns share
    * their rows of each higher neighbour (`upperRows`), so one index serves nine entries. Every entry of y receives its
    * updates in the same order as a column-by-column substitution would give them, so the result is the same to the bit. */
   solve(r:ArrayLike<number>,z:Float64Array):void {
+    if(this.planar>=0){this.solvePlanar(r,z,this.planar);return;}
     const N=this.nodes,y=this.scratch,L=this.values,cs=this.columnStart,D=this.D,order=this.order,fixed=this.fixed,us=this.upperStart,up=this.upperRows;
     for(let s=0;s<N;s++){const a=3*order[s];y[3*s]=r[a];y[3*s+1]=r[a+1];y[3*s+2]=r[a+2];}
     // Forward: L y = r, the three columns of a node at once.

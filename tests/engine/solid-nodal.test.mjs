@@ -90,6 +90,24 @@ test('sparse LDLᵀ: the node-blocked factorization and substitution give the co
   }
 });
 
+/** A steel block pressed onto a plane it starts just short of: ten backward-Euler steps of the contact solve. Counts the
+ * evaluations of the solid's energy; `noReuse` makes every friction pass evaluate its starting state again. */
+function pressedBlock(gap,{tolerance=1e-8,noReuse=false}={}){
+  const b=new SolidBody({mesh:boxMesh({size:[.02,.01,.02],cells:[4,2,4],origin:[-.01,gap,-.01]}),material:steel,config:{model:'green-lagrange',dt:1/200,element:'tet4-nodal',linearSolver:'ldl',tolerance}});
+  const c=new SolidContact(b,{});c.addBody({shape:{kind:'plane',normal:[0,1,0]},type:'static',position:[0,0,0],rotation:[0,0,0,1],friction:.2});
+  b.addPressure(b.selectFaces((x,y,z,nx,ny)=>ny>.9),2e7);
+  let evaluations=0,newton=0,converged=true;const k=c.k,energy=k.energy;k.energy=(...a)=>{evaluations++;return energy(...a);};
+  if(noReuse){const objective=c.objective;c.objective=(y,G,yu)=>objective.call(c,y,G,yu,false);}
+  for(let s=0;s<10;s++){c.step();newton+=c.stats.newtonIterations;converged&&=c.stats.converged;}
+  k.energy=energy;
+  return {evaluations,newton,converged,force:c.bodyForce(0)[1],u:b.displacements.slice()};
+}
+test('contact friction passes: a pass that starts where the last one ended reuses its energy evaluation, bit for bit',()=>{
+  const a=pressedBlock(1e-5),b=pressedBlock(1e-5,{noReuse:true});
+  console.log(`# ${a.evaluations} evaluations of the solid's energy with the reuse, ${b.evaluations} without`);
+  assert.ok(a.converged&&b.converged);assert.equal(bits(a.u),bits(b.u));assert.equal(a.force,b.force);assert.ok(a.evaluations<b.evaluations);
+});
+
 test('tet4-nodal green-lagrange: the written-out tangent product is the general one bit for bit (plastic, eroded elements, scratch state)',()=>{
   const b=new SolidBody({mesh:boxMesh({size:[.02,.004,.004],cells:[6,2,1]}),material:{...steel,yieldStress:250e6,hardeningModulus:1e9},config:{model:'green-lagrange',element:'tet4-nodal'}});
   const n=3*b.nodeCount,X=b.referencePositions,k=b.kernel(),rnd=random(13),u=new Float64Array(n);

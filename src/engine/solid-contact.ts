@@ -171,7 +171,7 @@ const weldMap:FieldHandler={
 };
 /** What an exact checkpoint of a SolidContact holds: every field but the solid (saved by whoever owns it), its kernel (part of
  * the solid) and the views into its own work vectors; the bodies it holds keep their identity. */
-const CONTACT_FIELDS:FieldOptions={label:'SolidContact',skip:['solid','k','views','ldl'],nested:{bodies:eachElement({label:'SolidContact body'}),welded:weldMap}};
+const CONTACT_FIELDS:FieldOptions={label:'SolidContact',skip:['solid','k','views','ldl','solidEnergy','energyFresh'],nested:{bodies:eachElement({label:'SolidContact body'}),welded:weldMap}};
 /** What an exact checkpoint of a SolidCoupling holds: the solid, the contact solver and the coupled bodies' records. */
 const SOLID_COUPLING_FIELDS:FieldOptions={label:'SolidCoupling',skip:['world','byBody'],nested:{solid:holder,contact:holder,list:eachElement({label:'SolidCoupling body'})}};
 
@@ -222,6 +222,9 @@ export class SolidContact {
   /** The solid's sparse factorization with the springs' node blocks (`linearSolver: 'ldl'`): formed at the first Newton iteration
    * of a solve and again after an inner solve that needed more than a few iterations. */
   private ldl:SparseLDL|null=null;private readonly k9=new Float64Array(9);
+  /** The solid's energy at the last objective evaluation, and whether that evaluation was of the present z (an accepted trial,
+   * with nothing evaluated since): the next friction pass then starts from it instead of evaluating the same state again. */
+  private solidEnergy=0;private energyFresh=false;
 
   constructor(solid:SolidBody,options:SolidContactOptions={}) {
     if(!(solid instanceof SolidBody))throw new TypeError('SolidContact needs a SolidBody.');
@@ -522,9 +525,10 @@ export class SolidContact {
   }
 
   /** Phi at y and its gradient on the free unknowns. Infinity when an element is inverted. */
-  private objective(y:Float64Array,G:Float64Array,yu:Float64Array):number {
+  private objective(y:Float64Array,G:Float64Array,yu:Float64Array,reuse=false):number {
     const k=this.k,fint=this.fint,fext=this.fext,n3=this.n3,cm=this.cm,cd=this.cd,mass=this.solid.nodalMass,alpha=k.massDamping,beta=k.stiffnessDamping;
-    let phi=k.energy(yu,fint,true),internal=0,external=0;
+    let phi=reuse?this.solidEnergy:k.energy(yu,fint,true),internal=0,external=0;
+    this.solidEnergy=phi;this.energyFresh=false;
     if(!(phi<Infinity))return Infinity;
     for(let j=0;j<n3;j++){phi-=fext[j]*y[j];G[j]=fint[j]-fext[j];internal+=fint[j]*fint[j];external+=fext[j]*fext[j];}
     if(cm>0)for(let j=0;j<n3;j++){const d=y[j]-this.target[j],md=cm*mass[(j-j%3)/3]*d;phi+=.5*md*d;G[j]+=md;}
@@ -694,7 +698,7 @@ export class SolidContact {
   /** Newton's method on Phi from the present z. Adds to the iteration counts in `stats`. */
   private minimise():boolean {
     const st=this.stats,k=this.k,size=this.size,z=this.z,kScale=1+this.cd*k.stiffnessDamping,mScale=this.cm+this.cd*k.massDamping,volume=this.solid.mu*this.solid.referenceVolume;
-    let phi=this.objective(z,this.G,this.views.zu),residual=this.norm(this.G),reference=0,iterations=0;
+    let phi=this.objective(z,this.G,this.views.zu,this.energyFresh),residual=this.norm(this.G),reference=0,iterations=0;
     // The force scale is that of the state the step starts from and of the present iterate. Forces met on the way (a
     // starting guess that puts a body deep in a stiff solid) are not part of it.
     const first=this.reference;
@@ -723,7 +727,7 @@ export class SolidContact {
       }
       if(!accepted)break;
       if(!Number.isFinite(trialPhi)||!Number.isFinite(trialResidual))throw new EngineError('NUMERICAL_FAILURE','The contact solve produced a nonfinite state.');
-      z.set(this.trial);const swap=this.G;this.G=this.Gt;this.Gt=swap;phi=trialPhi;residual=trialResidual;
+      z.set(this.trial);const swap=this.G;this.G=this.Gt;this.Gt=swap;phi=trialPhi;residual=trialResidual;this.energyFresh=true;
     }
     return st.converged;
   }
@@ -756,7 +760,7 @@ export class SolidContact {
 
   /** One solve of the present step: Newton passes until the friction limits stop changing. */
   private solve():boolean {
-    const st=this.stats;st.newtonIterations=0;st.linearIterations=0;st.frictionPasses=0;
+    const st=this.stats;st.newtonIterations=0;st.linearIterations=0;st.frictionPasses=0;this.energyFresh=false;
     let ok=true,settled=false,friction=false;
     for(let j=0;j<this.bodies.length;j++)if(this.bodies[j].friction>0&&this.bodies[j].collide)friction=true;
     for(let pass=0;pass<this.frictionPasses;pass++){

@@ -7029,6 +7029,8 @@ export declare class SolidContact {
     private warm;
     private ldl;
     private readonly k9;
+    private solidEnergy;
+    private energyFresh;
     constructor(solid: SolidBody, options?: SolidContactOptions);
     private makeViews;
     addBody(options: SolidContactBodyOptions): number;
@@ -8143,6 +8145,7 @@ export declare class SparseLDL {
     constructor(nodes: number, adjacency: (node: number, visit: (other: number) => void) => void);
     get entries(): number;
     begin(fixed: Uint8Array): void;
+    planar: number;
     private find;
     addBlock(a: number, b: number, M: ArrayLike<number>, offset?: number): void;
     addDiagonal(node: number, value: number): void;
@@ -8154,6 +8157,8 @@ export declare class SparseLDL {
     private saved;
     private savedD;
     private factorOnce;
+    private factorPlanar;
+    private solvePlanar;
     solve(r: ArrayLike<number>, z: Float64Array): void;
 }
 
