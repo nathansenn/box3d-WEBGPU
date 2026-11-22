@@ -21,6 +21,7 @@ Updated 2026-11-17.
 | Shallow water with coupled rigid bodies or point sources on the GPU | **not done** (the float64 solver has both) |
 | Checkpoints of the GPU backends (`checkpoint()`, `restoreCheckpoint()`) | done for the three backends, a format shared with each float32 reference; bit-exact on resume (gate: references, and the fluid across GPU and reference; SwiftShader: the GPU backends) |
 | `backend: 'gpu'` in the scene format (grains, shallow water, flows with obstacles and coupled bodies), `Simulation.stepAsync()` | done (`src/engine/gpu/scene-backends.ts`); tested in the gate on the float32 reference standing in for the GPU (flows also through `GpuFluid` on a stand-in device that runs the kernels) |
+| GPU scene sections in the Physics Lab (`src/lab/gpu-scene.ts`), with a fall back to the float32 reference when the device is lost (`GpuSceneRunner`) | done: `lab.html?example=sphere-settling-gpu` and `hopper-seesaw-gpu`; on SwiftShader 8 steps of each with the reference's state hash after every step, and after a forced device loss 6 more with it (`scripts/lab-gpu-browser-check.mjs`) |
 | The GPU backends in the kit (`box3d-webgpu-kit/gpu`) | done: the three backends, their float32 references and `gpuSceneBackends`; the kit's gate loads a GPU scene on the reference (repeat and resume bit-exact) and encodes it on Dawn's null device |
 | The Studio's granular tray and river tabs on the GPU | **not done**: the Studio's solvers run inside its synchronous step |
 | Speed on a real GPU | **not measured**: this machine has no GPU. The command is below |
@@ -546,10 +547,64 @@ The Simulation loop has an opt-in asynchronous stage for them:
 - The state lives on the device. `await simulation.pullAsync()` writes it into the float64 objects the loader made (the
   `grains`, `shallowWater` and `fluids` maps); saving the scene is refused until a section has been pulled since its last step.
 
+**A device lost during a run (`GpuSceneRunner`, added 2026-11-18).** `new GpuSceneRunner(simulation, {snapshotEvery})`
+steps a simulation with GPU sections (`await runner.step()`). It takes a simulation checkpoint (`checkpointAsync`) before
+its first step and then every `snapshotEvery` steps (default 30). When a step or a checkpoint fails with
+`GPU_DEVICE_LOST`, every GPU section switches to its float32 reference (`useReference()`), the last checkpoint is
+restored into the same simulation (the world and every section in place, body handles kept) and the steps since it are
+taken again, then the step that failed; `runner.fallback` says when, from which checkpoint and how many steps were run
+again. Because a GPU checkpoint restores on the reference and the reference runs the GPU's program, the run carries on
+with the bits it would have had on the device wherever the two agree bit for bit. Checked in the gate on the settling
+ball with the stand-in device that runs the fluid kernels, destroyed before step 9 with a checkpoint every 5: the run
+falls back from the checkpoint at step 5 (3 steps again) and step 14 has the bits of a run on the reference throughout
+(`tests/engine/gpu-scene-fluid.test.mjs`); and in the browser (below). A checkpoint costs a readback of the whole state.
+
 Determinism of a GPU section: float32; repeat runs on the same device and browser are bit-identical; a checkpoint resumes
 bit-exactly; the results are the float32 reference's bits where the agreement tables say "identical", and are not the
 float64 solver's. A checkpoint of a GPU simulation does not restore into a CPU simulation of the same scene without the
 `backend` field (the scene hashes differ).
+
+## Scene sections in the Lab
+
+Added 2026-11-18 (`src/lab/gpu-scene.ts`). The Physics Lab loads a scene with GPU sections like any other scene file, and
+runs those sections:
+
+- **On WebGPU compute** when the page has it: the Lab acquires a compute device of its own (`acquireGpuCompute`, not the
+  renderer's, so a lost compute device leaves the drawing alone) before it opens a scene with GPU sections, and builds
+  them with `gpuSceneBackends(compute)`. The scene steps through a `GpuSceneRunner` (a checkpoint every 30 steps).
+- **On the float32 CPU reference** after the device is lost (from the runner's last checkpoint), or with `&gpu=reference`.
+- **On the float64 CPU solvers** without a compute device (no `navigator.gpu`, no adapter, too small a device) or with
+  `&gpu=off`: the scene is loaded without its `backend` fields, so it is the CPU scene, hash and all.
+
+The Lab's clock asks for fixed steps as before; a step of a GPU scene is started when none is on its way and the others
+are skipped (counted in `sceneState().gpuScene.skipped`): the GPU sets the pace. After each step the state is pulled into
+the float64 objects the Lab draws from (the whole state comes back: fine for the Lab's sizes, not for the showcases,
+which draw from the GPU's buffers). While a step is on its way, and while a frame is still on the device, no frame is
+drawn: on SwiftShader the frames and the compute steps share the same cores, and without this the first steps of the
+settling ball had not finished after 20 minutes at a load average of 30 (with it, 1.2 to 4.7 s a step). A status line
+at the bottom says where the sections run, on which adapter, the cost of a step, and, after a loss, from which
+checkpoint the run carried on; a scene on the CPU says why. Saving a checkpoint waits for the step on its way and uses
+`checkpointAsync`; the scene's step count is the simulation's.
+
+Two examples, the coupled examples with their sections on the GPU (same bodies, same set-up; without the `backend`
+fields they are the CPU examples, hash and all): `lab.html?example=sphere-settling-gpu` (the flow and the ball settling
+through it) and `lab.html?example=hopper-seesaw-gpu` (the grains and the see-saw), in the scene panel's group "GPU
+sections".
+
+`scripts/lab-gpu-browser-check.mjs` (not in a gate; 2026-11-18, SwiftShader, load average 20 to 26 from other jobs):
+
+| Example | Steps on the GPU | State hash after each step | Device destroyed | After the loss | `&gpu=off` |
+|---|---|---|---|---|---|
+| sphere-settling-gpu | 8 (1.2 to 4.7 s each) | the reference's, every step | at step 8 | from the checkpoint at step 0, 8 steps again; 6 more steps, each with the reference's hash | step 10 has the CPU example's hash |
+| hopper-seesaw-gpu | 8 (0.1 to 4.9 s each) | the reference's, every step | at step 8 | from the checkpoint at step 0, 8 steps again; 6 more steps, each with the reference's hash | step 20 has the CPU example's hash |
+
+The state hash is the Lab's (`coupledStateHash`: the world's transforms and every array the Lab draws); node computes the
+reference's with the same box3d.wasm. So the GPU gives the reference's bits on both scenes, the flow with its obstacle and
+the grains with their walls and the see-saw, and the run after a loss is the run the GPU would have made. The captures
+(the canvas read back) were looked at: the ball in the column of syrup with the slice of speed around it and the arrows
+of the flow, before and after the loss; the beads at the bottom of the hopper over the see-saw, before and after (the
+grains move little in 14 steps of 1/240 s). Not measured: how many steps a real GPU takes per frame; scenes larger than
+these (the whole state is read back after every step).
 
 ## Lab examples at scale
 
@@ -682,7 +737,6 @@ SwiftShader result; the closed-form rows have margin for that.
 - A **multigrid** pressure preconditioner on the GPU, and the obstacle geometry on the GPU (it is on the host, in
   float64; many moving obstacles would make the host the bottleneck).
 - The fluid coupling rows through the kit's WebAssembly world (they ran through a float64 stand-in world).
-- **GPU scene sections in the Lab.** The Lab does not load scenes with GPU backends (its frame loop calls `step()`).
 - **The Studio's granular tray and river tabs on the GPU (`?gpu=1`).** The Studio's SI solvers run inside
   its synchronous step and its saved runs are exact.
 - **Shallow water with bodies and point sources** on the GPU.

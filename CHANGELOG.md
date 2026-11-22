@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — 2026-11-18 — GPU scene sections in the Physics Lab, with a fall back on device loss
+
+- **Lab (`src/lab/gpu-scene.ts`):** a scene with `"backend": "gpu"` sections runs them on WebGPU compute (a compute device of its own), steps with `stepAsync` one step at a time (the GPU sets the pace; skipped clock steps are counted), pulls the state for drawing, and shows a status line. `&gpu=reference` runs the float32 CPU reference, `&gpu=off` (or no compute device) the float64 CPU solvers with the backend fields dropped, and the line says why. Frames are held while a GPU step is on its way. Checkpoints use `checkpointAsync`. Two examples: `sphere-settling-gpu`, `hopper-seesaw-gpu`.
+- **Engine (`GpuSceneRunner`):** a checkpoint every N steps; on `GPU_DEVICE_LOST` every section switches to its float32 reference (`useReference`), the checkpoint is restored in place and the lost steps are taken again: the run carries on with the bits it would have had on the device. Gate: the stand-in device destroyed at step 8, step 14 has the reference run's bits.
+- **Browser check (`scripts/lab-gpu-browser-check.mjs`, SwiftShader):** both examples, 8 steps each on the GPU with the reference's state hash after every step, then the compute device destroyed and 6 more steps with the reference's hashes; `&gpu=off` gives the CPU example's hash. Node tests: `tests/physics/lab-gpu-scene.test.mjs`. docs/GPU_COMPUTE.md ("Scene sections in the Lab").
+
 ## Unreleased — 2026-11-18 — Flow sections on the GPU
 
 - **Scene format:** a flow (`fluids`, kind `flow`) may say `"backend": "gpu"`, with its bodies; `"cpu"` is the default and is left out of the normal form (no existing scene hash moves: every example scene's normal form is checked to have no `backend`). A free-surface tank with `"gpu"` is refused. A save of a GPU flow is refused until it is pulled.

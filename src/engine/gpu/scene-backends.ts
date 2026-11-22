@@ -29,7 +29,7 @@ import type {Fluid,FluidCoupling} from '../fluid.ts';
 import {GpuFluid} from './fluid-gpu.ts';
 import {FluidF32} from './fluid-f32.ts';
 import type {FluidBackendOptions} from './fluid-program.ts';
-import type {SceneGpuBackends,Subsystem,StepContext} from '../simulation.ts';
+import type {SceneGpuBackends,Simulation,SimulationWorld,Subsystem,StepContext} from '../simulation.ts';
 import type {GpuCompute} from './compute.ts';
 import {GpuGranular,GpuGranularCoupling,applyDemSnapshot} from './granular-gpu.ts';
 import {GranularF32,demSetup,readDemWall} from './granular-f32.ts';
@@ -45,7 +45,14 @@ export const GPU_SCENE_BACKEND='scene-section-gpu-f32-v1';
 export interface GpuSceneSubsystem<W,B> extends Subsystem<W,B> {
   /** True when the GPU state has moved on since the last pull into the float64 mirror. */
   stale():boolean;
+  /** Where the section runs now: on the device, or on the float32 reference (from the start, or since useReference()). */
   readonly backend:'gpu'|'reference';
+  /**
+   * Run on the float32 reference from now on (after a device loss): the device's backend is dropped and the next step
+   * builds the reference from the float64 mirror. Restore a checkpoint before the next step (GpuSceneRunner does): the
+   * mirror does not hold the GPU state.
+   */
+  useReference():void;
 }
 
 const refuseSync=(id:string):never=>{throw new EngineError('UNSUPPORTED_BACKEND',`Subsystem "${id}" runs on the GPU: advance the simulation with await simulation.stepAsync() and checkpoint it with await simulation.checkpointAsync().`);};
@@ -66,15 +73,16 @@ function shallowWaterBackend(compute:GpuCompute|'reference',water:ShallowWater):
 }
 
 /** A GPU (or float32 reference) shallow-water section: post stage, commensurate step, as shallowWaterSubsystem without bodies. */
-export function gpuShallowWaterSubsystem<W,B>(compute:GpuCompute|'reference',water:ShallowWater,options:{readonly id?:string;readonly order?:number}={}):GpuSceneSubsystem<W,B> {
-  const id=options.id??'shallow-water';
+export function gpuShallowWaterSubsystem<W,B>(device:GpuCompute|'reference',water:ShallowWater,options:{readonly id?:string;readonly order?:number}={}):GpuSceneSubsystem<W,B> {
+  const id=options.id??'shallow-water';let compute=device;
   let backend:SwBackend|null=null,pending:Uint8Array|null=null,stale=false,wet=water.stats.wetCells;
   const ready=async():Promise<SwBackend>=>{
     if(!backend){backend=await shallowWaterBackend(compute,water);if(pending){backend.restoreCheckpoint(pending);pending=null;}}
     return backend;
   };
   return {
-    id,kind:'shallow-water-gpu',stage:'post',order:options.order??530,backend:compute==='reference'?'reference':'gpu',
+    id,kind:'shallow-water-gpu',stage:'post',order:options.order??530,get backend(){return compute==='reference'?'reference' as const:'gpu' as const;},
+    useReference(){compute='reference';try{backend?.destroy();}catch{/* the device is gone */}backend=null;},
     timeStep:{dt:water.dt,rule:'commensurate'},
     step(){refuseSync(id);},
     async stepAsync(ctx:StepContext<W>){const b=await ready();await b.step(ctx.substeps);stale=true;},
@@ -101,8 +109,8 @@ export function gpuShallowWaterSubsystem<W,B>(compute:GpuCompute|'reference',wat
 interface DemBackend {coupling:GpuGranularCoupling<unknown>;checkpoint():Promise<Uint8Array>;restoreCheckpoint(bytes:Uint8Array):void;pull():Promise<void>;stats:{steps:number;contacts:number;removed:number;historyOverflow:number};solver:string;destroy():void}
 
 /** A GPU (or float32 reference) grain section: the coupling's begin and finish on the CPU, the grain steps on the backend; couple stage, as granularSubsystem of a coupling. */
-export function gpuGranularSubsystem<W,B>(compute:GpuCompute|'reference',coupling:GranularCoupling<B>,options:{readonly id?:string;readonly order?:number}={}):GpuSceneSubsystem<W,B> {
-  const id=options.id??'granular',dem=coupling.granular;
+export function gpuGranularSubsystem<W,B>(device:GpuCompute|'reference',coupling:GranularCoupling<B>,options:{readonly id?:string;readonly order?:number}={}):GpuSceneSubsystem<W,B> {
+  const id=options.id??'granular',dem=coupling.granular;let compute=device;
   let backend:DemBackend|null=null,pending:Uint8Array|null=null,stale=false;
   const ready=async():Promise<DemBackend>=>{
     if(backend)return backend;
@@ -121,7 +129,8 @@ export function gpuGranularSubsystem<W,B>(compute:GpuCompute|'reference',couplin
     return backend;
   };
   return {
-    id,kind:'granular-gpu',stage:'couple',order:options.order??GRANULAR_SUBSYSTEM_ORDER,backend:compute==='reference'?'reference':'gpu',
+    id,kind:'granular-gpu',stage:'couple',order:options.order??GRANULAR_SUBSYSTEM_ORDER,get backend(){return compute==='reference'?'reference' as const:'gpu' as const;},
+    useReference(){compute='reference';try{backend?.destroy();}catch{/* the device is gone */}backend=null;},
     timeStep:{dt:coupling.dt,rule:'equal'},
     step(){refuseSync(id);},
     async stepAsync(){const b=await ready();await b.coupling.step();stale=true;},
@@ -157,9 +166,9 @@ interface FlowBackend {step(count:number):Promise<void>;checkpoint():Promise<Uin
  * one; a move that needs more throws GPU_CAPACITY. No energy ledger (the backend sums no dissipation); events:
  * 'unconverged' when a solve stopped at its iteration limit.
  */
-export function gpuFluidSubsystem<W,B>(compute:GpuCompute|'reference',target:Fluid|FluidCoupling<B>,options:{readonly id?:string;readonly order?:number;readonly backend?:FluidBackendOptions}={}):GpuSceneSubsystem<W,B> {
+export function gpuFluidSubsystem<W,B>(device:GpuCompute|'reference',target:Fluid|FluidCoupling<B>,options:{readonly id?:string;readonly order?:number;readonly backend?:FluidBackendOptions}={}):GpuSceneSubsystem<W,B> {
   // A FluidCoupling holds its fluid; a Fluid describes itself to a backend (no instanceof: see the import above).
-  const coupling='fluid' in target&&'substeps' in target?target as FluidCoupling<B>:null,fluid=coupling?coupling.fluid:target as Fluid;
+  const coupling='fluid' in target&&'substeps' in target?target as FluidCoupling<B>:null,fluid=coupling?coupling.fluid:target as Fluid;let compute=device;
   if(!fluid||typeof (fluid as {backendObstacleBand?:unknown}).backendObstacleBand!=='function')throw new EngineError('INVALID_PAYLOAD','gpuFluidSubsystem needs a Fluid or a FluidCoupling.');
   const id=options.id??'fluid';
   let faces=0;
@@ -182,7 +191,8 @@ export function gpuFluidSubsystem<W,B>(compute:GpuCompute|'reference',target:Flu
     return backend;
   };
   return {
-    id,kind:coupling?'fluid-coupling-gpu':'fluid-gpu',stage:coupling?'couple':'post',order:options.order??(coupling?FLUID_COUPLING_ORDER:510),backend:compute==='reference'?'reference':'gpu',
+    id,kind:coupling?'fluid-coupling-gpu':'fluid-gpu',stage:coupling?'couple':'post',order:options.order??(coupling?FLUID_COUPLING_ORDER:510),get backend(){return compute==='reference'?'reference' as const:'gpu' as const;},
+    useReference(){compute='reference';try{backend?.destroy();}catch{/* the device is gone */}backend=null;},
     timeStep:{dt:coupling?coupling.dt:fluid.dt,rule:coupling?'equal':'commensurate'},
     validate(){fluid.checkTimeStep();},
     step(){refuseSync(id);},
@@ -212,6 +222,63 @@ export function gpuFluidSubsystem<W,B>(compute:GpuCompute|'reference',target:Flu
     diagnostics(){return {solver:backend?.solver??null,backend:compute==='reference'?'gpu-reference':'gpu',cells:fluid.cells,time:backend?.time??fluid.time,dt:fluid.dt,substeps:coupling?coupling.substeps:1,obstacles:fluid.obstacleCount,...(backend?backend.stats:{})};},
     dispose(){backend?.destroy();backend=null;},
   };
+}
+
+/** What a GpuSceneRunner did when the device was lost. */
+export interface GpuSceneFallback {
+  readonly reason:string;
+  /** The simulation tick the lost step started from, and the tick of the checkpoint the run carried on from. */
+  readonly atTick:number;readonly resumedFrom:number;
+  /** Steps taken again on the reference to get back to `atTick`. */
+  readonly stepsRerun:number;
+}
+const isLoss=(error:unknown):error is EngineError=>error instanceof EngineError&&error.code==='GPU_DEVICE_LOST';
+const isGpuSection=(s:unknown):s is GpuSceneSubsystem<unknown,unknown>=>typeof (s as {useReference?:unknown}).useReference==='function'&&typeof (s as {stale?:unknown}).stale==='function';
+
+/**
+ * Steps a simulation with GPU sections and carries on with the float32 reference when the device is lost. It takes a
+ * checkpoint of the whole simulation (`checkpointAsync`: the world, every section, the clock) before its first step and
+ * then every `snapshotEvery` steps; on GPU_DEVICE_LOST during a step or a checkpoint every GPU section switches to the
+ * reference (`useReference`), the last checkpoint is restored and the steps since it are taken again, then the step that
+ * failed. The reference runs the GPU's program, so the run goes on with the bits it would have had on the device
+ * wherever the two agree bit for bit (docs/GPU_COMPUTE.md); a fall back costs the steps since the checkpoint.
+ */
+export class GpuSceneRunner<W extends SimulationWorld<B>,B> {
+  readonly simulation:Simulation<W,B>;readonly snapshotEvery:number;
+  fallback:GpuSceneFallback|null=null;
+  private snapshot:Uint8Array|null=null;private snapshotTick=-1;
+  constructor(simulation:Simulation<W,B>,options:{readonly snapshotEvery?:number}={}) {
+    this.simulation=simulation;this.snapshotEvery=Math.max(1,Math.floor(options.snapshotEvery??30));
+  }
+  /** The sections that run on the GPU or its reference. */
+  get sections():GpuSceneSubsystem<W,B>[] {return this.simulation.subsystems().filter(isGpuSection) as GpuSceneSubsystem<W,B>[];}
+  /** 'gpu' while any section runs on the device, else 'reference'. */
+  get backend():'gpu'|'reference' {return this.sections.some(s=>s.backend==='gpu')?'gpu':'reference';}
+  /** The tick of the checkpoint a fall back would carry on from (-1 before the first). */
+  get checkpointTick():number {return this.snapshotTick;}
+  /** One step of the simulation (`stepAsync`), with a checkpoint first when one is due. */
+  async step():Promise<void> {
+    const sim=this.simulation;
+    if(this.backend==='gpu'&&(this.snapshot===null||sim.tick-this.snapshotTick>=this.snapshotEvery)){
+      try{this.snapshot=await sim.checkpointAsync();this.snapshotTick=sim.tick;}
+      catch(error){if(!isLoss(error))throw error;await this.fallBack(error.message);}
+    }
+    try{await sim.stepAsync();}
+    catch(error){if(!isLoss(error))throw error;await this.fallBack(error.message);await sim.stepAsync();}
+  }
+  private async fallBack(reason:string):Promise<void> {
+    const sim=this.simulation,at=sim.tick;
+    for(const s of this.sections)s.useReference();
+    if(this.snapshot===null){
+      // Lost before the first checkpoint: nothing has stepped on the device, the mirrors hold the start.
+      if(at!==0)throw new EngineError('GPU_DEVICE_LOST',`The device was lost at step ${at} before a checkpoint was taken: ${reason}`);
+      this.fallback={reason,atTick:at,resumedFrom:0,stepsRerun:0};return;
+    }
+    sim.restore(this.snapshot);
+    const from=sim.tick;
+    while(sim.tick<at)await sim.stepAsync();
+    this.fallback={reason,atTick:at,resumedFrom:from,stepsRerun:at-from};
+  }
 }
 
 /** The `gpu` option of the scene loaders: GPU subsystems for the sections that say backend: 'gpu'. */

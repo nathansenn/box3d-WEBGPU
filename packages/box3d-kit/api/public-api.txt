@@ -2907,27 +2907,49 @@ import { GranularCoupling } from '../granular.js';
 import { ShallowWater } from '../shallow-water.js';
 import type { Fluid, FluidCoupling } from '../fluid.js';
 import type { FluidBackendOptions } from './fluid-program.js';
-import type { SceneGpuBackends, Subsystem } from '../simulation.js';
+import type { SceneGpuBackends, Simulation, SimulationWorld, Subsystem } from '../simulation.js';
 import type { GpuCompute } from './compute.js';
 import { readDemWall } from './granular-f32.js';
 export declare const GPU_SCENE_BACKEND = "scene-section-gpu-f32-v1";
 export interface GpuSceneSubsystem<W, B> extends Subsystem<W, B> {
     stale(): boolean;
     readonly backend: 'gpu' | 'reference';
+    useReference(): void;
 }
-export declare function gpuShallowWaterSubsystem<W, B>(compute: GpuCompute | 'reference', water: ShallowWater, options?: {
+export declare function gpuShallowWaterSubsystem<W, B>(device: GpuCompute | 'reference', water: ShallowWater, options?: {
     readonly id?: string;
     readonly order?: number;
 }): GpuSceneSubsystem<W, B>;
-export declare function gpuGranularSubsystem<W, B>(compute: GpuCompute | 'reference', coupling: GranularCoupling<B>, options?: {
+export declare function gpuGranularSubsystem<W, B>(device: GpuCompute | 'reference', coupling: GranularCoupling<B>, options?: {
     readonly id?: string;
     readonly order?: number;
 }): GpuSceneSubsystem<W, B>;
-export declare function gpuFluidSubsystem<W, B>(compute: GpuCompute | 'reference', target: Fluid | FluidCoupling<B>, options?: {
+export declare function gpuFluidSubsystem<W, B>(device: GpuCompute | 'reference', target: Fluid | FluidCoupling<B>, options?: {
     readonly id?: string;
     readonly order?: number;
     readonly backend?: FluidBackendOptions;
 }): GpuSceneSubsystem<W, B>;
+export interface GpuSceneFallback {
+    readonly reason: string;
+    readonly atTick: number;
+    readonly resumedFrom: number;
+    readonly stepsRerun: number;
+}
+export declare class GpuSceneRunner<W extends SimulationWorld<B>, B> {
+    readonly simulation: Simulation<W, B>;
+    readonly snapshotEvery: number;
+    fallback: GpuSceneFallback | null;
+    private snapshot;
+    private snapshotTick;
+    constructor(simulation: Simulation<W, B>, options?: {
+        readonly snapshotEvery?: number;
+    });
+    get sections(): GpuSceneSubsystem<W, B>[];
+    get backend(): 'gpu' | 'reference';
+    get checkpointTick(): number;
+    step(): Promise<void>;
+    private fallBack;
+}
 export declare function gpuSceneBackends<W, B>(compute: GpuCompute | 'reference'): SceneGpuBackends<W, B>;
 export { readDemWall };
 
@@ -8696,7 +8718,7 @@ export declare function createBodiesFromMesh(world: BodyFactory, mesh: MeshLike,
 
 // ==== gpu-compute.d.ts ====
 export { acquireGpuCompute, gpuComputeSupported, GpuCompute, GpuProgram, type GpuAcquireOptions, type GpuComputeInfo, type GpuComputeNeeds } from './core/gpu/compute.js';
-export { gpuSceneBackends, gpuShallowWaterSubsystem, gpuGranularSubsystem, gpuFluidSubsystem, GPU_SCENE_BACKEND, type GpuSceneSubsystem } from './core/gpu/scene-backends.js';
+export { gpuSceneBackends, gpuShallowWaterSubsystem, gpuGranularSubsystem, gpuFluidSubsystem, GpuSceneRunner, GPU_SCENE_BACKEND, type GpuSceneFallback, type GpuSceneSubsystem } from './core/gpu/scene-backends.js';
 export { GpuShallowWater, ShallowWaterRunner, SHALLOW_WATER_GPU_SOLVER_ID, type GpuShallowWaterOptions, type ShallowWaterRunnerOptions } from './core/gpu/shallow-water-gpu.js';
 export { ShallowWaterF32, SHALLOW_WATER_CHECKPOINT, type ShallowWaterF32Stats } from './core/gpu/shallow-water-f32.js';
 export { GpuGranular, GranularRunner, GpuGranularCoupling, demMemory, GRANULAR_GPU_SOLVER_ID, type GranularRunnerOptions } from './core/gpu/granular-gpu.js';

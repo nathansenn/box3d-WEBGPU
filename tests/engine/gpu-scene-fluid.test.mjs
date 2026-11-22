@@ -7,7 +7,9 @@
 //    and resumed in a fresh world reaches step M with the straight run's bits; a save is refused until a pull;
 //  - on a stand-in device that runs the fluid kernels on the CPU (the GpuFluid path of the section: its encoding,
 //    parameter blocks, readbacks and the obstacles' band uploads): the reference's bits, the world included;
-//  - against the float64 scene (backend 'cpu'): the same flow and ball to float32 accuracy.
+//  - against the float64 scene (backend 'cpu'): the same flow and ball to float32 accuracy;
+//  - GpuSceneRunner: the device lost in the middle of a run (the stand-in device destroyed), the run carries on with the
+//    float32 reference from its last checkpoint and reaches the straight reference run's bits.
 // That the GPU gives the reference's bits is checked on SwiftShader by scripts/lab-gpu-browser-check.mjs.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,7 +21,7 @@ import {installGpuGlobals, mockDevice} from './fixtures/gpu-mock.mjs';
 installGpuGlobals();
 const {GpuCompute} = await import('../../src/engine/gpu/compute.ts');
 const {FLUID_PASS, runKernelF32} = await import('../../src/engine/gpu/fluid-kernels.ts');
-const {gpuSceneBackends} = await import('../../src/engine/gpu/scene-backends.ts');
+const {gpuSceneBackends, GpuSceneRunner} = await import('../../src/engine/gpu/scene-backends.ts');
 const {NativeWorldPool} = await import('../../src/engine/native-world.ts');
 const {simulationCheckpointInfo, resumeSimulationScene} = await import('../../src/engine/simulation.ts');
 const {LabSceneHost, loadLabScene} = await import('../../src/lab/scene-host.ts');
@@ -146,3 +148,36 @@ test('flow sections through GpuFluid on a device that runs the kernels give the 
   }
 });
 
+test('GpuSceneRunner: a device lost mid-run, the run carries on on the reference from its last checkpoint with the same bits', {timeout: 900000}, async () => {
+  const scene = onGpu(sphereSettlingScene()), steps = 14, loseAt = 8, every = 5;
+  const straight = await run(scene, steps, {gpu: gpuSceneBackends('reference')});
+  const outcome = await withWorld(async world => {
+    const device = cpuDevice(), loaded = loadLabScene(world, scene, {gpu: gpuSceneBackends(new GpuCompute(device))});
+    const runner = new GpuSceneRunner(loaded.simulation, {snapshotEvery: every});
+    assert.equal(runner.backend, 'gpu');
+    for (let i = 0; i < steps; i++) {
+      if (i === loseAt) device.destroy();
+      await runner.step();
+    }
+    await loaded.simulation.pullAsync();
+    const out = {hash: fingerprint(loaded), backend: runner.backend, fallback: runner.fallback, tick: loaded.simulation.tick, sections: runner.sections.map(s => s.backend)};
+    loaded.simulation.dispose();
+    return out;
+  });
+  assert.equal(outcome.tick, steps);
+  assert.equal(outcome.backend, 'reference');
+  assert.deepEqual(outcome.sections, ['reference']);
+  assert.equal(outcome.fallback.atTick, loseAt);
+  assert.equal(outcome.fallback.resumedFrom, every, 'the checkpoint before the loss');
+  assert.equal(outcome.fallback.stepsRerun, loseAt - every);
+  assert.match(outcome.fallback.reason, /lost|destroyed/i);
+  assert.equal(outcome.hash, straight.hash, 'after the fall back the run has the bits of a run on the reference throughout');
+  // Without a loss the runner adds nothing: its run has the bits of stepAsync alone.
+  const plain = await withWorld(async world => {
+    const loaded = loadLabScene(world, scene, {gpu: gpuSceneBackends('reference')}), runner = new GpuSceneRunner(loaded.simulation, {snapshotEvery: 3});
+    for (let i = 0; i < steps; i++) await runner.step();
+    await loaded.simulation.pullAsync();
+    const hash = fingerprint(loaded); loaded.simulation.dispose(); return hash;
+  });
+  assert.equal(plain, straight.hash);
+});
