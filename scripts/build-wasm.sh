@@ -38,6 +38,9 @@ MSG
   exit 1
 fi
 
+# The size-optimized function list is derived from the Box3D source; a stale list would build a different artifact.
+BOX3D_ROOT="$BOX3D_ROOT" node "$ROOT_DIR/scripts/wasm-cold-functions.mjs" --check
+
 mkdir -p "$BUILD_DIR" "$OUT_DIR"
 
 emcmake cmake \

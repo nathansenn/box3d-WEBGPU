@@ -56,6 +56,32 @@ endif()
 
 add_subdirectory("${BOX3D_ROOT}" "${CMAKE_BINARY_DIR}/box3d-upstream" EXCLUDE_FROM_ALL)
 
+# Size (docs/WASM_SIZE.md). Three things keep the artifact small without touching what a step computes; Box3D's own
+# sources are compiled unmodified and its solver, collision and query code keeps -O3:
+# 1. Box3D's API-call recording hooks are compiled out (box3d_no_recording.h): this bridge never starts a recording.
+# 2. The Box3D functions that no step, query or per-frame call reaches (box3d_cold_functions.txt, written by
+#    scripts/wasm-cold-functions.mjs) get LLVM's minsize attribute, one attribute file per source.
+# 3. The bridge itself is compiled with -Oz (below).
+target_compile_options(box3d PRIVATE "SHELL:-include \"${CMAKE_CURRENT_LIST_DIR}/box3d_no_recording.h\"")
+file(STRINGS "${CMAKE_CURRENT_LIST_DIR}/box3d_cold_functions.txt" B3W_COLD_LINES REGEX "^[a-z_]+\\.c [A-Za-z_0-9]+$")
+set(B3W_COLD_FILES "")
+foreach(B3W_COLD_LINE ${B3W_COLD_LINES})
+  string(REPLACE " " ";" B3W_COLD_PARTS "${B3W_COLD_LINE}")
+  list(GET B3W_COLD_PARTS 0 B3W_COLD_FILE)
+  list(GET B3W_COLD_PARTS 1 B3W_COLD_FUNCTION)
+  if(NOT EXISTS "${BOX3D_ROOT}/src/${B3W_COLD_FILE}")
+    message(FATAL_ERROR "box3d_cold_functions.txt names ${B3W_COLD_FILE}, which Box3D does not have. Run node scripts/wasm-cold-functions.mjs")
+  endif()
+  list(APPEND B3W_COLD_FILES "${B3W_COLD_FILE}")
+  string(APPEND "B3W_COLD_CSV_${B3W_COLD_FILE}" "${B3W_COLD_FUNCTION},minsize\n")
+endforeach()
+list(REMOVE_DUPLICATES B3W_COLD_FILES)
+foreach(B3W_COLD_FILE ${B3W_COLD_FILES})
+  file(WRITE "${CMAKE_BINARY_DIR}/box3d-cold/${B3W_COLD_FILE}.csv" "${B3W_COLD_CSV_${B3W_COLD_FILE}}")
+  set_property(SOURCE "${BOX3D_ROOT}/src/${B3W_COLD_FILE}" TARGET_DIRECTORY box3d APPEND PROPERTY COMPILE_OPTIONS
+    "-mllvm" "-forceattrs-csv-path=${CMAKE_BINARY_DIR}/box3d-cold/${B3W_COLD_FILE}.csv")
+endforeach()
+
 add_executable(box3d_web box3d_web.c box3d_snapshot.c)
 target_link_libraries(box3d_web PRIVATE box3d::box3d)
 target_include_directories(box3d_web PRIVATE "${BOX3D_ROOT}/include")
@@ -66,6 +92,10 @@ if(BOX3D_DISABLE_SIMD)
   set_source_files_properties(box3d_snapshot.c PROPERTIES COMPILE_DEFINITIONS "BOX3D_DISABLE_SIMD")
 endif()
 target_compile_options(box3d_web PRIVATE -O3 -flto)
+# The bridge validates, converts and forwards; the time of a step is spent inside Box3D. -Oz here took 29 KiB off the
+# artifact and changed no step time beyond the noise (docs/WASM_SIZE.md). box3d_threads.c, the task scheduler of the
+# pthread artifact, keeps -O3.
+set_property(SOURCE box3d_web.c box3d_snapshot.c APPEND PROPERTY COMPILE_OPTIONS "-Oz")
 
 if(NOT BOX3D_DISABLE_SIMD)
   target_compile_options(box3d_web PRIVATE -msimd128)
@@ -155,6 +185,9 @@ target_link_options(box3d_web PRIVATE
   "-sASSERTIONS=0"
   "-sEXPORTED_FUNCTIONS=${B3W_EXPORTED_FUNCTIONS}"
   "-sEXPORTED_RUNTIME_METHODS=${B3W_RUNTIME_METHODS}"
+  # The Closure Compiler that ships with Emscripten minifies the generated JavaScript (box3d.js 24,045 -> under 9,000
+  # bytes). Everything the loaders read is exported by name above, so it survives the renaming.
+  "--closure=1"
 )
 
 set_target_properties(box3d_web PROPERTIES

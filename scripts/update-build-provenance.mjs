@@ -25,6 +25,26 @@ if (fs.existsSync(snapshotPath)) {
   provenance.bridge.checkpointSha256 = snapshotSha256;
 }
 
+// The other inputs of the build (docs/WASM_SIZE.md): the CMake file, the list of Box3D functions compiled for size and the
+// header that compiles Box3D's recording hooks out. Recorded only in a manifest that has a `build` section.
+if (provenance.build) {
+  for (const [key, file] of [['cmakeSha256', 'wasm/CMakeLists.txt'], ['coldFunctionsSha256', 'wasm/box3d_cold_functions.txt'], ['noRecordingSha256', 'wasm/box3d_no_recording.h']]) {
+    const filePath = path.join(root, file);
+    if (fs.existsSync(filePath)) provenance.build[key] = digest(filePath);
+  }
+  const coldList = path.join(root, 'wasm/box3d_cold_functions.txt');
+  if (fs.existsSync(coldList)) {
+    provenance.build.size = {
+      recordingHooks: 'compiled out (wasm/box3d_no_recording.h)',
+      sizeOptimizedFunctions: fs.readFileSync(coldList, 'utf8').split('\n').filter(line => /^[a-z_]+\.c \w+$/.test(line)).length,
+      sizeOptimizedFunctionList: 'wasm/box3d_cold_functions.txt, written by scripts/wasm-cold-functions.mjs',
+      bridgeOptimization: '-Oz',
+      solverOptimization: '-O3',
+      closureCompiler: true,
+    };
+  }
+}
+
 for (const name of ['box3d.js', 'box3d.wasm']) {
   const artifactPath = path.join(artifactDir, name);
   const artifact = {
