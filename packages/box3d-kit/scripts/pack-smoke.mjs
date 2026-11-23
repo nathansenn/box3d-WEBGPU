@@ -35,7 +35,8 @@ const manifest = JSON.parse(readFileSync(join(pkg, 'package.json'), 'utf8'));
 const entries = Object.entries(manifest.exports).filter(([name, target]) => typeof target === 'object' && name !== './single').map(([name, target]) => ({name, file: target.default.replace('./dist/', '')}));
 // The solver modules. `import {PhysicsWorld} from 'box3d-webgpu-kit'` must reach none of them.
 const SOLVERS = ['compliant-cable', 'linear-water', 'closed-water', 'water-coupling', 'frame-element', 'frame-runtime', 'envelope-matrix', 'heat', 'solid', 'solid-mesh', 'concrete-law', 'sparse-ldl', 'structure-coupling',
-  'scene-format', 'scene-examples', 'geometry', 'simulation', 'robot-import', 'solid-fracture', 'cloth', 'granular', 'granular-kernels', 'fluid', 'fluid-multigrid', 'shallow-water', 'solid-contact', 'materials'].map(name => `core/${name}.js`);
+  'scene-format', 'scene-examples', 'geometry', 'simulation', 'robot-import', 'solid-fracture', 'cloth', 'granular', 'granular-kernels', 'fluid', 'fluid-multigrid', 'shallow-water', 'solid-contact', 'materials',
+  'flow-lattice', 'flow-geometry', 'flow', 'flow-post', 'flow-study'].map(name => `core/${name}.js`);
 // Budgets in bytes of gzip (level 9), set from the measured sizes of 1.0.0-rc.1 with about 15 % of headroom, rounded up to
 // a kibibyte. Raise one deliberately, in review, with the measurement in the commit message; never silently.
 // Raised with the rigid-core merge (measured then, KiB): box3d.wasm 704.2 raw (was under 700), main entry 75.3 (58.8: the
@@ -80,6 +81,9 @@ const BUDGET = {
     // Added 2026-11-18: the GPU backends with their float32 references and the scene sections on the GPU. It loads the
     // grain and shallow-water solvers they are built from (the flow solver only by type: a page that runs no flow does not load it; the scene loader is in ./simulation). Measured 150.8 KiB, 152.3 KiB with the flow sections (151.1 before them).
     './gpu': 174 * KiB,
+    // Added 2026-11-23: flow around and through geometry (the lattice-Boltzmann kernel, the voxeliser, the study runner
+    // and the post-processing) and its three.js view. Budgets are the measured sizes plus about 15%; see the commit.
+    './flow': 72 * KiB, './flow-three': 6 * KiB,
   },
 };
 const size = {

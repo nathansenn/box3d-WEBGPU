@@ -8,7 +8,7 @@
  * cavity with named inlets and outlets. docs/FLOW.md is the reference of both formats and of what is validated.
  */
 import {EngineError} from './contracts.ts';
-import {Flow,FLOW_FLUIDS,FLOW_SOLVER_ID,FLOW_SOLVER_VERSION,FLOW_SIDES,FLOW_MAX_CELLS,flowSample,type FlowField,type FlowFluid,type FlowOptions,type FlowPatch,type FlowPatchShape,type FlowSide,type FlowSideName} from './flow.ts';
+import {Flow,FLOW_FLUIDS,FLOW_SOLVER_ID,FLOW_SOLVER_VERSION,FLOW_SIDES,FLOW_MAX_CELLS,type FlowField,type FlowFluid,type FlowOptions,type FlowPatch,type FlowPatchShape,type FlowSide,type FlowSideName} from './flow.ts';
 import {flowGeometryBounds,type FlowItem,type FlowMesh,type FlowVec3,type FlowGrid} from './flow-geometry.ts';
 import {flowFrequency,flowLine,flowProjectedArea,flowRake,flowSection,flowSeedPlane,flowSlice,flowStreamlines,flowSurfacePressure} from './flow-post.ts';
 
@@ -124,7 +124,7 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
   if(!isObject(study))fail('the study must be an object.');
   const s=study as Json;
   if(s.format!==FLOW_STUDY_FORMAT)fail(`format must be "${FLOW_STUDY_FORMAT}".`);
-  known(s,'the study',['format','name','units','geometry','fluid','mode','external','internal','resolution','model','run','outputs']);
+  known(s,'the study',['format','name','units','geometry','fluid','mode','external','internal','motion','actuators','resolution','model','run','outputs']);
   if(s.units!==undefined&&s.units!=='SI')fail('units must be "SI".');
   if(s.name!==undefined&&typeof s.name!=='string')fail('name must be a string.');
   const mode=s.mode;
@@ -160,11 +160,30 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
   if(turbulence!=='auto'&&turbulence!=='none'&&turbulence!=='smagorinsky')fail(`model.turbulence must be 'auto', 'none' or 'smagorinsky'.`);
   const walls=model.walls??'interpolated';
   if(walls!=='interpolated'&&walls!=='halfway')fail(`model.walls must be 'interpolated' or 'halfway'.`);
-  const common={fluid,turbulence:turbulence as 'auto',walls:walls as 'interpolated',
+  const common={fluid,motion:undefined as typeof motion,actuators:undefined as typeof actuators,turbulence:turbulence as 'auto',walls:walls as 'interpolated',
     smagorinsky:model.smagorinsky===undefined?undefined:num(model.smagorinsky,'model.smagorinsky',0,true),
     latticeSpeed:res.latticeSpeed===undefined?undefined:num(res.latticeSpeed,'resolution.latticeSpeed',0,true),
     spongeCells:model.spongeCells===undefined?undefined:num(model.spongeCells,'model.spongeCells',0)};
 
+  // surface velocities of parts, and actuator discs
+  let motion:Record<string,{velocity?:FlowVec3;angularVelocity?:FlowVec3;center?:FlowVec3}>|undefined;
+  if(s.motion!==undefined){
+    if(!isObject(s.motion))fail('motion must be an object of part names.');
+    motion={};
+    for(const [name,raw] of Object.entries(s.motion as Json)){
+      if(!isObject(raw))fail(`motion.${name} must be an object.`);
+      const o=raw as Json;known(o,`motion.${name}`,['velocity','angularVelocity','center']);
+      motion[name]={velocity:o.velocity===undefined?undefined:vec3(o.velocity,`motion.${name}.velocity`),angularVelocity:o.angularVelocity===undefined?undefined:vec3(o.angularVelocity,`motion.${name}.angularVelocity`),center:o.center===undefined?undefined:vec3(o.center,`motion.${name}.center`)};
+    }
+  }
+  const actuators=s.actuators===undefined?undefined:(Array.isArray(s.actuators)?s.actuators as unknown[]:fail('actuators must be an array.')).map((raw,i)=>{
+    if(!isObject(raw))fail(`actuators[${i}] must be an object.`);
+    const o=raw as Json;known(o,`actuators[${i}]`,['name','center','axis','radius','thickness','force','pressureJump']);
+    if(typeof o.name!=='string'||o.name.length===0)fail(`actuators[${i}].name must be a non-empty string.`);
+    return {name:o.name as string,center:vec3(o.center,`actuators[${i}].center`),axis:vec3(o.axis,`actuators[${i}].axis`),radius:num(o.radius,`actuators[${i}].radius`,0,true),
+      thickness:o.thickness===undefined?undefined:num(o.thickness,`actuators[${i}].thickness`,0,true),force:o.force===undefined?undefined:num(o.force,`actuators[${i}].force`),pressureJump:o.pressureJump===undefined?undefined:num(o.pressureJump,`actuators[${i}].pressureJump`)};
+  });
+  common.motion=motion;common.actuators=actuators;
   let flowOptions:FlowOptions,referenceSpeed:number,referenceLength:number,referenceLengthSource:string,flowLength:number;
   let external:FlowStudySetup['external']=null,internal:FlowStudySetup['internal']=null;
   if(mode==='external'){
@@ -451,7 +470,7 @@ export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowS
       internal:setup.internal,
       sides:Object.fromEntries(FLOW_SIDES.map(name=>{const sd=setup.options.sides?.[name]??'wall';return [name,typeof sd==='string'?sd:sd.kind];})),
       patches:flow.patches.map(p=>({...p})),parts:[...flow.parts],geometry:flow.items.map(i=>({...i})),
-      run:{...run}};
+      controls:{...run}};
     out.run={steps:L.stepCount,time:flow.time,wallTime:wall,cellUpdatesPerSecond:wall>0?flow.fluidCells*L.stepCount/wall:0,converged,reason,windows:windowsDone,
       averaged:meanUsed?{fromStep:meanFrom,steps:meanSteps,time:meanSteps*flow.dt,samples:Math.floor(meanSteps/run.sampleEvery)}:null,maxSpeed:H.maxSpeed.length?Math.max(...H.maxSpeed):0};
     const peak=(out.run as Json).maxSpeed as number;
@@ -487,6 +506,13 @@ export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowS
       });
       out.flow={patches:rows,inflow,outflow,massBalance:inflow>0?(inflow-outflow)/inflow:0,splits:rows.filter(r=>r.kind==='outlet').map(r=>({name:r.name,fraction:outflow>0?-r.flowRate/outflow:0})),pressureDrops:drops,sections};
     }
+    // actuator discs: the speed of the fluid through them
+    out.actuators=flow.actuators.map((act,i)=>{
+      let through=0;const cellsOf=flow.actuatorCells[i];
+      for(const c of cellsOf)through+=field.ux[c]*act.axis[0]+field.uy[c]*act.axis[1]+field.uz[c]*act.axis[2];
+      const speed=cellsOf.length?through/cellsOf.length:0;
+      return {name:act.name,cells:act.cells,force:act.force,axis:act.axis,area:act.area,pressureJump:act.force/act.area,meanSpeed:speed,flowRate:speed*act.area,power:act.force*speed};
+    });
     // wake: shedding frequency from the cross-flow forces, recirculation behind the body
     if(ext){
       const dtSample=run.monitorEvery*flow.dt,slice=(a:number[]):number[]=>a.slice(Math.max(0,H.step.findIndex(sx=>sx>run.startupSteps)));
@@ -619,4 +645,3 @@ export function runFlowStudy(study:unknown,options:FlowStudyOptions={}):Json{
   while(!run.done)run.advance();
   return run.result();
 }
-export {flowSample};

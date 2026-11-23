@@ -1,0 +1,1609 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://nathansenn.github.io/box3d-WEBGPU/schemas/flow-result.schema.json",
+ "title": "box3d-flow-result/1",
+ "description": "The result of a flow study of box3d-webgpu-kit/flow. SI units. See docs/FLOW.md.",
+ "type": "object",
+ "properties": {
+  "format": {
+   "const": "box3d-flow-result/1"
+  },
+  "name": {
+   "type": "string"
+  },
+  "solver": {
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string"
+    },
+    "version": {
+     "type": "string"
+    },
+    "statement": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "id",
+    "version",
+    "statement"
+   ],
+   "additionalProperties": false
+  },
+  "setup": {
+   "type": "object",
+   "properties": {
+    "mode": {
+     "enum": [
+      "external",
+      "internal"
+     ]
+    },
+    "fluid": {
+     "type": "object",
+     "properties": {
+      "density": {
+       "type": "number",
+       "exclusiveMinimum": 0
+      },
+      "viscosity": {
+       "type": "number",
+       "exclusiveMinimum": 0
+      }
+     },
+     "required": [
+      "density",
+      "viscosity"
+     ],
+     "additionalProperties": false
+    },
+    "grid": {
+     "type": "object",
+     "properties": {
+      "origin": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "cell": {
+       "type": "number",
+       "exclusiveMinimum": 0
+      },
+      "nx": {
+       "type": "integer"
+      },
+      "ny": {
+       "type": "integer"
+      },
+      "nz": {
+       "type": "integer"
+      },
+      "min": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "max": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      }
+     },
+     "required": [
+      "origin",
+      "cell",
+      "nx",
+      "ny",
+      "nz",
+      "min",
+      "max"
+     ],
+     "additionalProperties": false
+    },
+    "lattice": {
+     "type": "object",
+     "properties": {
+      "origin": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "cell": {
+       "type": "number",
+       "exclusiveMinimum": 0
+      },
+      "nx": {
+       "type": "integer"
+      },
+      "ny": {
+       "type": "integer"
+      },
+      "nz": {
+       "type": "integer"
+      },
+      "cells": {
+       "type": "integer"
+      },
+      "fluidCells": {
+       "type": "integer"
+      },
+      "solidCells": {
+       "type": "integer"
+      },
+      "enclosedCells": {
+       "type": "integer"
+      },
+      "boundaryLinks": {
+       "type": "integer"
+      }
+     },
+     "required": [
+      "origin",
+      "cell",
+      "nx",
+      "ny",
+      "nz",
+      "cells",
+      "fluidCells"
+     ],
+     "additionalProperties": false
+    },
+    "timeStep": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "latticeSpeed": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "latticeMach": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "relaxationTime": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "cellReynolds": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "turbulence": {
+     "type": "object",
+     "properties": {
+      "model": {
+       "enum": [
+        "none",
+        "smagorinsky"
+       ]
+      },
+      "smagorinsky": {
+       "type": [
+        "number",
+        "null"
+       ]
+      }
+     },
+     "required": [
+      "model",
+      "smagorinsky"
+     ],
+     "additionalProperties": false
+    },
+    "walls": {
+     "enum": [
+      "interpolated",
+      "halfway"
+     ]
+    },
+    "referenceSpeed": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "referenceLength": {
+     "type": "object",
+     "properties": {
+      "value": {
+       "type": "number",
+       "exclusiveMinimum": 0
+      },
+      "source": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "value",
+      "source"
+     ],
+     "additionalProperties": false
+    },
+    "reynolds": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "transitTime": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "external": {
+     "oneOf": [
+      {
+       "type": "null"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "speed": {
+         "type": "number",
+         "exclusiveMinimum": 0
+        },
+        "direction": {
+         "type": "array",
+         "items": {
+          "type": "number"
+         },
+         "minItems": 3,
+         "maxItems": 3
+        },
+        "up": {
+         "type": "array",
+         "items": {
+          "type": "number"
+         },
+         "minItems": 3,
+         "maxItems": 3
+        },
+        "side": {
+         "type": "array",
+         "items": {
+          "type": "number"
+         },
+         "minItems": 3,
+         "maxItems": 3
+        },
+        "ground": {
+         "oneOf": [
+          {
+           "type": "null"
+          },
+          {
+           "type": "object",
+           "properties": {
+            "height": {
+             "type": "number"
+            },
+            "moving": {
+             "type": "boolean"
+            }
+           },
+           "required": [
+            "height",
+            "moving"
+           ],
+           "additionalProperties": false
+          }
+         ]
+        },
+        "bodySize": {
+         "type": "number",
+         "exclusiveMinimum": 0
+        },
+        "bodyCells": {
+         "type": "number",
+         "exclusiveMinimum": 0
+        },
+        "bodyBounds": {
+         "type": "object",
+         "properties": {
+          "min": {
+           "type": "array",
+           "items": {
+            "type": "number"
+           },
+           "minItems": 3,
+           "maxItems": 3
+          },
+          "max": {
+           "type": "array",
+           "items": {
+            "type": "number"
+           },
+           "minItems": 3,
+           "maxItems": 3
+          }
+         },
+         "required": [
+          "min",
+          "max"
+         ],
+         "additionalProperties": false
+        },
+        "blockage": {
+         "type": "number",
+         "minimum": 0
+        },
+        "referenceArea": {
+         "type": "object",
+         "properties": {
+          "value": {
+           "type": "number",
+           "exclusiveMinimum": 0
+          },
+          "source": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "value",
+          "source"
+         ],
+         "additionalProperties": false
+        },
+        "dynamicPressure": {
+         "type": "number",
+         "exclusiveMinimum": 0
+        },
+        "momentCenter": {
+         "type": "array",
+         "items": {
+          "type": "number"
+         },
+         "minItems": 3,
+         "maxItems": 3
+        }
+       },
+       "required": [
+        "speed",
+        "direction",
+        "up",
+        "side",
+        "ground",
+        "bodySize",
+        "blockage",
+        "referenceArea",
+        "dynamicPressure",
+        "momentCenter"
+       ],
+       "additionalProperties": false
+      }
+     ]
+    },
+    "internal": {
+     "oneOf": [
+      {
+       "type": "null"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "inlets": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         }
+        },
+        "outlets": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         }
+        }
+       },
+       "required": [
+        "inlets",
+        "outlets"
+       ],
+       "additionalProperties": false
+      }
+     ]
+    },
+    "sides": {
+     "type": "object",
+     "additionalProperties": {
+      "enum": [
+       "wall",
+       "slip",
+       "periodic",
+       "velocity",
+       "pressure"
+      ]
+     }
+    },
+    "patches": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "name": {
+        "type": "string"
+       },
+       "kind": {
+        "enum": [
+         "inlet",
+         "outlet"
+        ]
+       },
+       "area": {
+        "type": "number"
+       },
+       "normal": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        },
+        "minItems": 3,
+        "maxItems": 3
+       },
+       "velocity": {
+        "oneOf": [
+         {
+          "type": "null"
+         },
+         {
+          "type": "array",
+          "items": {
+           "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+         }
+        ]
+       },
+       "pressure": {
+        "type": [
+         "number",
+         "null"
+        ]
+       },
+       "cells": {
+        "type": "integer"
+       }
+      },
+      "required": [
+       "name",
+       "kind",
+       "area",
+       "normal",
+       "velocity",
+       "pressure",
+       "cells"
+      ],
+      "additionalProperties": false
+     }
+    },
+    "parts": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "geometry": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "index": {
+        "type": "integer"
+       },
+       "kind": {
+        "type": "string"
+       },
+       "part": {
+        "type": "string"
+       },
+       "role": {
+        "enum": [
+         "solid",
+         "cavity"
+        ]
+       },
+       "smallestDimension": {
+        "type": [
+         "number",
+         "null"
+        ]
+       },
+       "triangles": {
+        "type": "integer"
+       },
+       "components": {
+        "type": "integer"
+       },
+       "closedComponents": {
+        "type": "integer"
+       },
+       "surfaceArea": {
+        "type": "number",
+        "minimum": 0
+       },
+       "unresolvedFraction": {
+        "type": "number",
+        "minimum": 0
+       }
+      },
+      "required": [
+       "index",
+       "kind",
+       "part",
+       "role",
+       "smallestDimension",
+       "surfaceArea",
+       "unresolvedFraction"
+      ],
+      "additionalProperties": false
+     }
+    },
+    "controls": {
+     "type": "object",
+     "properties": {
+      "maxSteps": {
+       "type": "integer"
+      },
+      "startupSteps": {
+       "type": "integer"
+      },
+      "windowSteps": {
+       "type": "integer"
+      },
+      "monitorEvery": {
+       "type": "integer"
+      },
+      "sampleEvery": {
+       "type": "integer"
+      },
+      "tolerance": {
+       "type": "number",
+       "minimum": 0
+      }
+     },
+     "required": [
+      "maxSteps",
+      "startupSteps",
+      "windowSteps",
+      "monitorEvery",
+      "sampleEvery",
+      "tolerance"
+     ],
+     "additionalProperties": false
+    }
+   },
+   "required": [
+    "mode",
+    "fluid",
+    "grid",
+    "lattice",
+    "timeStep",
+    "latticeSpeed",
+    "latticeMach",
+    "relaxationTime",
+    "cellReynolds",
+    "turbulence",
+    "walls",
+    "referenceSpeed",
+    "referenceLength",
+    "reynolds",
+    "transitTime",
+    "external",
+    "internal",
+    "sides",
+    "patches",
+    "parts",
+    "geometry",
+    "controls"
+   ],
+   "additionalProperties": false
+  },
+  "run": {
+   "type": "object",
+   "properties": {
+    "steps": {
+     "type": "integer"
+    },
+    "time": {
+     "type": "number",
+     "minimum": 0
+    },
+    "wallTime": {
+     "type": "number",
+     "minimum": 0
+    },
+    "cellUpdatesPerSecond": {
+     "type": "number",
+     "minimum": 0
+    },
+    "converged": {
+     "type": "boolean"
+    },
+    "reason": {
+     "enum": [
+      "tolerance",
+      "max-steps"
+     ]
+    },
+    "windows": {
+     "type": "integer"
+    },
+    "averaged": {
+     "oneOf": [
+      {
+       "type": "null"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "fromStep": {
+         "type": "integer"
+        },
+        "steps": {
+         "type": "integer"
+        },
+        "time": {
+         "type": "number",
+         "minimum": 0
+        },
+        "samples": {
+         "type": "integer"
+        }
+       },
+       "required": [
+        "fromStep",
+        "steps",
+        "time",
+        "samples"
+       ],
+       "additionalProperties": false
+      }
+     ]
+    },
+    "maxSpeed": {
+     "type": "number",
+     "minimum": 0
+    }
+   },
+   "required": [
+    "steps",
+    "time",
+    "wallTime",
+    "converged",
+    "reason",
+    "windows",
+    "averaged",
+    "maxSpeed"
+   ],
+   "additionalProperties": false
+  },
+  "convergence": {
+   "type": "object",
+   "properties": {
+    "tolerance": {
+     "type": "number",
+     "minimum": 0
+    },
+    "startupSteps": {
+     "type": "integer"
+    },
+    "windowSteps": {
+     "type": "integer"
+    },
+    "monitorEvery": {
+     "type": "integer"
+    },
+    "history": {
+     "type": "object",
+     "properties": {
+      "step": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      "time": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      "residual": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      "maxSpeed": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      "cd": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      "cl": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      "cs": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      "massBalance": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      "bulkSpeed": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      "flowRates": {
+       "type": "object",
+       "additionalProperties": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        }
+       }
+      },
+      "patchPressure": {
+       "type": "object",
+       "additionalProperties": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        }
+       }
+      }
+     },
+     "required": [
+      "step",
+      "time",
+      "residual",
+      "maxSpeed"
+     ],
+     "additionalProperties": false
+    }
+   },
+   "required": [
+    "tolerance",
+    "history"
+   ],
+   "additionalProperties": false
+  },
+  "forces": {
+   "type": "object",
+   "properties": {
+    "about": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "total": {
+     "type": "object",
+     "properties": {
+      "force": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "moment": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      }
+     },
+     "required": [
+      "force",
+      "moment"
+     ],
+     "additionalProperties": false
+    },
+    "parts": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "name": {
+        "type": "string"
+       },
+       "force": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        },
+        "minItems": 3,
+        "maxItems": 3
+       },
+       "moment": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        },
+        "minItems": 3,
+        "maxItems": 3
+       }
+      },
+      "required": [
+       "name",
+       "force",
+       "moment"
+      ],
+      "additionalProperties": false
+     }
+    },
+    "coefficients": {
+     "oneOf": [
+      {
+       "type": "null"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "cd": {
+         "type": "number"
+        },
+        "cl": {
+         "type": "number"
+        },
+        "cs": {
+         "type": "number"
+        },
+        "cdRms": {
+         "type": "number",
+         "minimum": 0
+        },
+        "clRms": {
+         "type": "number",
+         "minimum": 0
+        },
+        "csRms": {
+         "type": "number",
+         "minimum": 0
+        },
+        "cm": {
+         "type": "array",
+         "items": {
+          "type": "number"
+         },
+         "minItems": 3,
+         "maxItems": 3
+        },
+        "referenceArea": {
+         "type": "number",
+         "exclusiveMinimum": 0
+        },
+        "referenceLength": {
+         "type": "number",
+         "exclusiveMinimum": 0
+        },
+        "dynamicPressure": {
+         "type": "number",
+         "exclusiveMinimum": 0
+        },
+        "axes": {
+         "type": "object",
+         "properties": {
+          "drag": {
+           "type": "array",
+           "items": {
+            "type": "number"
+           },
+           "minItems": 3,
+           "maxItems": 3
+          },
+          "lift": {
+           "type": "array",
+           "items": {
+            "type": "number"
+           },
+           "minItems": 3,
+           "maxItems": 3
+          },
+          "side": {
+           "type": "array",
+           "items": {
+            "type": "number"
+           },
+           "minItems": 3,
+           "maxItems": 3
+          }
+         },
+         "required": [
+          "drag",
+          "lift",
+          "side"
+         ],
+         "additionalProperties": false
+        }
+       },
+       "required": [
+        "cd",
+        "cl",
+        "cs",
+        "cm",
+        "referenceArea",
+        "referenceLength",
+        "dynamicPressure",
+        "axes"
+       ],
+       "additionalProperties": false
+      }
+     ]
+    }
+   },
+   "required": [
+    "about",
+    "total",
+    "parts",
+    "coefficients"
+   ],
+   "additionalProperties": false
+  },
+  "flow": {
+   "type": "object",
+   "properties": {
+    "patches": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "name": {
+        "type": "string"
+       },
+       "kind": {
+        "enum": [
+         "inlet",
+         "outlet"
+        ]
+       },
+       "flowRate": {
+        "type": "number"
+       },
+       "area": {
+        "type": "number"
+       },
+       "meanSpeed": {
+        "type": "number",
+        "minimum": 0
+       },
+       "meanPressure": {
+        "type": "number"
+       },
+       "meanDynamicPressure": {
+        "type": "number",
+        "minimum": 0
+       },
+       "meanTotalPressure": {
+        "type": "number"
+       }
+      },
+      "required": [
+       "name",
+       "kind",
+       "flowRate",
+       "area",
+       "meanSpeed",
+       "meanPressure",
+       "meanDynamicPressure",
+       "meanTotalPressure"
+      ],
+      "additionalProperties": false
+     }
+    },
+    "inflow": {
+     "type": "number",
+     "minimum": 0
+    },
+    "outflow": {
+     "type": "number",
+     "minimum": 0
+    },
+    "massBalance": {
+     "type": "number"
+    },
+    "splits": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "name": {
+        "type": "string"
+       },
+       "fraction": {
+        "type": "number"
+       }
+      },
+      "required": [
+       "name",
+       "fraction"
+      ],
+      "additionalProperties": false
+     }
+    },
+    "pressureDrops": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "from": {
+        "type": "string"
+       },
+       "to": {
+        "type": "string"
+       },
+       "static": {
+        "type": "number"
+       },
+       "total": {
+        "type": "number"
+       }
+      },
+      "required": [
+       "from",
+       "to",
+       "static",
+       "total"
+      ],
+      "additionalProperties": false
+     }
+    },
+    "sections": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "name": {
+        "type": "string"
+       },
+       "axis": {
+        "enum": [
+         "x",
+         "y",
+         "z"
+        ]
+       },
+       "position": {
+        "type": "number"
+       },
+       "area": {
+        "type": "number",
+        "minimum": 0
+       },
+       "flowRate": {
+        "type": "number"
+       },
+       "meanSpeed": {
+        "type": "number",
+        "minimum": 0
+       },
+       "meanPressure": {
+        "type": "number"
+       },
+       "meanTotalPressure": {
+        "type": "number"
+       },
+       "momentumFactor": {
+        "type": "number",
+        "minimum": 0
+       }
+      },
+      "required": [
+       "name",
+       "axis",
+       "position",
+       "area",
+       "flowRate",
+       "meanSpeed",
+       "meanPressure",
+       "meanTotalPressure",
+       "momentumFactor"
+      ],
+      "additionalProperties": false
+     }
+    }
+   },
+   "required": [
+    "patches",
+    "inflow",
+    "outflow",
+    "massBalance",
+    "splits",
+    "pressureDrops",
+    "sections"
+   ],
+   "additionalProperties": false
+  },
+  "actuators": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string"
+     },
+     "cells": {
+      "type": "integer"
+     },
+     "force": {
+      "type": "number"
+     },
+     "axis": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+     },
+     "area": {
+      "type": "number",
+      "exclusiveMinimum": 0
+     },
+     "pressureJump": {
+      "type": "number"
+     },
+     "meanSpeed": {
+      "type": "number"
+     },
+     "flowRate": {
+      "type": "number"
+     },
+     "power": {
+      "type": "number"
+     }
+    },
+    "required": [
+     "name",
+     "cells",
+     "force",
+     "axis",
+     "area",
+     "pressureJump",
+     "meanSpeed",
+     "flowRate",
+     "power"
+    ],
+    "additionalProperties": false
+   }
+  },
+  "wake": {
+   "oneOf": [
+    {
+     "type": "null"
+    },
+    {
+     "type": "object",
+     "properties": {
+      "shedding": {
+       "oneOf": [
+        {
+         "type": "null"
+        },
+        {
+         "type": "object",
+         "properties": {
+          "frequency": {
+           "type": "number",
+           "exclusiveMinimum": 0
+          },
+          "strouhal": {
+           "type": "number",
+           "exclusiveMinimum": 0
+          },
+          "length": {
+           "type": "number",
+           "exclusiveMinimum": 0
+          },
+          "periods": {
+           "type": "integer"
+          },
+          "amplitude": {
+           "type": "number",
+           "minimum": 0
+          },
+          "axis": {
+           "enum": [
+            "lift",
+            "side"
+           ]
+          }
+         },
+         "required": [
+          "frequency",
+          "strouhal",
+          "length",
+          "periods",
+          "amplitude",
+          "axis"
+         ],
+         "additionalProperties": false
+        }
+       ]
+      },
+      "recirculationLength": {
+       "type": [
+        "number",
+        "null"
+       ]
+      },
+      "recirculationFrom": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      }
+     },
+     "required": [
+      "shedding",
+      "recirculationLength",
+      "recirculationFrom"
+     ],
+     "additionalProperties": false
+    }
+   ]
+  },
+  "streamlines": {
+   "type": "object",
+   "properties": {
+    "field": {
+     "enum": [
+      "mean",
+      "instant"
+     ]
+    },
+    "speedRange": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 2,
+     "maxItems": 2
+    },
+    "lines": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "seed": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        },
+        "minItems": 3,
+        "maxItems": 3
+       },
+       "termination": {
+        "enum": [
+         "wall",
+         "outside",
+         "stagnation",
+         "length"
+        ]
+       },
+       "points": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        }
+       },
+       "speed": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        }
+       },
+       "pressure": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        }
+       }
+      },
+      "required": [
+       "seed",
+       "termination",
+       "points",
+       "speed",
+       "pressure"
+      ],
+      "additionalProperties": false
+     }
+    }
+   },
+   "required": [
+    "field",
+    "speedRange",
+    "lines"
+   ],
+   "additionalProperties": false
+  },
+  "slices": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "axis": {
+      "enum": [
+       "x",
+       "y",
+       "z"
+      ]
+     },
+     "position": {
+      "type": "number"
+     },
+     "axes": {
+      "type": "array",
+      "items": {
+       "enum": [
+        "x",
+        "y",
+        "z"
+       ]
+      },
+      "minItems": 2,
+      "maxItems": 2
+     },
+     "nu": {
+      "type": "integer"
+     },
+     "nv": {
+      "type": "integer"
+     },
+     "origin": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      },
+      "minItems": 2,
+      "maxItems": 2
+     },
+     "cell": {
+      "type": "number",
+      "exclusiveMinimum": 0
+     },
+     "speed": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "pressure": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "u": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "v": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "fluid": {
+      "type": "array",
+      "items": {
+       "enum": [
+        0,
+        1
+       ]
+      }
+     }
+    },
+    "required": [
+     "axis",
+     "position",
+     "axes",
+     "nu",
+     "nv",
+     "origin",
+     "cell",
+     "speed",
+     "pressure",
+     "u",
+     "v",
+     "fluid"
+    ],
+    "additionalProperties": false
+   }
+  },
+  "surface": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "part": {
+      "type": "string"
+     },
+     "positions": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "indices": {
+      "type": "array",
+      "items": {
+       "type": "integer",
+       "minimum": 0
+      }
+     },
+     "pressure": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "cp": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     }
+    },
+    "required": [
+     "part",
+     "positions",
+     "indices",
+     "pressure",
+     "cp"
+    ],
+    "additionalProperties": false
+   }
+  },
+  "lines": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string"
+     },
+     "from": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+     },
+     "to": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+     },
+     "s": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "ux": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "uy": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "uz": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "speed": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "pressure": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "distance": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "zeroCrossings": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     }
+    },
+    "required": [
+     "name",
+     "from",
+     "to",
+     "s",
+     "ux",
+     "uy",
+     "uz",
+     "speed",
+     "pressure",
+     "distance",
+     "zeroCrossings"
+    ],
+    "additionalProperties": false
+   }
+  },
+  "warnings": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "limits": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  }
+ },
+ "required": [
+  "format",
+  "name",
+  "solver",
+  "setup",
+  "run",
+  "forces",
+  "flow",
+  "actuators",
+  "wake",
+  "warnings",
+  "limits"
+ ],
+ "additionalProperties": false
+}

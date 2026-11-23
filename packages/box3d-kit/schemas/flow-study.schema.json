@@ -1,0 +1,1433 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://nathansenn.github.io/box3d-WEBGPU/schemas/flow-study.schema.json",
+ "title": "box3d-flow-study/1",
+ "description": "A flow study for box3d-webgpu-kit/flow. SI units (m, s, kg, N, Pa). See docs/FLOW.md.",
+ "$defs": {
+  "vec3": {
+   "type": "array",
+   "items": {
+    "type": "number"
+   },
+   "minItems": 3,
+   "maxItems": 3
+  },
+  "quat": {
+   "type": "array",
+   "items": {
+    "type": "number"
+   },
+   "minItems": 4,
+   "maxItems": 4
+  },
+  "item": {
+   "oneOf": [
+    {
+     "$ref": "#/$defs/box"
+    },
+    {
+     "$ref": "#/$defs/sphere"
+    },
+    {
+     "$ref": "#/$defs/cylinder"
+    },
+    {
+     "$ref": "#/$defs/capsule"
+    },
+    {
+     "$ref": "#/$defs/cone"
+    },
+    {
+     "$ref": "#/$defs/tube"
+    },
+    {
+     "$ref": "#/$defs/beam"
+    },
+    {
+     "$ref": "#/$defs/mesh"
+    }
+   ],
+   "description": "A primitive or a triangle mesh."
+  },
+  "box": {
+   "type": "object",
+   "properties": {
+    "kind": {
+     "const": "box"
+    },
+    "part": {
+     "type": "string",
+     "minLength": 1,
+     "description": "Name of the part the item belongs to (default \"body\"). Forces and surfaces are reported per part."
+    },
+    "role": {
+     "enum": [
+      "solid",
+      "cavity"
+     ],
+     "description": "solid (default), or cavity: fluid inside, and everything outside the union of the cavities is solid."
+    },
+    "center": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "halfExtents": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "rotation": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 4,
+     "maxItems": 4
+    }
+   },
+   "required": [
+    "kind",
+    "center",
+    "halfExtents"
+   ],
+   "additionalProperties": false
+  },
+  "sphere": {
+   "type": "object",
+   "properties": {
+    "kind": {
+     "const": "sphere"
+    },
+    "part": {
+     "type": "string",
+     "minLength": 1,
+     "description": "Name of the part the item belongs to (default \"body\"). Forces and surfaces are reported per part."
+    },
+    "role": {
+     "enum": [
+      "solid",
+      "cavity"
+     ],
+     "description": "solid (default), or cavity: fluid inside, and everything outside the union of the cavities is solid."
+    },
+    "center": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "radius": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    }
+   },
+   "required": [
+    "kind",
+    "center",
+    "radius"
+   ],
+   "additionalProperties": false
+  },
+  "cylinder": {
+   "type": "object",
+   "properties": {
+    "kind": {
+     "const": "cylinder"
+    },
+    "part": {
+     "type": "string",
+     "minLength": 1,
+     "description": "Name of the part the item belongs to (default \"body\"). Forces and surfaces are reported per part."
+    },
+    "role": {
+     "enum": [
+      "solid",
+      "cavity"
+     ],
+     "description": "solid (default), or cavity: fluid inside, and everything outside the union of the cavities is solid."
+    },
+    "from": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "to": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "center": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "halfLength": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "rotation": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 4,
+     "maxItems": 4
+    },
+    "radius": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    }
+   },
+   "required": [
+    "kind",
+    "radius"
+   ],
+   "additionalProperties": false
+  },
+  "capsule": {
+   "type": "object",
+   "properties": {
+    "kind": {
+     "const": "capsule"
+    },
+    "part": {
+     "type": "string",
+     "minLength": 1,
+     "description": "Name of the part the item belongs to (default \"body\"). Forces and surfaces are reported per part."
+    },
+    "role": {
+     "enum": [
+      "solid",
+      "cavity"
+     ],
+     "description": "solid (default), or cavity: fluid inside, and everything outside the union of the cavities is solid."
+    },
+    "from": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "to": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "center": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "halfLength": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "rotation": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 4,
+     "maxItems": 4
+    },
+    "radius": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    }
+   },
+   "required": [
+    "kind",
+    "radius"
+   ],
+   "additionalProperties": false
+  },
+  "cone": {
+   "type": "object",
+   "properties": {
+    "kind": {
+     "const": "cone"
+    },
+    "part": {
+     "type": "string",
+     "minLength": 1,
+     "description": "Name of the part the item belongs to (default \"body\"). Forces and surfaces are reported per part."
+    },
+    "role": {
+     "enum": [
+      "solid",
+      "cavity"
+     ],
+     "description": "solid (default), or cavity: fluid inside, and everything outside the union of the cavities is solid."
+    },
+    "from": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "to": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "center": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "halfLength": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "rotation": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 4,
+     "maxItems": 4
+    },
+    "radius": {
+     "type": "number",
+     "minimum": 0
+    },
+    "radiusTop": {
+     "type": "number",
+     "minimum": 0
+    }
+   },
+   "required": [
+    "kind",
+    "radius",
+    "radiusTop"
+   ],
+   "additionalProperties": false
+  },
+  "tube": {
+   "type": "object",
+   "properties": {
+    "kind": {
+     "const": "tube"
+    },
+    "part": {
+     "type": "string",
+     "minLength": 1,
+     "description": "Name of the part the item belongs to (default \"body\"). Forces and surfaces are reported per part."
+    },
+    "role": {
+     "enum": [
+      "solid",
+      "cavity"
+     ],
+     "description": "solid (default), or cavity: fluid inside, and everything outside the union of the cavities is solid."
+    },
+    "from": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "to": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "center": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "halfLength": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "rotation": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 4,
+     "maxItems": 4
+    },
+    "radius": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "innerRadius": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    }
+   },
+   "required": [
+    "kind",
+    "radius",
+    "innerRadius"
+   ],
+   "additionalProperties": false
+  },
+  "beam": {
+   "type": "object",
+   "properties": {
+    "kind": {
+     "const": "beam"
+    },
+    "part": {
+     "type": "string",
+     "minLength": 1,
+     "description": "Name of the part the item belongs to (default \"body\"). Forces and surfaces are reported per part."
+    },
+    "role": {
+     "enum": [
+      "solid",
+      "cavity"
+     ],
+     "description": "solid (default), or cavity: fluid inside, and everything outside the union of the cavities is solid."
+    },
+    "from": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "to": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "up": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "section": {
+     "enum": [
+      "rect",
+      "i"
+     ]
+    },
+    "width": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "depth": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "flange": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "web": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    }
+   },
+   "required": [
+    "kind",
+    "from",
+    "to",
+    "width",
+    "depth"
+   ],
+   "additionalProperties": false
+  },
+  "mesh": {
+   "type": "object",
+   "properties": {
+    "kind": {
+     "const": "mesh"
+    },
+    "part": {
+     "type": "string",
+     "minLength": 1,
+     "description": "Name of the part the item belongs to (default \"body\"). Forces and surfaces are reported per part."
+    },
+    "role": {
+     "enum": [
+      "solid",
+      "cavity"
+     ],
+     "description": "solid (default), or cavity: fluid inside, and everything outside the union of the cavities is solid."
+    },
+    "positions": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "description": "x, y, z per vertex, metres."
+    },
+    "indices": {
+     "type": "array",
+     "items": {
+      "type": "integer",
+      "minimum": 0
+     },
+     "description": "Three vertex indices per triangle. Without it every three vertices are a triangle."
+    },
+    "file": {
+     "type": "string",
+     "description": "A mesh file instead of positions (.stl, .obj or .json with positions and indices), relative to the study file. Resolved by the CLI, or by options.loadMesh."
+    },
+    "thickness": {
+     "type": "number",
+     "exclusiveMinimum": 0,
+     "description": "Thickness of an open surface (a panel), metres. Closed components ignore it."
+    },
+    "position": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "rotation": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 4,
+     "maxItems": 4
+    },
+    "scale": {
+     "oneOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      }
+     ]
+    }
+   },
+   "required": [
+    "kind"
+   ],
+   "additionalProperties": false
+  },
+  "shape": {
+   "oneOf": [
+    {
+     "type": "object",
+     "properties": {
+      "kind": {
+       "const": "disc"
+      },
+      "center": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "normal": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "radius": {
+       "type": "number",
+       "exclusiveMinimum": 0
+      }
+     },
+     "required": [
+      "kind",
+      "center",
+      "normal",
+      "radius"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "kind": {
+       "const": "rect"
+      },
+      "center": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "normal": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "up": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "halfWidth": {
+       "type": "number",
+       "exclusiveMinimum": 0
+      },
+      "halfHeight": {
+       "type": "number",
+       "exclusiveMinimum": 0
+      }
+     },
+     "required": [
+      "kind",
+      "center",
+      "normal",
+      "halfWidth",
+      "halfHeight"
+     ],
+     "additionalProperties": false
+    }
+   ],
+   "description": "An opening: a disc or a rectangle. The normal points into the fluid. The cells within 2.5 cells behind the plane and inside the shape become the opening."
+  }
+ },
+ "type": "object",
+ "properties": {
+  "format": {
+   "const": "box3d-flow-study/1"
+  },
+  "name": {
+   "type": "string"
+  },
+  "units": {
+   "const": "SI"
+  },
+  "geometry": {
+   "type": "array",
+   "items": {
+    "$ref": "#/$defs/item"
+   }
+  },
+  "fluid": {
+   "oneOf": [
+    {
+     "enum": [
+      "air",
+      "water"
+     ]
+    },
+    {
+     "type": "object",
+     "properties": {
+      "density": {
+       "type": "number",
+       "exclusiveMinimum": 0
+      },
+      "viscosity": {
+       "type": "number",
+       "exclusiveMinimum": 0,
+       "description": "Kinematic viscosity, m^2/s."
+      },
+      "dynamicViscosity": {
+       "type": "number",
+       "exclusiveMinimum": 0,
+       "description": "Pa s. Give this or viscosity."
+      }
+     },
+     "required": [
+      "density"
+     ],
+     "additionalProperties": false
+    }
+   ]
+  },
+  "mode": {
+   "enum": [
+    "external",
+    "internal"
+   ]
+  },
+  "external": {
+   "type": "object",
+   "properties": {
+    "speed": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "direction": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "up": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "ground": {
+     "oneOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "height": {
+         "type": "number"
+        },
+        "moving": {
+         "type": "boolean"
+        }
+       },
+       "required": [],
+       "additionalProperties": false
+      }
+     ]
+    },
+    "margins": {
+     "type": "object",
+     "properties": {
+      "upstream": {
+       "type": "number",
+       "minimum": 0
+      },
+      "downstream": {
+       "type": "number",
+       "minimum": 0
+      },
+      "side": {
+       "type": "number",
+       "minimum": 0
+      },
+      "top": {
+       "type": "number",
+       "minimum": 0
+      },
+      "bottom": {
+       "type": "number",
+       "minimum": 0
+      }
+     },
+     "required": [],
+     "additionalProperties": false
+    },
+    "referenceLength": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "referenceArea": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "momentCenter": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "domain": {
+     "type": "object",
+     "properties": {
+      "min": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "max": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      }
+     },
+     "required": [
+      "min",
+      "max"
+     ],
+     "additionalProperties": false
+    }
+   },
+   "required": [
+    "speed"
+   ],
+   "additionalProperties": false
+  },
+  "internal": {
+   "type": "object",
+   "properties": {
+    "inlets": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "name": {
+        "type": "string",
+        "minLength": 1
+       },
+       "shape": {
+        "$ref": "#/$defs/shape"
+       },
+       "flowRate": {
+        "type": "number"
+       },
+       "speed": {
+        "type": "number"
+       },
+       "velocity": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        },
+        "minItems": 3,
+        "maxItems": 3
+       },
+       "profile": {
+        "enum": [
+         "uniform",
+         "parabolic"
+        ]
+       }
+      },
+      "required": [
+       "name",
+       "shape"
+      ],
+      "additionalProperties": false
+     }
+    },
+    "outlets": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "name": {
+        "type": "string",
+        "minLength": 1
+       },
+       "shape": {
+        "$ref": "#/$defs/shape"
+       },
+       "pressure": {
+        "type": "number"
+       }
+      },
+      "required": [
+       "name",
+       "shape"
+      ],
+      "additionalProperties": false
+     }
+    },
+    "domain": {
+     "type": "object",
+     "properties": {
+      "min": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      },
+      "max": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 3,
+       "maxItems": 3
+      }
+     },
+     "required": [
+      "min",
+      "max"
+     ],
+     "additionalProperties": false
+    },
+    "padding": {
+     "type": "number",
+     "minimum": 0
+    },
+    "referenceLength": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "referenceSpeed": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "acceleration": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    },
+    "periodic": {
+     "type": "array",
+     "items": {
+      "enum": [
+       "x",
+       "y",
+       "z"
+      ]
+     }
+    },
+    "initialVelocity": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 3,
+     "maxItems": 3
+    }
+   },
+   "required": [],
+   "additionalProperties": false
+  },
+  "motion": {
+   "type": "object",
+   "additionalProperties": {
+    "type": "object",
+    "properties": {
+     "velocity": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+     },
+     "angularVelocity": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+     },
+     "center": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+     }
+    },
+    "required": [],
+    "additionalProperties": false
+   },
+   "description": "Surface velocity of parts, by part name. The solid does not move."
+  },
+  "actuators": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string",
+      "minLength": 1
+     },
+     "center": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+     },
+     "axis": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+     },
+     "radius": {
+      "type": "number",
+      "exclusiveMinimum": 0
+     },
+     "thickness": {
+      "type": "number",
+      "exclusiveMinimum": 0
+     },
+     "force": {
+      "type": "number"
+     },
+     "pressureJump": {
+      "type": "number"
+     }
+    },
+    "required": [
+     "name",
+     "center",
+     "axis",
+     "radius"
+    ],
+    "additionalProperties": false
+   }
+  },
+  "resolution": {
+   "type": "object",
+   "properties": {
+    "cells": {
+     "type": "number",
+     "minimum": 1000,
+     "maximum": 16777216
+    },
+    "cellSize": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "latticeSpeed": {
+     "type": "number",
+     "exclusiveMinimum": 0,
+     "maximum": 0.2
+    }
+   },
+   "required": [],
+   "additionalProperties": false
+  },
+  "model": {
+   "type": "object",
+   "properties": {
+    "turbulence": {
+     "enum": [
+      "auto",
+      "none",
+      "smagorinsky"
+     ]
+    },
+    "smagorinsky": {
+     "type": "number",
+     "exclusiveMinimum": 0,
+     "maximum": 0.5
+    },
+    "walls": {
+     "enum": [
+      "interpolated",
+      "halfway"
+     ]
+    },
+    "spongeCells": {
+     "type": "number",
+     "minimum": 0
+    }
+   },
+   "required": [],
+   "additionalProperties": false
+  },
+  "run": {
+   "type": "object",
+   "properties": {
+    "transits": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "startupTransits": {
+     "type": "number",
+     "minimum": 0
+    },
+    "windowTransits": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "tolerance": {
+     "type": "number",
+     "minimum": 0
+    },
+    "maxSteps": {
+     "type": "number",
+     "minimum": 1
+    },
+    "monitorEvery": {
+     "type": "number",
+     "minimum": 1
+    },
+    "sampleEvery": {
+     "type": "number",
+     "minimum": 1
+    }
+   },
+   "required": [],
+   "additionalProperties": false
+  },
+  "outputs": {
+   "type": "object",
+   "properties": {
+    "streamlines": {
+     "oneOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "object",
+       "properties": {
+        "seeds": {
+         "oneOf": [
+          {
+           "const": "auto"
+          },
+          {
+           "type": "array",
+           "items": {
+            "oneOf": [
+             {
+              "type": "object",
+              "properties": {
+               "kind": {
+                "const": "rake"
+               },
+               "from": {
+                "type": "array",
+                "items": {
+                 "type": "number"
+                },
+                "minItems": 3,
+                "maxItems": 3
+               },
+               "to": {
+                "type": "array",
+                "items": {
+                 "type": "number"
+                },
+                "minItems": 3,
+                "maxItems": 3
+               },
+               "count": {
+                "type": "number",
+                "minimum": 1
+               }
+              },
+              "required": [
+               "kind",
+               "from",
+               "to",
+               "count"
+              ],
+              "additionalProperties": false
+             },
+             {
+              "type": "object",
+              "properties": {
+               "kind": {
+                "const": "plane"
+               },
+               "origin": {
+                "type": "array",
+                "items": {
+                 "type": "number"
+                },
+                "minItems": 3,
+                "maxItems": 3
+               },
+               "u": {
+                "type": "array",
+                "items": {
+                 "type": "number"
+                },
+                "minItems": 3,
+                "maxItems": 3
+               },
+               "v": {
+                "type": "array",
+                "items": {
+                 "type": "number"
+                },
+                "minItems": 3,
+                "maxItems": 3
+               },
+               "nu": {
+                "type": "number",
+                "minimum": 1
+               },
+               "nv": {
+                "type": "number",
+                "minimum": 1
+               }
+              },
+              "required": [
+               "kind",
+               "origin",
+               "u",
+               "v",
+               "nu",
+               "nv"
+              ],
+              "additionalProperties": false
+             },
+             {
+              "type": "object",
+              "properties": {
+               "kind": {
+                "const": "points"
+               },
+               "points": {
+                "type": "array",
+                "items": {
+                 "type": "array",
+                 "items": {
+                  "type": "number"
+                 },
+                 "minItems": 3,
+                 "maxItems": 3
+                }
+               }
+              },
+              "required": [
+               "kind",
+               "points"
+              ],
+              "additionalProperties": false
+             }
+            ]
+           }
+          }
+         ]
+        },
+        "count": {
+         "type": "number",
+         "minimum": 1
+        },
+        "field": {
+         "enum": [
+          "mean",
+          "instant"
+         ]
+        },
+        "step": {
+         "type": "number",
+         "exclusiveMinimum": 0
+        },
+        "maxPoints": {
+         "type": "number",
+         "minimum": 2
+        },
+        "stride": {
+         "type": "number",
+         "minimum": 1
+        },
+        "direction": {
+         "enum": [
+          "forward",
+          "backward",
+          "both"
+         ]
+        }
+       },
+       "required": [],
+       "additionalProperties": false
+      }
+     ]
+    },
+    "slices": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "axis": {
+        "enum": [
+         "x",
+         "y",
+         "z"
+        ]
+       },
+       "position": {
+        "type": "number"
+       },
+       "fraction": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+       },
+       "field": {
+        "enum": [
+         "mean",
+         "instant"
+        ]
+       }
+      },
+      "required": [
+       "axis"
+      ],
+      "additionalProperties": false
+     }
+    },
+    "surface": {
+     "type": "boolean"
+    },
+    "lines": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "name": {
+        "type": "string"
+       },
+       "from": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        },
+        "minItems": 3,
+        "maxItems": 3
+       },
+       "to": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        },
+        "minItems": 3,
+        "maxItems": 3
+       },
+       "samples": {
+        "type": "number",
+        "minimum": 2
+       },
+       "along": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        },
+        "minItems": 3,
+        "maxItems": 3
+       }
+      },
+      "required": [
+       "from",
+       "to"
+      ],
+      "additionalProperties": false
+     }
+    },
+    "sections": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "name": {
+        "type": "string"
+       },
+       "axis": {
+        "enum": [
+         "x",
+         "y",
+         "z"
+        ]
+       },
+       "position": {
+        "type": "number"
+       },
+       "min": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        },
+        "minItems": 3,
+        "maxItems": 3
+       },
+       "max": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        },
+        "minItems": 3,
+        "maxItems": 3
+       }
+      },
+      "required": [
+       "axis",
+       "position"
+      ],
+      "additionalProperties": false
+     }
+    },
+    "history": {
+     "type": "boolean"
+    }
+   },
+   "required": [],
+   "additionalProperties": false
+  }
+ },
+ "required": [
+  "format",
+  "fluid",
+  "mode"
+ ],
+ "additionalProperties": false
+}

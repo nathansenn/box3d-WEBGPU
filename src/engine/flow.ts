@@ -68,6 +68,27 @@ export interface FlowPatch {
   /** Outlet: gauge pressure, Pa. Default 0. */
   readonly pressure?:number;
 }
+/** A wall velocity for a part of the geometry: the solid stays where it is (a "frozen" rotor, a belt, a rolling wheel)
+ * and its surface moves. */
+export interface FlowPartMotion {
+  /** m/s */
+  readonly velocity?:FlowVec3;
+  /** rad/s about `center` (m). */
+  readonly angularVelocity?:FlowVec3;readonly center?:FlowVec3;
+}
+/** An actuator disc: a momentum source spread over the fluid cells of a disc (a fan, a propeller, a turbine as drag). */
+export interface FlowActuator {
+  readonly name:string;
+  readonly center:FlowVec3;
+  /** The force on the fluid is along this direction. */
+  readonly axis:FlowVec3;
+  readonly radius:number;
+  /** Thickness of the disc, m. Default (and at least) two cells. */
+  readonly thickness?:number;
+  /** Force on the fluid, N; or the pressure rise across the disc, Pa (force = pressureJump pi radius^2). One of the two. */
+  readonly force?:number;readonly pressureJump?:number;
+}
+export interface FlowActuatorInfo {readonly name:string;readonly cells:number;readonly force:number;readonly axis:FlowVec3;readonly area:number}
 export interface FlowOptions {
   /** The box of fluid cells: origin (its minimum corner), cell size and counts. */
   readonly grid:FlowGrid;
@@ -76,6 +97,9 @@ export interface FlowOptions {
   /** Default 'wall' on every side. */
   readonly sides?:Partial<Record<FlowSideName,FlowSide>>;
   readonly patches?:readonly FlowPatch[];
+  /** Surface velocities of parts, by part name. */
+  readonly motion?:Readonly<Record<string,FlowPartMotion>>;
+  readonly actuators?:readonly FlowActuator[];
   /** The speed that is `latticeSpeed` cells per step: the largest speed imposed. Sets the time step. */
   readonly referenceSpeed:number;
   /** Default 0.06 (a lattice Mach number of 0.10). */
@@ -122,7 +146,7 @@ export interface FlowField {
 const fail=(message:string):never=>{throw new EngineError('INVALID_ARGUMENT',`Flow: ${message}`);};
 const isVec=(v:unknown):v is FlowVec3=>Array.isArray(v)&&v.length===3&&v.every(x=>typeof x==='number'&&Number.isFinite(x));
 const vec=(v:unknown,name:string):FlowVec3=>isVec(v)?v:fail(`${name} must be three finite numbers.`);
-const FLOW_FIELDS:FieldOptions={label:'Flow',skip:['grid','lattice','fluid','dt','cell','latticeSpeed','referenceSpeed','turbulence','smagorinsky','cellReynolds','relaxationTime','parts','patches','voxels','warnings','surfaces','items','solidCells','fluidCells','enclosedCells','forceScale','momentScale','flowScale','pressureScale','velocityScale','rampSteps','kinds','inletVelocity'],
+const FLOW_FIELDS:FieldOptions={label:'Flow',skip:['grid','lattice','fluid','dt','cell','latticeSpeed','referenceSpeed','turbulence','smagorinsky','cellReynolds','relaxationTime','parts','patches','voxels','warnings','surfaces','items','solidCells','fluidCells','enclosedCells','forceScale','momentScale','flowScale','pressureScale','velocityScale','rampSteps','kinds','inletVelocity','actuators','actuatorCells'],
   nested:{}};
 
 export class Flow {
@@ -137,6 +161,9 @@ export class Flow {
   /** Names of the parts that take force: the parts of the geometry, then the wall sides. */
   readonly parts:readonly string[];
   readonly patches:readonly FlowPatchInfo[];
+  readonly actuators:readonly FlowActuatorInfo[];
+  /** Cells of each actuator (indices into the lattice). */
+  readonly actuatorCells:readonly Int32Array[];
   readonly surfaces:readonly FlowSurface[];
   readonly items:readonly FlowItemReport[];
   readonly warnings:readonly string[];
@@ -194,7 +221,13 @@ export class Flow {
     const vox=flowVoxelize(options.geometry??[],this.grid,{band:options.band});
     warnings.push(...vox.warnings);
     this.surfaces=vox.surfaces;this.items=vox.items;
-    const parts=[...vox.parts],lparts:FlowLatticePart[]=parts.map(()=>({}));
+    const parts=[...vox.parts];
+    for(const name of Object.keys(options.motion??{}))if(!parts.includes(name))fail(`motion names the part "${name}", which the geometry does not have. Parts: ${parts.join(', ')||'none'}.`);
+    const lparts:FlowLatticePart[]=parts.map(name=>{
+      const mo=options.motion?.[name];if(!mo)return {};
+      const v=mo.velocity?vec(mo.velocity,`motion.${name}.velocity`):undefined,om=mo.angularVelocity?vec(mo.angularVelocity,`motion.${name}.angularVelocity`):undefined,ce=mo.center?vec(mo.center,`motion.${name}.center`):[0,0,0];
+      return {velocity:v?[v[0]/vScale,v[1]/vScale,v[2]/vScale]:undefined,angularVelocity:om?[om[0]*dt,om[1]*dt,om[2]*dt]:undefined,centre:[(ce[0]-origin[0])/h,(ce[1]-origin[1])/h,(ce[2]-origin[2])/h]};
+    });
     const lpatches:FlowLatticePatch[]=[],patchNames:string[]=[],patchKinds:('inlet'|'outlet')[]=[];
     const kind=new Uint8Array(cells),owner=new Int32Array(cells),distance=new Float32Array(cells);
     const hasGeometry=(options.geometry?.length??0)>0;
@@ -388,10 +421,35 @@ export class Flow {
         if(s>0)extra[c]=0.1*s*s; // up to tau = 0.8 at the side
       }
     }
+    // actuator discs
+    const actuators:FlowActuatorInfo[]=[],actuatorCells:Int32Array[]=[],fCells:number[]=[],fValues:number[]=[];
+    for(const act of options.actuators??[]){
+      if(!act||typeof act.name!=='string'||act.name.length===0)fail('an actuator needs a name.');
+      const ce=vec(act.center,`actuator "${act.name}": center`),ax=vec(act.axis,`actuator "${act.name}": axis`),al=Math.hypot(ax[0],ax[1],ax[2]);
+      if(!(al>0))fail(`actuator "${act.name}": axis must not be zero.`);
+      if(!(act.radius>0))fail(`actuator "${act.name}": radius must be positive.`);
+      if((act.force===undefined)===(act.pressureJump===undefined))fail(`actuator "${act.name}" needs exactly one of force and pressureJump.`);
+      const n:FlowVec3=[ax[0]/al,ax[1]/al,ax[2]/al],half=Math.max(act.thickness??0,2*h)/2,area=Math.PI*act.radius*act.radius,total=act.force!==undefined?act.force:act.pressureJump!*area;
+      if(!Number.isFinite(total))fail(`actuator "${act.name}": force or pressureJump must be finite.`);
+      const list:number[]=[];
+      for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
+        if(kind[c]!==FLOW_FLUID)continue;
+        const x=origin[0]+(i+0.5)*h-ce[0],y=origin[1]+(j+0.5)*h-ce[1],z=origin[2]+(k+0.5)*h-ce[2],sa=x*n[0]+y*n[1]+z*n[2];
+        if(Math.abs(sa)>half)continue;
+        const px=x-sa*n[0],py=y-sa*n[1],pz=z-sa*n[2];if(px*px+py*py+pz*pz>act.radius*act.radius)continue;
+        list.push(c);
+      }
+      if(list.length===0)fail(`actuator "${act.name}" holds no fluid cell.`);
+      const per=total/this.forceScale/list.length;
+      for(const c of list){fCells.push(c);fValues.push(per*n[0],per*n[1],per*n[2]);}
+      actuators.push({name:act.name,cells:list.length,force:total,axis:n,area});actuatorCells.push(Int32Array.from(list));
+    }
+    this.actuators=actuators;this.actuatorCells=actuatorCells;
     const acc=options.acceleration?vec(options.acceleration,'acceleration'):[0,0,0],u0=options.initialVelocity?vec(options.initialVelocity,'initialVelocity'):[0,0,0];
     const aScale=dt*dt/h;
     this.lattice=new FlowLattice({nx,ny,nz,periodic,kind,owner,distance,walls:options.walls??'interpolated',parts:lparts,patches:lpatches,viscosity:nuLat,
-      smagorinsky:this.turbulence==='smagorinsky'?this.smagorinsky:0,force:[acc[0]*aScale,acc[1]*aScale,acc[2]*aScale],initialVelocity:[u0[0]/vScale,u0[1]/vScale,u0[2]/vScale],extraViscosity:extra,cellVelocity});
+      smagorinsky:this.turbulence==='smagorinsky'?this.smagorinsky:0,force:[acc[0]*aScale,acc[1]*aScale,acc[2]*aScale],initialVelocity:[u0[0]/vScale,u0[1]/vScale,u0[2]/vScale],extraViscosity:extra,cellVelocity,
+      forceCells:fCells.length?Int32Array.from(fCells):undefined,forceValues:fCells.length?Float64Array.from(fValues):undefined});
     this.kinds=kind;this.voxels={distance:vox.distance};
     this.solidCells=cells-this.lattice.fluidCells;this.fluidCells=this.lattice.fluidCells;
     this.rampSteps=Math.max(0,Math.floor(options.rampSteps??0));
