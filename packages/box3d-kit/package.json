@@ -146,7 +146,7 @@
   },
   "scripts": {
     "sync": "node scripts/sync-core.mjs",
-    "build": "node scripts/sync-core.mjs && rm -rf dist && tsc -p tsconfig.json && node scripts/build-single.mjs",
+    "build": "node scripts/sync-core.mjs && rm -rf dist && tsc -p tsconfig.json && node scripts/bundle-rigid.mjs && node scripts/build-single.mjs",
     "test": "npm run build && node --test test/*.test.mjs",
     "test:gate": "npm run build && node scripts/test-gate.mjs",
     "clean": "node --input-type=module -e \"import {rmSync} from 'node:fs'; for (const path of ['dist', 'src/core', 'wasm', 'test/.generated', 'LICENSE', 'THIRD_PARTY_NOTICES.md']) rmSync(path, {recursive: true, force: true});\"",
