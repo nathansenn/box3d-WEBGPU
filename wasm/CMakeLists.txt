@@ -92,7 +92,7 @@ if(BOX3D_DISABLE_SIMD)
   set_source_files_properties(box3d_snapshot.c PROPERTIES COMPILE_DEFINITIONS "BOX3D_DISABLE_SIMD")
 endif()
 target_compile_options(box3d_web PRIVATE -O3 -flto)
-# The bridge validates, converts and forwards; the time of a step is spent inside Box3D. -Oz here took 29 KiB off the
+# The bridge validates, converts and forwards; the time of a step is spent inside Box3D. -Oz here took 28 KiB off the
 # artifact and changed no step time beyond the noise (docs/WASM_SIZE.md). box3d_threads.c, the task scheduler of the
 # pthread artifact, keeps -O3.
 set_property(SOURCE box3d_web.c box3d_snapshot.c APPEND PROPERTY COMPILE_OPTIONS "-Oz")

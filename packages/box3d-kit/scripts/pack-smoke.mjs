@@ -80,7 +80,7 @@ const BUDGET = {
   // Raised 2026-11-22: scene 454 -> 460 and simulation 453 -> 459 KiB when the contact line search and the strip
   // ordering joined the mortar contact and the GPU scene sections (scene measured 454.05 KiB = 464,948 bytes).
   // Lowered 2026-11-23: main 85 -> 65, worker 92 -> 72 and gameplay 95 -> 87 KiB when the modules of the main entry became
-  // one file without comments (scripts/bundle-rigid.mjs; measured 55.9, 62.5 and 74.9 KiB, from 76.7, 82.8 and 85.2).
+  // one file without comments (scripts/bundle-rigid.mjs; measured 56.3, 62.8 and 75.2 KiB, from 76.7, 82.8 and 85.2).
   entry: {
     '.': 65 * KiB, './three': 3 * KiB, './babylon': 2 * KiB, './worker': 72 * KiB, './gameplay': 87 * KiB,
     './cable': 28 * KiB, './water': 4 * KiB, './coupling': 29 * KiB, './frame': 27 * KiB, './structure': 32 * KiB, './heat': 28 * KiB,

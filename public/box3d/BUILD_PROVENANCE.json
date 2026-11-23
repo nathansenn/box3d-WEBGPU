@@ -154,10 +154,10 @@
     "simd": true,
     "pthreads": false,
     "memoryGrowth": true,
-    "cmakeSha256": "70bfb90c257412e941cc3b7cadbed288bb85d355cfcc09d8a5f09f8ead599c6a",
+    "cmakeSha256": "c698a6a7b8759a1c4dddc03a0f5ef9989942e4ef80222d436345e821f02bf0a1",
     "abortingMalloc": false,
     "coldFunctionsSha256": "2f8e60d47d9dc21fb7d9f76fbdf249c3e6c97ad881401f53df4ce5082c8fb467",
-    "noRecordingSha256": "84f5bc4e3dad3500d80f2be172fa16a5b022a0e719473e269593e7b87983413a",
+    "noRecordingSha256": "a44beac67f06fe693698ce714e5473e766b52ff2368a1ab92079fff9d8797e32",
     "size": {
       "recordingHooks": "compiled out (wasm/box3d_no_recording.h)",
       "sizeOptimizedFunctions": 538,
@@ -173,7 +173,7 @@
     "sources": {
       "threadsSha256": "5785c8eb105440000ad2520149a6ebf6f6317dca3d4b5724011972861c57f2cb",
       "bridgeSha256": "03ef4ed120ca18c8463b32e654cd4ede3191302af5bbc7745b0e598b60ae96e9",
-      "cmakeSha256": "70bfb90c257412e941cc3b7cadbed288bb85d355cfcc09d8a5f09f8ead599c6a"
+      "cmakeSha256": "c698a6a7b8759a1c4dddc03a0f5ef9989942e4ef80222d436345e821f02bf0a1"
     },
     "artifacts": {
       "box3d-mt.js": {

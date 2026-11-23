@@ -2,7 +2,7 @@
 
 Rigid-body physics for games and interactive apps, built on [Box3D](https://github.com/erincatto/box3d) (Erin Catto) compiled to WebAssembly. One install gives you:
 
-- the prebuilt 450 KB WASM module (190 KB gzipped), with no build toolchain needed;
+- the prebuilt 574 KiB WASM module (246 KiB gzipped), with no build toolchain needed;
 - up to 16 isolated worlds per module;
 - a fixed-timestep game loop with render interpolation;
 - generation-checked body handles, plus user data to map them to your entities;
@@ -901,7 +901,7 @@ await loaded.simulation.pullAsync();                              // the GPU sta
 
 ### No build step
 
-`box3d-webgpu-kit/single` (`dist/single.js`) is the whole core plus the WASM in one ES module, 652 KiB raw or 265 KiB gzipped. Put it on any static host or CDN and `import {createWorld} from './single.js'`; there are no other files to resolve. It produces bit-identical results to the regular build. Prefer the regular entry when you have a bundler: it is smaller and the WASM is fetched and compiled in parallel.
+`box3d-webgpu-kit/single` (`dist/single.js`) is the whole core plus the WASM in one ES module, 917 KiB raw or 372 KiB gzipped. Put it on any static host or CDN and `import {createWorld} from './single.js'`; there are no other files to resolve. It produces bit-identical results to the regular build. Prefer the regular entry when you have a bundler: it is smaller and the WASM is fetched and compiled in parallel.
 
 ### Pose arrays for ECS engines
 
@@ -941,6 +941,16 @@ await createWorld({wasmBinary: await (await fetch(url)).arrayBuffer()});
 
 In the Vite dev server (not yet tested), add `optimizeDeps: {exclude: ['box3d-webgpu-kit']}` so pre-bundling does not move the module away from its `wasm/` folder.
 
+### Start-up time
+
+`import 'box3d-webgpu-kit'` loads five files: `dist/index.js`, `dist/rigid.js` (the loader, `PhysicsWorld`, the native bridge and the helpers in one module, without comments, one statement per line) and three small modules the solver entries share. In a fresh Node 22 process on a 4-vCPU container, importing takes about 8 to 10 ms, instantiating the WASM about 8 ms, building a small jointed assembly about 10 ms and the first step about 7 ms: 35 ms to the first step (median of 31 processes; the repository's `docs/WASM_SIZE.md` has the table and what each part is). Most of the import is V8 parsing the JavaScript. A Node application that starts often can keep the compiled code between processes, which brings the import to about 4 ms:
+
+```js
+import module from 'node:module';
+module.enableCompileCache();              // Node 22.1 or later; or set NODE_COMPILE_CACHE=<dir>. Before the kit is imported.
+const {createWorld} = await import('box3d-webgpu-kit');
+```
+
 ## Errors and unstable set-ups
 
 Everything the kit refuses, it refuses with an `EngineError`: a `code` from `ENGINE_ERRORS`, a message that names the field, the value it got and the values it takes, and the world left exactly as it was.
@@ -976,6 +986,7 @@ RIGID_LIMITS.extent;     // 100000: positions stay within 100 km of the origin
 - **Network snapshots carry transforms only**, as before; they do not describe shapes or joints.
 - **No contact-end for destroyed bodies.** Box3D reports no `contact-end` for what a destroyed body was touching; treat `destroyBody()` as the signal.
 - **Saves.** `world.checkpoint()` and `simulation.checkpoint()` save the complete solver state and resume bit for bit, on the same WASM build only. `saveSession` stores a replay log and `loadSession` replays it. `saveScene` (`box3d-webgpu-kit/scene`) stores how to build the scene plus each body's pose and velocity; it resumes from that state but not bit for bit.
+- **Exactly planar or symmetric mechanisms can step slowly on x86.** Quantities that should be zero but are rounding noise can become subnormal floats, on which x86 processors are much slower; WebAssembly has no flush-to-zero mode and Box3D does not clamp them. A jointed crane that moves in one plane stepped in 45 to 300 microseconds instead of 17 (`scripts/bench-subnormal.mjs`; ND-7 in the repository's `docs/RIGID_CORE.md`). The results are correct; only the step time is affected.
 - **Single-threaded.** Each world steps synchronously on its thread. Use `box3d-webgpu-kit/worker` to move that thread off the renderer.
 - **Interpolation pauses for one step after a destroy, a reset or `setTransform`**, because rows move or jump. New bodies interpolate normally.
 - Default capacity is 4,096 bodies per world; `createWorld({capacity})` raises it up to 65,536. The bridge buffers take 136 bytes per body slot.
@@ -1020,7 +1031,8 @@ The package source of truth stays in the app. `npm run build` does the following
 - copies `src/engine/native-world.ts` and `contracts.ts` into `src/core/` (generated, git-ignored) and rewires two app-only type imports;
 - copies `public/box3d/*` into `wasm/`;
 - refuses to continue if the WASM or glue bytes differ from `BUILD_PROVENANCE.json`;
-- generates `BUILD_INFO`, then compiles.
+- generates `BUILD_INFO`, then compiles;
+- packs the modules that the main entry loads into `dist/rigid.js` (`scripts/bundle-rigid.mjs`); each of them keeps its file as a list of re-exports, so every entry point shares one module state.
 
 `src/backend-types.ts` is a hand-kept mirror of the app's `PhysicsBackend` type and is not covered by the drift test.
 

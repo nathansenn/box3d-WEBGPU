@@ -3,7 +3,7 @@
 // Box3D can record every API call of a world for its replay viewer: each public function ends in
 // B3_REC(world, Op, args...) or B3_REC_CREATE(...), which writes a record when world->recording is set. This bridge never
 // starts a recording (b3World_StartRecording is neither called nor exported), so that branch is never taken; it still
-// costs about 62 KiB of WebAssembly (measured 2026-11-23: 649,196 -> 587,329 bytes), the record writers and the argument
+// costs about 60 KiB of WebAssembly (measured 2026-11-23: 649,196 -> 587,365 bytes), the record writers and the argument
 // marshalling at every call site. The two macros are replaced by nothing here, which removes those writers at link time.
 //
 // What stays: the recording buffer and geometry registry that wasm/box3d_snapshot.c uses for exact checkpoints

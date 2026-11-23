@@ -5,7 +5,8 @@
 // After this step the main entry loads dist/index.js (a list of re-exports), dist/rigid.js and the three modules below
 // that other entries share. Every module that went into rigid.js keeps its file, now a list of re-exports of rigid.js, so
 // `box3d-webgpu-kit/gameplay`, a deep import and the main entry all get the same PhysicsWorld, the same EngineError and the
-// same module state. Only whitespace and comments are removed: names, and so stack traces and `constructor.name`, stay.
+// same module state. Only comments and indentation are removed (one statement per line): names, and so stack traces
+// and `constructor.name`, stay.
 //
 // Run by `npm run build` after tsc and before build-single.mjs. The .d.ts files are tsc's and are not touched.
 import {readFileSync, readdirSync, writeFileSync, mkdirSync} from 'node:fs';
@@ -17,6 +18,7 @@ const pkg = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = join(pkg, 'dist');
 const require = createRequire(join(pkg, '../../package.json'));
 const {rolldown} = require('rolldown');
+const {parseAst} = require('rolldown/parseAst');
 
 /** The file the bundled modules become. Not an entry of package.json: nothing imports it by name. */
 const CHUNK = 'rigid.js';
@@ -90,9 +92,38 @@ if (stray.length) throw new Error(`bundle-rigid: unexpected assets ${stray.join(
 const expected = [...bundled, CHUNK].sort().join(' '), written = chunks.map(chunk => posix(chunk.fileName)).sort().join(' ');
 if (expected !== written) throw new Error(`bundle-rigid: expected ${expected}\n  got ${written}`);
 
+/**
+ * A line break before every statement of a block and every member of a class. The generated code is one line; Node prints
+ * the whole line of an uncaught error's origin, and a stack trace is easier to read with one statement per line. The breaks
+ * go only between syntax nodes, and the result must parse to the same tree.
+ */
+function breakLines(code) {
+  const shape = text => JSON.stringify(parseAst(text, {sourceType: 'module'}), (key, value) => (key === 'start' || key === 'end' ? undefined : typeof value === 'bigint' ? `${value}n` : value));
+  const cuts = new Set();
+  const visit = node => {
+    if (node.type === 'Program' || node.type === 'BlockStatement' || node.type === 'StaticBlock' || node.type === 'ClassBody') for (const child of node.body) cuts.add(child.start);
+    for (const key of Object.keys(node)) {
+      const value = node[key];
+      if (Array.isArray(value)) { for (const item of value) if (item && typeof item.type === 'string') visit(item); }
+      else if (value && typeof value.type === 'string') visit(value);
+    }
+  };
+  visit(parseAst(code, {sourceType: 'module'}));
+  let out = '', last = 0;
+  for (const at of [...cuts].sort((a, b) => a - b)) {
+    if (at === 0 || code[at - 1] === '\n') continue;
+    out += `${code.slice(last, at)}\n`;
+    last = at;
+  }
+  out += code.slice(last);
+  if (shape(out) !== shape(code)) throw new Error('bundle-rigid: the line breaks changed the syntax tree');
+  return out;
+}
+
 for (const chunk of chunks) {
   let code = chunk.code;
   if (posix(chunk.fileName) === CHUNK) {
+    code = breakLines(code);
     // Bundlers find `new URL('<literal>', import.meta.url)` to copy and hash the WebAssembly; keep the plain string literal.
     code = code.replace(/new URL\(`([^`$\\]+)`,\s*import\.meta\.url\)/g, 'new URL("$1",import.meta.url)');
     // The two dynamic imports take a variable on purpose; without the comment Vite warns that it cannot analyse them.

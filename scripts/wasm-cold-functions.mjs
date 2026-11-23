@@ -13,7 +13,7 @@
 //
 // The call graph is read from the text: a function or macro "calls" every function or macro whose name appears in its
 // body, which also covers functions passed as callbacks. That can only make the hot set larger than it is, never smaller.
-// recording.c is left out: its writers grow when compiled for size (measured 2026-11-23, +47 KiB).
+// recording.c is left out: its writers grow when compiled for size (measured 2026-11-23, +46 KiB).
 import {readFileSync, readdirSync, writeFileSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';

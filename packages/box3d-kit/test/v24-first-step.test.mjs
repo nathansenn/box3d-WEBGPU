@@ -28,7 +28,7 @@ const BUDGET = {
   totalMs: 64,
   /** Modules the main entry loads: index.js, rigid.js and the three shared ones (scripts/bundle-rigid.mjs). It was 18. */
   files: 5,
-  /** Bytes of those modules. Measured 208,034; it was 302,742. */
+  /** Bytes of those modules. Measured 210,693; it was 302,742. */
   bytes: 230_000,
 };
 const PROCESSES = 21;
