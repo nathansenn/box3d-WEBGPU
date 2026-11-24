@@ -403,7 +403,7 @@ exports `FLOW_SOURCE_COMMIT`. Copy it with its sha256 sum.
 pressure, the surfaces of the parts (plain, or coloured by the pressure coefficient) and the slices as coloured planes
 with the solid left out; `flowLegend(context2d, {min, max, title, unit, colormap})` draws the colour scale on a canvas;
 `flowColormap(name)` gives the colour maps (`rainbow`, `turbo`, `viridis`, `coolwarm`). `flow-demo.html` (built with the
-site) shows four studies; [Validation](#validation) lists the screenshots.
+site) shows four studies, run in a worker in the page (`?study=car|cylinder|manifold|tank`); `?result=<url>` draws a result document computed elsewhere instead.
 
 ## On the GPU
 
