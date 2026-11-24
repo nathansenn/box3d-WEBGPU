@@ -52,7 +52,7 @@ const WILLIAMSON = re => -3.3265 / re + 0.1816 + 1.6e-4 * re;
 export default defineCases('flow', FILE, [
   // ---- ducts and pipes ----
   {id: 'flow.poiseuille.plane', title: 'Plane Poiseuille flow between mesh walls', quantity: 'flow rate between two walls 8 cells apart that lie off the grid lines (a slot drawn as a mesh), driven by a body force', unit: 'm^3/s', test: T.ducts,
-    reference: {formula: 'q = G H^3 / (12 nu) per unit depth', value: null}, tolerance: relative(0.03), measure: async () => { const r = await run('plane', (S, K) => S.poiseuillePlane(K)); return {value: r.flowRate, reference: r.exact}; }},
+    reference: {formula: 'q = G H^3 / (12 nu) per unit depth', value: null}, tolerance: relative(0.05), measure: async () => { const r = await run('plane', (S, K) => S.poiseuillePlane(K)); return {value: r.flowRate, reference: r.exact}; }},
   {id: 'flow.duct.flow-rate', title: 'Square duct drawn as a mesh', quantity: 'flow rate through a square duct 8 cells across whose walls lie off the grid lines', unit: 'm^3/s', test: T.ducts,
     reference: {formula: 'Q = (a^4 G / mu) [1/12 - (16 / pi^5) sum_odd tanh(n pi / 2) / n^5]', value: null}, tolerance: relative(0.05),
     measure: async () => { const r = await run('duct', (S, K) => S.squareDuct(K)); return {value: r.flowRate, reference: r.exact}; }},

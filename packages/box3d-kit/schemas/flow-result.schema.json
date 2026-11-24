@@ -805,6 +805,34 @@
       },
       "tolerance": {
        "type": "number"
+      },
+      "viscosityBoost": {
+       "anyOf": [
+        {
+         "type": "object",
+         "properties": {
+          "scale": {
+           "type": "number"
+          },
+          "fullUntil": {
+           "type": "integer"
+          },
+          "rampUntil": {
+           "type": "integer"
+          }
+         },
+         "required": [
+          "scale",
+          "fullUntil",
+          "rampUntil"
+         ],
+         "additionalProperties": false
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Laminar internal flows: the start-up viscosity factor, held to step fullUntil and lowered to 1 by rampUntil."
       }
      },
      "required": [
@@ -813,7 +841,8 @@
       "windowSteps",
       "monitorEvery",
       "sampleEvery",
-      "tolerance"
+      "tolerance",
+      "viscosityBoost"
      ],
      "additionalProperties": false
     }

@@ -1,5 +1,6 @@
 /**
- * WebGPU compute backends (`box3d-webgpu-kit/gpu`): the grains, the shallow water and the incompressible flow in
+ * WebGPU compute backends (`box3d-webgpu-kit/gpu`): the grains, the shallow water, the incompressible flow and the
+ * lattice-Boltzmann step of the flow around geometry (not run on a device yet: docs/GPU_COMPUTE.md) in
  * float32 on the GPU, each with a float32 CPU reference that runs the same program (the reference gives the bits
  * SwiftShader's GPU gives where docs/GPU_COMPUTE.md says "identical"), and the subsystems of scene sections that say
  * `"backend": "gpu"`.
@@ -28,5 +29,6 @@ export {ShallowWaterF32, SHALLOW_WATER_CHECKPOINT, type ShallowWaterF32Stats} fr
 export {GpuGranular, GranularRunner, GpuGranularCoupling, demMemory, GRANULAR_GPU_SOLVER_ID, type GranularRunnerOptions} from './core/gpu/granular-gpu.js';
 export {GranularF32, GRANULAR_CHECKPOINT, type DemOptions, type DemStats} from './core/gpu/granular-f32.js';
 export {GpuFluid, FluidRunner, fluidMemory, FLUID_GPU_SOLVER_ID} from './core/gpu/fluid-gpu.js';
+export {GpuFlowLattice, FlowLatticeF32, flowGpuSums, flowGpuSupport, flowGpuTables, FLOW_GPU_SOLVER_ID, FLOW_WGSL, type FlowGpuTables, type FlowGpuSums} from './core/gpu/flow-gpu.js';
 export {FluidF32, FLUID_F32_SOLVER_ID} from './core/gpu/fluid-f32.js';
 export {FLUID_MAX_OBSTACLES, FLUID_PROGRAM_CHECKPOINT, type FluidBackendOptions} from './core/gpu/fluid-program.js';

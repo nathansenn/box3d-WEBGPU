@@ -101,7 +101,7 @@ export const CORE = [
   // the solvers above resolve. They need the WebGPU types (GPUDevice, ...) at compile time: webgpu-minimal.d.ts below,
   // which is not emitted; a TypeScript consumer of ./gpu adds @webgpu/types.
   ...['compute', 'layout', 'wgsl', 'shallow-water-wgsl', 'shallow-water-f32', 'shallow-water-gpu', 'granular-wgsl', 'granular-f32', 'granular-gpu',
-    'fluid-kernels', 'fluid-program', 'fluid-f32', 'fluid-gpu', 'scene-backends'].map(name => ({from: `src/engine/gpu/${name}.ts`, to: `gpu/${name}.ts`, rewrites: []})),
+    'fluid-kernels', 'fluid-program', 'fluid-f32', 'fluid-gpu', 'flow-gpu', 'scene-backends'].map(name => ({from: `src/engine/gpu/${name}.ts`, to: `gpu/${name}.ts`, rewrites: []})),
   // The WebGPU declarations the app compiles with; ambient, compile-time only (a .d.ts in src is not copied to dist).
   {from: 'src/webgpu-minimal.d.ts', rewrites: []},
 ];

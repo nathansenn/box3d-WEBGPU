@@ -633,7 +633,9 @@ export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowS
       // the Strouhal length: the size of the body (inside the box) along the axis of the oscillating force
       const bb=ext.bodyBounds,gmax=[sg.origin[0]+sg.nx*sg.cell,sg.origin[1]+sg.ny*sg.cell,sg.origin[2]+sg.nz*sg.cell],axis=pick===fl?ext.up:ext.side;
       let across=0;for(let a=0;a<3;a++)across+=Math.abs(axis[a])*Math.max(0,Math.min(bb.max[a],gmax[a])-Math.max(bb.min[a],sg.origin[a]));
-      const shedding=pick&&pick.periods>=3&&pick.amplitude>0.01*Math.max(drag,1e-30)?{frequency:pick.frequency,strouhal:pick.frequency*across/ext.speed,length:across,periods:pick.periods,amplitude:pick.amplitude,axis:pick===fl?'lift':'side'}:null;
+      let shedding=pick&&pick.periods>=3&&pick.amplitude>0.01*Math.max(drag,1e-30)?{frequency:pick.frequency,strouhal:pick.frequency*across/ext.speed,length:across,periods:pick.periods,amplitude:pick.amplitude,axis:pick===fl?'lift':'side'}:null;
+      // vortex shedding has a Strouhal number of about 0.1 to 0.3; an oscillation far outside is not shedding (sound)
+      if(shedding&&!(shedding.strouhal>=0.05&&shedding.strouhal<=0.6)){notes.push(`the ${shedding.axis} force oscillates at ${shedding.frequency.toPrecision(3)} Hz, a Strouhal number of ${shedding.strouhal.toPrecision(3)} on ${shedding.length.toPrecision(3)} m: outside 0.05 to 0.6, so it is not reported as vortex shedding (it is likely sound in the tunnel).`);shedding=null;}
       const b=ext.bodyBounds,d=ext.direction,centre:[number,number,number]=[(b.min[0]+b.max[0])/2,(b.min[1]+b.max[1])/2,(b.min[2]+b.max[2])/2];
       const half=0.5*(Math.abs(d[0])*(b.max[0]-b.min[0])+Math.abs(d[1])*(b.max[1]-b.min[1])+Math.abs(d[2])*(b.max[2]-b.min[2]));
       const rear:[number,number,number]=[centre[0]+half*d[0],centre[1]+half*d[1],centre[2]+half*d[2]];

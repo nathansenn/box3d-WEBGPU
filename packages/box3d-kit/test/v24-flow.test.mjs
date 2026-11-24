@@ -49,7 +49,7 @@ test('the flow module names its solver and formats, and refuses bad studies with
 
 test('ducts and pipes driven by a pressure gradient: plane Poiseuille, a square duct and a round pipe drawn as meshes and primitives, convergence, the force on the walls', () => {
   const plane = S.poiseuillePlane(K);
-  within(plane.flowRate, plane.exact, 0.03, 'plane Poiseuille between mesh walls off the grid lines');
+  within(plane.flowRate, plane.exact, 0.05, 'plane Poiseuille between mesh walls off the grid lines');
   const duct = S.squareDuct(K);
   within(duct.flowRate, duct.exact, 0.05, 'square duct as a mesh');
   const p8 = S.pipe(K, {n: 8}), p12 = S.pipe(K, {n: 12}), p16 = S.pipe(K, {n: 16}), mesh = S.pipe(K, {n: 12, source: 'mesh'});

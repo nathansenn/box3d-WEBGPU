@@ -21,7 +21,7 @@ function prism(profile: readonly (readonly [number, number])[], z0: number, z1: 
 
 // a car-like body: a rounded-off side profile 4.2 m long, 1.8 m wide, on four wheels standing on the ground
 const carProfile: [number, number][] = [[0, 0.35], [0.05, 0.62], [0.35, 0.86], [1.25, 1.0], [1.85, 1.42], [3.05, 1.42], [3.85, 1.08], [4.2, 0.98], [4.2, 0.4], [4.05, 0.3], [0.2, 0.3]];
-const wheels = [0.85, 3.3].flatMap(x => [-0.72, 0.72].map(z => ({kind: 'cylinder', from: [x, 0.33, z - 0.12], to: [x, 0.33, z + 0.12], radius: 0.33, part: 'wheels'})));
+const wheels = [0.85, 3.3].flatMap(x => [-0.72, 0.72].map(z => ({kind: 'cylinder', from: [x, 0.34, z - 0.12], to: [x, 0.34, z + 0.12], radius: 0.33, part: 'wheels'})));
 
 // a manifold: a pipe from below turns into a header along x through a 90-degree bend; three risers leave upwards
 const bore = 0.05, bendPath: Vec3[] = [];
@@ -29,20 +29,20 @@ for (let i = 0; i <= 12; i++) { const a = Math.PI / 2 * i / 12; bendPath.push([-
 const feed: Vec3[] = [[-0.15, -0.6, 0], [-0.15, -0.15, 0]];
 
 export const DEMO_STUDIES: readonly DemoStudy[] = [
-  {id: 'car', title: 'Car-like body on a ground plane', caption: 'Air at 30 m/s around a 4.2 m body on its wheels, fixed ground. Streamlines from a rake ahead of the body, coloured by speed; the body by pressure coefficient.',
-    camera: {position: [-3.2, 3.2, 6.5], target: [2.6, 0.6, 0]}, surface: 'cp',
+  {id: 'car', title: 'Car-like body on a ground plane', caption: 'Air at 30 m/s around a 4.2 m body on its wheels over a moving ground (a rolling road). Streamlines from a rake ahead of the body, coloured by speed; the body by pressure coefficient.',
+    camera: {position: [-1.6, 3.4, 4.7], target: [2.3, 0.5, 0]}, surface: 'cp',
     study: {format: 'box3d-flow-study/1', name: 'car-like body', fluid: 'air', mode: 'external',
       geometry: [{kind: 'mesh', ...prism(carProfile, -0.9, 0.9), part: 'body'}, ...wheels],
-      external: {speed: 30, direction: [1, 0, 0], ground: {height: 0, type: 'fixed'}, margins: {upstream: 1.2, downstream: 3, side: 1, top: 1.2}},
+      external: {speed: 30, direction: [1, 0, 0], ground: {height: 0, type: 'moving'}, margins: {upstream: 1.2, downstream: 3, side: 1, top: 1.2}},
       resolution: {cells: 220000}, run: {transits: 2.5, startupTransits: 1, windowTransits: 0.75},
-      outputs: {surface: true, slices: [{axis: 'z', position: 0.02}], streamlines: {seeds: [{kind: 'plane', origin: [-1.6, 0.12, -1.1], u: [0, 0, 2.2], v: [0, 1.55, 0], nu: 12, nv: 7}], maxPoints: 600}}}},
+      outputs: {surface: true, streamlines: {seeds: [{kind: 'plane', origin: [-1.6, 0.15, -0.7], u: [0, 0, 1.4], v: [0, 1.55, 0], nu: 7, nv: 7}], maxPoints: 600}}}},
   {id: 'cylinder', title: 'Cylinder wake, Re 100', caption: 'A cylinder 0.1 m across in a stream of 0.1 m/s (nu = 1e-4 m²/s): the vortex street of the instantaneous field, a slice coloured by speed and streamlines through it.',
-    camera: {position: [0.75, 0.25, 1.55], target: [0.75, 0, 0]},
+    camera: {position: [0.72, 0.35, 2.55], target: [0.72, 0, 0]},
     study: {format: 'box3d-flow-study/1', name: 'cylinder wake', fluid: {density: 1, viscosity: 1e-4}, mode: 'external',
-      geometry: [{kind: 'cylinder', from: [0, 0, -0.2], to: [0, 0, 0.2], radius: 0.05, part: 'cylinder'}],
-      external: {speed: 0.1, direction: [1, 0, 0], domain: {min: [-0.4, -0.35, -0.03], max: [1.9, 0.35, 0.03]}, referenceLength: 0.1},
-      resolution: {cells: 45000, latticeSpeed: 0.1}, run: {transits: 5, startupTransits: 3.5, windowTransits: 1, tolerance: 0},
-      outputs: {slices: [{axis: 'z', position: 0, field: 'instant'}], streamlines: {field: 'instant', seeds: [{kind: 'rake', from: [-0.35, -0.3, 0], to: [-0.35, 0.3, 0], count: 25}], maxPoints: 900}}}},
+      geometry: [{kind: 'cylinder', from: [0, 0, -0.05], to: [0, 0, 0.05], radius: 0.05, part: 'cylinder'}],
+      external: {speed: 0.1, direction: [1, 0, 0], domain: {min: [-0.4, -0.6, -0.03], max: [1.9, 0.6, 0.03]}, referenceLength: 0.1},
+      resolution: {cells: 70000, latticeSpeed: 0.1}, run: {transits: 5, startupTransits: 3.5, windowTransits: 1, tolerance: 0},
+      outputs: {surface: true, slices: [{axis: 'z', position: 0, field: 'instant'}], streamlines: {field: 'instant', seeds: [{kind: 'rake', from: [-0.35, -0.3, 0], to: [-0.35, 0.3, 0], count: 25}], maxPoints: 900}}}},
   {id: 'manifold', title: 'Pipe bend and manifold', caption: 'Water at 2 litres per second up a 100 mm pipe, through a 90-degree bend into a header with three risers at the same pressure; the flow splits unevenly.',
     camera: {position: [0.35, 0.55, 1.35], target: [0.35, 0.0, 0]}, surfaceOpacity: 0.22,
     study: {format: 'box3d-flow-study/1', name: 'manifold', fluid: 'water', mode: 'internal',

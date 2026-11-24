@@ -94,6 +94,10 @@ Lattice units below: cell 1, step 1, reference density 1. `src/engine/flow-latti
   exceeds 2000, and off otherwise; the rule is the same for every case, nothing is tuned per case. `'wale'` (Nicoud &
   Ducros 1999, `Cw = 0.5`, the velocity gradient by central differences of the last step) is available and not
   validated: on the cube case it gave erratic drag (0.45 to 1.37 in four runs), so `auto` does not use it.
+- **Collision variants.** `model.collision: 'trt'` (two relaxation times, magic product 3/16) keeps a bounce-back wall
+  on a curved boundary where it is at small viscosity, for laminar flow only. It diverged next to inlets, outlets and
+  no-slip walls at relaxation times of 0.501 to 0.51, so the default (`'auto'`) is the regularised collision; use
+  `'trt'` for closed or periodic laminar flows (a plane channel at relaxation time 0.501: -1.6% regularised, +0.8% TRT).
 - **Walls.** Interpolated bounce-back (Bouzidi, Firdaouss & Lallemand 2001) with the link fraction `q` taken from the
   signed distance to the geometry, so a wall sits where the geometry puts it, to second order, not on the staircase.
   What the interpolation would create or destroy in mass is taken from the rest population of the same cell, so walls
@@ -203,7 +207,7 @@ Unknown fields are errors (a typing mistake is not silently ignored).
 | `motion` | `{partName: {velocity?, angularVelocity?, center?}}` | surface velocity of a part, m/s and rad/s about `center`. The solid does not move (a frozen rotor, a belt) |
 | `actuators` | array of `{name, center, axis, radius, thickness?, force \| pressureJump}` | actuator discs: a momentum source over the fluid cells of a disc; `force` N on the fluid along `axis`, or `pressureJump` Pa |
 | `resolution` | `{cells?, cellSize?, latticeSpeed?}` | `cells`: budget of **fluid** cells, default 400,000. `cellSize` (m) is used when it fits the budget. `latticeSpeed`: reference speed in cells per step, default 0.06 |
-| `model` | `{turbulence?, smagorinsky?, wale?, wallFunction?, walls?, spongeCells?, thicken?}` | `turbulence`: `"auto"` (default), `"none"`, `"smagorinsky"`, `"wale"`; `wallFunction` default true; `walls`: `"interpolated"` (default) or `"halfway"`; `thicken` default true |
+| `model` | `{turbulence?, smagorinsky?, wale?, wallFunction?, walls?, collision?, spongeCells?, thicken?}` | `turbulence`: `"auto"` (default), `"none"`, `"smagorinsky"`, `"wale"`; `wallFunction` default true; `walls`: `"interpolated"` (default) or `"halfway"`; `collision`: `"auto"` (= regularised), `"regularized"`, `"trt"`; `thicken` default true |
 | `run` | object | run lengths, see below |
 | `outputs` | object | what to post-process, see below |
 
@@ -245,7 +249,7 @@ Two kinds of domain, both by the `role` of the items:
 | `domain` | bounds of the geometry | `{min, max}` |
 | `padding` | 0 | metres added around the bounds of the geometry |
 | `referenceSpeed` | the fastest opening (peak of a parabolic profile) or the total inflow over the smallest pressure outlet | m/s; sets the time step. Give it when the flow is faster somewhere inside (a nozzle, a valve seat) |
-| `referenceLength` | diameter of the circle with the area of the first inlet | m; for the Reynolds number |
+| `referenceLength` | diameter of the circle with the area of the first inlet | m; the Reynolds number is this times the mean speed of the first inlet over the viscosity |
 | `acceleration`, `periodic`, `initialVelocity` | | a duct driven by a body force (m/s²) with periodic axes (`["x"]`), instead of openings; `referenceSpeed` is then required |
 
 A **shape** is `{kind: "disc", center, normal, radius}` or `{kind: "rect", center, normal, up?, halfWidth, halfHeight}`.
@@ -272,6 +276,12 @@ reference speed (`setup.transitTime`).
 | `sampleEvery` | `monitorEvery` / 5 | steps between two samples of the time-averaged fields |
 
 All reported means (forces, flow rates, fields, streamlines of the mean field) are over the **last completed window**.
+
+A **laminar internal flow** (no sub-grid model) settles on the viscous time of its bore, `(D/2)² / (5.78 nu)`, which
+at a high Reynolds number is many transits: the windows would agree while the profile still creeps. When that time is
+longer than a transit, the run starts with the viscosity raised until it is one transit long (the developed profile does
+not depend on the viscosity), holds it for two transits, lowers it to the fluid's own over the third, runs a fourth with
+it and only then averages; the run is lengthened to fit two windows after that (`setup.controls.viscosityBoost`).
 
 ### `outputs`
 
@@ -300,7 +310,7 @@ absent when the output was not requested. Pressures are gauge (see the reference
 | `extremes` | `{pressureMax, pressureMin, speedMax, dynamicPressure}` of the averaged field over the fluid cells: `{value, cp?, at}`; `cp = pressure / dynamicPressure`, `dynamicPressure = rho U² / 2` of the reference speed |
 | `flow` | `{patches, inflow, outflow, massBalance, splits, pressureDrops, sections}`. `patches`: per opening `{name, kind, flowRate, area, meanSpeed, meanPressure, meanDynamicPressure, meanTotalPressure}`; `flowRate` m³/s **into** the box (negative at outlets), the mass that crossed its links; pressures are area means over the fluid cells touching the opening. `massBalance = (inflow - outflow) / inflow`. `splits`: per outlet its `fraction` of the outflow. `pressureDrops`: per inlet-outlet pair `{from, to, static, total}` Pa. `sections`: `{name, axis, position, area, flowRate, meanSpeed, maxSpeed, maxNormalSpeed, meanPressure, meanTotalPressure, momentumFactor}` (`flowRate` along +axis; peak over mean is `maxNormalSpeed / meanSpeed`) |
 | `actuators` | per disc `{name, cells, force, axis, area, pressureJump, meanSpeed, flowRate, power}` |
-| `wake` | external `{shedding, recirculationLength, recirculationFrom}`: `shedding` `null` or `{frequency, strouhal, length, periods, amplitude, axis}` from the cross-flow force history (`length` the body size across the flow); `recirculationLength` from the rear of the bounding box along its centre line to where the mean streamwise velocity turns positive, or `null`. Internal: `null` |
+| `wake` | external `{shedding, recirculationLength, recirculationFrom}`: `shedding` `null` or `{frequency, strouhal, length, periods, amplitude, axis}` from the cross-flow force history (`length` the size of the body inside the box along the oscillating force; an oscillation with a Strouhal number outside 0.05 to 0.6 is not reported as shedding, a warning says so); `recirculationLength` from the rear of the bounding box along its centre line to where the mean streamwise velocity turns positive, or `null`. Internal: `null` |
 | `streamlines` | `{field, speedRange, lines: [{seed, termination, points, speed, pressure}]}`: RK4 through the trilinear field; `points` x, y, z per vertex (m); `speed` (m/s) and `pressure` (Pa) per vertex; `termination` `"opening"` (entered an outlet, or an inlet when traced backwards), `"wall"`, `"outside"`, `"stagnation"`, `"length"` |
 | `slices` | `{axis, position, axes: [u, v], nu, nv, origin: [u0, v0], cell, speed, pressure, u, v, fluid}`: row-major `nu × nv` samples (index `i + nu j`) at `origin + cell (i + 1/2, j + 1/2)` along the in-plane axes (x → y, z; y → z, x; z → x, y); `fluid` is 1 in the fluid |
 | `surface` | per part `{part, positions, indices, pressure, cp, pressureMin, pressureMax, cpMin, cpMax}`: triangles (meshes as given, primitives tessellated at 1.5 cells), pressure read one cell out from the wall |
@@ -383,7 +393,7 @@ exports `FLOW_SOURCE_COMMIT`. Copy it with its sha256 sum.
 | External: inflow in any horizontal direction, ground at a height fixed / moving / slip, geometry below removed, margins in multiples of a reference length | yes | `external` |
 | Internal: round openings with outward normal and radius; inlet by flow rate or mean velocity, uniform or parabolic ("developed"); outlet by gauge pressure or flow rate | yes | `internal.inlets` / `outlets` (one outlet must be by pressure) |
 | Max surface Cp; mean pressure and flow per opening; peak velocity on a section; mass imbalance; streamlines with speed; axis-plane slices; surface pressure per part; convergence history; solver id, version and source commit | yes | `surface[].cpMax`, `extremes`; `flow.patches`; `flow.sections[].maxNormalSpeed`; `flow.massBalance`; `streamlines`; `slices`; `surface`; `convergence`; `solver` |
-| Laminar pipe flow (Hagen–Poiseuille at Re 1107), a sharp-edged building (Cd 1.0–1.7) | measured | [Validation](#validation) |
+| Laminar pipe flow (Hagen–Poiseuille within 10% at Re 1107), a sharp-edged building (Cd 1.0–1.7) | **building yes, pipe at Re 1107 no** | the building: Cd 1.107, largest Cp 1.163 at 8 cells across. The pipe: within 4.8% at Re 100, but 63% (12.6 cells) and 42% (17.9 cells) high at Re 1107 ([Validation](#validation) says why) |
 | Node-importable single-file bundle and the CLI | yes | `flow-bundle`, `box3d-flow` |
 
 ## Drawing results with three.js
@@ -397,17 +407,100 @@ site) shows four studies; [Validation](#validation) lists the screenshots.
 
 ## On the GPU
 
-See [`GPU_COMPUTE.md`](GPU_COMPUTE.md#flow).
+The step is one gather per fluid cell, the natural form of a compute pass: `src/engine/gpu/flow-gpu.ts` (kit:
+`box3d-webgpu-kit/gpu`) holds the WGSL shader, its float32 CPU reference `FlowLatticeF32` and the device backend
+`GpuFlowLattice`; the host sums forces and flow rates from the link fluxes the shader writes. It covers streaming,
+interpolated and half-way walls, inlets, outlets, slip sides, the regularised collision and the Smagorinsky model; not
+the wall function, WALE, the two-relaxation-time collision, absorbing inlets, sponges or actuator discs. **The shader
+compiles and encodes on Dawn, but it was not run on any device** (no GPU here): the float32 reference follows the
+float64 solver to 2.3e-6 of the reference speed over 200 steps of a turbulent tunnel, and its laminar pipe is 2.5% off
+Hagen-Poiseuille (float64: 1.8%). The study runner does not use the GPU. Details: [`GPU_COMPUTE.md`](GPU_COMPUTE.md#flow).
 
 ## Validation
 
-The cases are in the validation registry (`validation/domains/flow.mjs`, [`VALIDATION.md`](VALIDATION.md)) and asserted
-by `packages/box3d-kit/test/v24-flow.test.mjs`; their set-ups are in `packages/box3d-kit/test/flow-scenarios.mjs`.
+40 cases in the validation registry (`validation/domains/flow.mjs`, [`VALIDATION.md`](VALIDATION.md)), asserted with the
+same bands by `packages/box3d-kit/test/v24-flow.test.mjs`; the set-ups are in `packages/box3d-kit/test/flow-scenarios.mjs`.
+Every measured number below was produced by running the solver (`node scripts/validation-report.mjs --only flow`, all
+40 pass). Bands were chosen from the resolution of each case and are stated before the result; a case that misses its
+band is listed under "Measured, not in the registry" instead of having its band widened. Wall times are of single runs
+on a 4-core machine shared with two other jobs (load 8 to 11), so roughly twice what an idle machine takes.
+
+| Case | Reference | Measured | Error | Band | Resolution | Wall time |
+|---|---|---:|---:|---|---|---:|
+| Plane Poiseuille, walls off the grid lines (mesh) | `G H³ / (12 nu)` | 0.08047 m³/s | -3.43% | ±5% | 8 cells across | 1 s |
+| Square duct (mesh) | series solution | 0.8366 m³/s | -4.78% | ±5% | 8 cells across | 3 s |
+| Round pipe, cylinder | `pi R⁴ G / (8 mu)` | 0.3588 m³/s | -2.54% | ±3% | 12 cells across | 2 s |
+| Round pipe, swept mesh (48 sides) | same | 0.3574 m³/s | -2.93% | ±3% | 12 cells across | 3 s |
+| Round pipe, convergence order | 2 | 2.09 | +0.09 | ±0.6 | 8 and 16 cells | 6 s |
+| Round pipe, wall force / body force - 1 | 0 | -9.7e-10 | | ±1e-6 | 12 cells | |
+| Pipe through openings, Re 100: pressure drop over 2 D | `128 mu L Q / (pi D⁴)` = 0.64 Pa | 0.6709 Pa | +4.82% | ±5% | 12.6 cells across | 17 s |
+| Pipe through openings, Re 100: peak / mean speed | 2 | 2.0126 | +0.63% | ±3% | same | |
+| Pipe through openings, Re 100: mass balance | 0 | 7.1e-8 | | ±1e-4 | same | |
+| Cylinder Re 20: Cd | 2.091 (Wu & Shu; 2.11, 2.144 elsewhere) | 2.182 | +4.36% | ±8% | 8 cells, blockage 4.2% | 76 s |
+| Cylinder Re 20: recirculation length / D | 0.93 | 0.933 | +0.33% | ±8% | same | |
+| Cylinder Re 40: Cd | 1.539 (1.56, 1.589) | 1.640 | +6.54% | ±10% | same | 85 s |
+| Cylinder Re 40: recirculation length / D | 2.23 (2.20, 2.26) | 2.344 | +5.11% | ±10% | same | |
+| Cylinder Re 100: mean Cd | 1.334 (Ding et al. 1.325) | 1.472 | +10.3% | ±15% | 10 cells, blockage 6.3% | 104 s |
+| Cylinder Re 100: Strouhal number | Williamson (1988): 0.1643 | 0.1706 | +3.8% | ±8% | same | |
+| Cylinder Re 200: Strouhal number | 2D computations: 0.196 | 0.1992 | +1.66% | ±8% | same | about 100 s |
+| Sphere Re 100: Cd | Schiller-Naumann 1.092 | 1.265 | +15.8% | ±20% | 8 cells, blockage 3.1% | 131 s |
+| Cube face-on, Re 1e5: Cd | Hoerner 1.05 | 0.914 | -13.0% | ±15% | 8 cells, blockage 4% | 198 s |
+| Square plate, Re 1e5: Cd | Hoerner 1.17 | 1.039 | -11.2% | ±15% | 8 cells, plate grown to 1.44 cells | 181 s |
+| Building 12 x 30 x 20 m on fixed ground, study runner defaults: Cd | apex band 1.0 to 1.7 | 1.107 | in band | 1.35 ± 0.35 | 8.2 cells across, blockage 2.9% | 114 s |
+| Same: largest surface Cp | 1 | 1.163 | +0.163 | ±0.2 | same | |
+| Backward-facing step, Re 100: x_r / S | Armaly et al. (1983), read from the figure: 3.0 | 2.758 | -8.1% | ±12% | 16 cells over the inlet channel | 29 s |
+| Sudden expansion D2 = 2 D1, Re 5e4: pressure rise | Borda-Carnot 0.1875 rho U1² | 0.1995 | +6.39% | ±15% | 7.6 cells across D1, LES | 75 s |
+| Symmetric tee: split to one arm | 1/2 | 0.4821 | -0.018 | ±0.03 | about 8 cells across, LES | 21 s |
+| Symmetric tee: mass balance | 0 | 9.0e-5 | | ±1e-3 | same | |
+| Tank, three inlets and one outlet: mass balance | 0 | -2.0e-4 | | ±1e-3 | 10,300 fluid cells, LES | 11 s |
+| Tank: flow at the inlets against the flow given | 0 | 1.5e-4 | | ≤ 1e-3 | same | |
+| Stokes drag, 2.4 cells per radius | Hasimoto (1959) | -6.98% | | ±10% | 16³, Re 0.1 | |
+| Stokes: drag / body force on the fluid - 1 | 0 | -2.1e-7 | | ±1e-6 | same | |
+| Mass through openings and walls (200 steps) | 0 | -3.0e-15 | | ±1e-12 | tunnel with two bodies | 5 s |
+| Mass in a closed periodic box (300 steps) | 0 | 3.7e-18 | | ±1e-12 | 20³ | |
+| Repeatability; resume from a checkpoint | bit-identical | 0 and 0 runs differ | | 0 | turbulent tunnel | 7 s |
+| Mesh against primitive: sphere; box | 0 cells | 6 (of 1,572 solid); 0 | | ≤ 12; 0 | 24³ | 2 s |
+| Imperfect meshes: triangle soup, flipped triangles; a hole | 0 cells | 0; 0 | | 0 | 24³ | 2 s |
+| Thin walls 0.18 cells thick (five ways): boxes that leak | 0 | 0 | | 0 | 20³ | 1 s |
+| Streamline, uniform flow: off the line | 0 | 1.2e-6 cells | | ≤ 1e-4 | 32³ | |
+| Streamline, solid-body rotation: radial error over one turn | 0 | 1.2e-7 | | ≤ 1e-4 | 32³, steps of 0.5 cell | |
+
+The whole domain runs in about 17 minutes on that machine (10 CPU minutes).
+
+**Measured, not in the registry (misses):**
+
+| Case | Reference | Measured | Error | Resolution |
+|---|---|---:|---:|---|
+| Pipe through openings, **Re 1107** (the apex gate): pressure drop | Hagen-Poiseuille | +63% (peak / mean 1.90) | +63% | 12.6 cells across, relaxation time 0.501 |
+| Same | | +42% (peak / mean 1.93) | +42% | 17.9 cells across, relaxation time 0.5015 |
+| Same with the two-relaxation-time collision | | diverged | | 12.6 cells |
+| Sphere, Re 1e4: Cd | about 0.40 (standard drag curve) | 0.728 | +82% | 8 cells, LES |
+| Cube on fixed ground, 8.5 cells, wall function next to edges allowed (an earlier curvature limit of 0.5) | about 1.0 to 1.2 | 0.81 | | the reason for the limit of 0.05 |
+
+Why the Re 1107 pipe misses: the lattice viscosity of a pipe 12 to 18 cells across at Re 1107 is so small (relaxation
+time 0.501) that the regularised collision, which relaxes the odd non-equilibrium moments at once, moves a bounce-back
+wall on a staircase boundary inward (a plane channel aligned with the grid is unaffected: -1.6% at the same relaxation
+time). The error falls slowly with the cell count (63% at 12.6 cells, 42% at 17.9); the two-relaxation-time collision
+that fixes the wall diverged next to the openings. **The apex gate (Hagen-Poiseuille within 10% at Re 1107) is not met
+at affordable resolution.** At Re 100 the same study is within 4.8%.
 
 ## Cost
 
-Measured on this machine (one thread, shared with other jobs); see the table under [Validation](#validation) for the
-wall time of each case.
+One JavaScript thread, float64. The cost is the number of fluid cells times the number of steps; a step costs about
+0.3 microseconds per fluid cell on this machine under load (2.2 to 3.8 million cell updates per second measured in the
+demo studies below; about twice that on an idle core). The step count is the run length in transits times the box
+length in cells over `latticeSpeed` (0.06 cells per step): a box 100 cells long takes 1,700 steps per transit.
+
+| Demo study (flow-demo.html, the same documents run by `runFlowStudy` on Node) | Box cells | Fluid cells | Steps | Wall time | Cell updates per second |
+|---|---:|---:|---:|---:|---:|
+| Car-like body on a moving ground, 30 m/s | 215,604 | 187,143 | 4,625 | 227 s | 3.8 M |
+| Cylinder wake, Re 100 | 71,100 | 45,452 | 7,400 | 100 s | 3.4 M |
+| Pipe bend and manifold, water | 383,616 | 46,472 | 16,000 | 343 s | 2.2 M |
+| Tank with three inlets and one outlet, water | 243,360 | 72,070 | 5,867 | 131 s | 3.2 M |
+
+Memory: about 420 bytes per fluid cell (two population arrays, the source table, the fields and their means) and 15 to
+45 bytes per cell of the box (kinds, distances, and the full fields when slices or streamlines are asked for). The box
+holds at most 2²⁵ = 33.5 million cells.
 
 ## Limits
 
