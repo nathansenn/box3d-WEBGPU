@@ -121,9 +121,17 @@ export interface FlowLatticeOptions {
   readonly viscosity:number;
   /** Smagorinsky constant; 0 switches the sub-grid model off. */
   readonly smagorinsky?:number;
+  /** WALE constant (Nicoud & Ducros 1999); 0 (default) switches that model off. With it the eddy viscosity is
+   * (Cw)^2 (Sd:Sd)^(3/2) / ((S:S)^(5/2) + (Sd:Sd)^(5/4)) from the velocity gradient of the last step (central
+   * differences, one-sided next to walls), which vanishes in pure shear and pure strain: no eddy viscosity at a
+   * stagnation point or next to a wall, where the Smagorinsky model makes far too much. */
+  readonly wale?:number;
   /** With the sub-grid model: walls slip and take the shear stress of a power-law wall function (see the header)
    * instead of the no-slip bounce-back. Default true. */
   readonly wallFunction?:boolean;
+  /** Per cell of the box: 1 where the wall function may be used (a cell next to a smooth wall), 0 where the wall is
+   * plain bounce-back (next to a sharp convex edge, where the geometry fixes the separation). Default: everywhere. */
+  readonly wallFunctionMask?:Uint8Array;
   /** Relaxation time of the trace of the stress (bulk viscosity). Default 1. */
   readonly bulkRelaxation?:number;
   /** Body force per unit mass, cells per step squared. */
@@ -146,14 +154,14 @@ export interface FlowLatticeOptions {
 
 const fail=(message:string):never=>{throw new EngineError('INVALID_ARGUMENT',`FlowLattice: ${message}`);};
 const LINK_WALL=0,LINK_PRESSURE=1,LINK_SLIP=2;
-const LATTICE_FIELDS:FieldOptions={label:'FlowLattice',skip:['nx','ny','nz','cells','periodic','kind','owner','walls','viscosity','smagorinsky','bulkRelaxation','extraViscosity','cellOf','activeOf','linkIndex','boundaryCell','source','linkStart','linkDir','linkKind','linkQ','linkAdd','linkOwner','linkAux','linkArm','linkAbsorb','absorbRate','wallDistance','wallVelocity','wallNormal','wallPart','wallFunction','inletCell','inletPatch','inletCount','inletOver','forceCells','forceValues','partCount','patchCount','fluidCells','partForce','partMoment','patchMass','scratch']};
+const LATTICE_FIELDS:FieldOptions={label:'FlowLattice',skip:['nx','ny','nz','cells','periodic','kind','owner','walls','viscosity','smagorinsky','wale','eddy','bulkRelaxation','extraViscosity','cellOf','activeOf','linkIndex','boundaryCell','source','linkStart','linkDir','linkKind','linkQ','linkAdd','linkOwner','linkAux','linkArm','linkAbsorb','absorbRate','wallDistance','wallVelocity','wallNormal','wallPart','wallFunction','inletCell','inletPatch','inletCount','inletOver','forceCells','forceValues','partCount','patchCount','fluidCells','partForce','partMoment','patchMass','scratch']};
 
 export class FlowLattice {
   readonly nx:number;readonly ny:number;readonly nz:number;readonly cells:number;
   readonly periodic:readonly [boolean,boolean,boolean];
   readonly kind:Uint8Array;readonly owner:Int16Array|Int32Array;
   readonly walls:'interpolated'|'halfway';
-  readonly viscosity:number;readonly smagorinsky:number;readonly bulkRelaxation:number;
+  readonly viscosity:number;readonly smagorinsky:number;readonly wale:number;readonly bulkRelaxation:number;
   readonly partCount:number;readonly patchCount:number;
   /** Number of fluid cells; the cell index of each; and the fluid number of each cell of the box (-1: not fluid). */
   readonly fluidCells:number;readonly cellOf:Int32Array;readonly activeOf:Int32Array;
@@ -190,6 +198,10 @@ export class FlowLattice {
   private readonly inletCell:Int32Array;private readonly inletPatch:Int32Array;private readonly inletCount:Float64Array;private readonly inletOver:Float64Array;
   private readonly forceCells:Int32Array|null;private readonly forceValues:Float64Array|null;
   private readonly scratch=new Float64Array(Q);
+  /** Eddy viscosity of the WALE model per fluid cell (lattice units), worked out at the start of each step. */
+  private eddy:Float64Array|null=null;
+  /** Eddy viscosity of the sub-grid model in the last step, lattice units, per fluid cell (WALE only; null otherwise). */
+  get eddyViscosity():Float64Array|null{return this.eddy;}
 
   constructor(options:FlowLatticeOptions){
     const {nx,ny,nz}=options;
@@ -202,7 +214,7 @@ export class FlowLattice {
     this.periodic=options.periodic??[false,false,false];
     this.kind=options.kind;this.owner=options.owner??new Int32Array(cells);
     this.walls=options.walls??'interpolated';
-    this.viscosity=options.viscosity;this.smagorinsky=options.smagorinsky??0;this.bulkRelaxation=options.bulkRelaxation??1;
+    this.viscosity=options.viscosity;this.smagorinsky=options.smagorinsky??0;this.wale=options.wale??0;if(!(this.wale>=0))fail('wale must not be negative.');this.bulkRelaxation=options.bulkRelaxation??1;
     if(!(this.smagorinsky>=0))fail('smagorinsky must not be negative.');
     if(!(this.bulkRelaxation>0.5))fail('bulkRelaxation must exceed 1/2.');
     if(options.extraViscosity&&options.extraViscosity.length!==cells)fail('extraViscosity must have one entry per cell.');
@@ -251,7 +263,8 @@ export class FlowLattice {
     const absorbSteps=options.absorbSteps??2*Math.sqrt(3)*Math.max(nx,ny,nz);
     if(!(absorbSteps>=0))fail('absorbSteps must not be negative.');
     this.absorbRate=absorbSteps>0?1/Math.max(1,absorbSteps):0;
-    const inCell:number[]=[],inPatch:number[]=[],profile=options.cellVelocity;
+    const inCell:number[]=[],inPatch:number[]=[],profile=options.cellVelocity,wfMask=options.wallFunctionMask??null;
+    if(wfMask&&wfMask.length!==cells)fail('wallFunctionMask must have one entry per cell.');
     const wallDistance=new Float32Array(boundaryCells),wallVelocity=new Float32Array(3*boundaryCells),wallNormal=new Float64Array(4*boundaryCells),wallPart=new Int32Array(boundaryCells);
     this.wallFunction=options.wallFunction!==false;this.wallDistance=wallDistance;this.wallVelocity=wallVelocity;this.wallNormal=wallNormal;this.wallPart=wallPart;
     let l=0;
@@ -317,7 +330,7 @@ export class FlowLattice {
       {
         // unit normal of the cell's walls and their area, 6 |N|; a cell squeezed between opposite walls has none
         const n0=wallNormal[4*b],n1=wallNormal[4*b+1],n2=wallNormal[4*b+2],nl=Math.sqrt(n0*n0+n1*n1+n2*n2);
-        if(nl>1e-9){wallNormal[4*b]=n0/nl;wallNormal[4*b+1]=n1/nl;wallNormal[4*b+2]=n2/nl;wallNormal[4*b+3]=6*nl;}
+        if(nl>1e-9&&(!wfMask||wfMask[c]!==0)){wallNormal[4*b]=n0/nl;wallNormal[4*b+1]=n1/nl;wallNormal[4*b+2]=n2/nl;wallNormal[4*b+3]=6*nl;}
         else{wallNormal[4*b]=0;wallNormal[4*b+1]=0;wallNormal[4*b+2]=0;wallNormal[4*b+3]=0;}
       }
       if(inletOf>=0){inCell.push(a);inPatch.push(inletOf);}
@@ -346,6 +359,21 @@ export class FlowLattice {
     }
   }
 
+  /** Per part, the force (3 numbers) and the moment about the origin of the cell coordinates (3 numbers) that a
+   * uniform lattice pressure of 1 exerts on its wall links: sum of 6 w_i c_i' over the links (and the arm times it).
+   * Zero for a closed body in the fluid; for a body standing on a wall, the pressure times its footprint. Used to refer
+   * forces to a static pressure other than the reference density's. */
+  wettedArea():{force:Float64Array;moment:Float64Array}{
+    const force=new Float64Array(3*this.partCount),moment=new Float64Array(3*this.partCount);
+    for(let l=0;l<this.linkDir.length;l++){
+      const own=this.linkOwner[l];if(own<0||this.linkKind[l]!==LINK_WALL)continue;
+      const d=this.linkDir[l],od=FLOW_OPPOSITE[d],w=6*FLOW_WEIGHT[d],px=w*FLOW_CX[od],py=w*FLOW_CY[od],pz=w*FLOW_CZ[od],rx=this.linkArm[3*l],ry=this.linkArm[3*l+1],rz=this.linkArm[3*l+2];
+      force[3*own]+=px;force[3*own+1]+=py;force[3*own+2]+=pz;
+      moment[3*own]+=ry*pz-rz*py;moment[3*own+1]+=rz*px-rx*pz;moment[3*own+2]+=rx*py-ry*px;
+    }
+    return {force,moment};
+  }
+
   /** Number of boundary links (wall, inlet, outlet and slip), for the cost report. */
   get linkCount():number{return this.linkDir.length;}
 
@@ -356,7 +384,7 @@ export class FlowLattice {
     const tau0=3*this.viscosity+0.5,cs=this.smagorinsky,les=cs>0,K=18*Math.SQRT2*cs*cs,ab=1-1/this.bulkRelaxation,extra=this.extraViscosity;
     const Fx=this.force[0],Fy=this.force[1],Fz=this.force[2],hx=0.5*Fx,hy=0.5*Fy,hz=0.5*Fz;
     const linkStart=this.linkStart,linkDir=this.linkDir,linkKind=this.linkKind,linkQ=this.linkQ,linkAdd=this.linkAdd,linkOwner=this.linkOwner,linkAux=this.linkAux,linkArm=this.linkArm,linkAbsorb=this.linkAbsorb,inletOver=this.inletOver,g=this.scratch,ramp=this.ramp;
-    const wallDistance=this.wallDistance,wallVelocity=this.wallVelocity,wallNormal=this.wallNormal,wallPart=this.wallPart,wallLaw=les&&this.wallFunction,nu0=this.viscosity,A7=1/(8.3*8.3*8.3*8.3*8.3*8.3*8.3);
+    const wallDistance=this.wallDistance,wallVelocity=this.wallVelocity,wallNormal=this.wallNormal,wallPart=this.wallPart,wallLaw=(les||this.wale>0)&&this.wallFunction,nu0=this.viscosity,A7=1/(8.3*8.3*8.3*8.3*8.3*8.3*8.3);
     const partForce=this.partForce,partMoment=this.partMoment,patchMass=this.patchMass;
     partForce.fill(0);partMoment.fill(0);patchMass.fill(0);let wallMass=0;
     if(this.absorbRate>0){
@@ -366,7 +394,37 @@ export class FlowLattice {
       for(let n=0;n<cellsOf.length;n++)inletOver[patchOf[n]]+=rho[cellsOf[n]];
       for(let p=0;p<inletOver.length;p++){if(count[p]>0){const over=inletOver[p]/count[p]-slow[p];inletOver[p]=over;slow[p]+=this.absorbRate*over;}}
     }
-    const W1=1/18,W2=1/36,W0=1/3;
+    const W1=1/18,W2=1/36,W0=1/3,wale=this.wale>0;
+    let eddy=this.eddy;
+    if(wale){
+      // velocity gradient of the last step by central differences (one-sided where a neighbour is not fluid)
+      eddy??=this.eddy=new Float64Array(fluid);
+      const cw2=this.wale*this.wale,g=new Float64Array(9);
+      for(let c=0;c<fluid;c++){
+        const o=c*Q;
+        for(let axis=0;axis<3;axis++){
+          // d = 1 + 2 axis pulls from x - e_axis, d + 1 from x + e_axis
+          const sm=src[o+1+2*axis],sp=src[o+2+2*axis],m=sm>=0?(sm-1-2*axis)/Q:-1,p=sp>=0?(sp-2-2*axis)/Q:-1;
+          let dx:number,dy:number,dz:number;
+          if(m>=0&&p>=0){dx=0.5*(UX[p]-UX[m]);dy=0.5*(UY[p]-UY[m]);dz=0.5*(UZ[p]-UZ[m]);}
+          else if(p>=0){dx=UX[p]-UX[c];dy=UY[p]-UY[c];dz=UZ[p]-UZ[c];}
+          else if(m>=0){dx=UX[c]-UX[m];dy=UY[c]-UY[m];dz=UZ[c]-UZ[m];}
+          else{dx=0;dy=0;dz=0;}
+          g[axis]=dx;g[3+axis]=dy;g[6+axis]=dz; // g[3 i + j] = d u_i / d x_j
+        }
+        const g00=g[0],g01=g[1],g02=g[2],g10=g[3],g11=g[4],g12=g[5],g20=g[6],g21=g[7],g22=g[8];
+        // g^2
+        const a00=g00*g00+g01*g10+g02*g20,a01=g00*g01+g01*g11+g02*g21,a02=g00*g02+g01*g12+g02*g22;
+        const a10=g10*g00+g11*g10+g12*g20,a11=g10*g01+g11*g11+g12*g21,a12=g10*g02+g11*g12+g12*g22;
+        const a20=g20*g00+g21*g10+g22*g20,a21=g20*g01+g21*g11+g22*g21,a22=g20*g02+g21*g12+g22*g22;
+        const t3=(a00+a11+a22)/3,s01=0.5*(a01+a10),s02=0.5*(a02+a20),s12=0.5*(a12+a21);
+        const sdsd=(a00-t3)*(a00-t3)+(a11-t3)*(a11-t3)+(a22-t3)*(a22-t3)+2*(s01*s01+s02*s02+s12*s12);
+        const e01=0.5*(g01+g10),e02=0.5*(g02+g20),e12=0.5*(g12+g21);
+        const ss=g00*g00+g11*g11+g22*g22+2*(e01*e01+e02*e02+e12*e12);
+        const den=ss*ss*Math.sqrt(ss)+sdsd*Math.sqrt(Math.sqrt(sdsd));
+        eddy[c]=den>0?cw2*sdsd*Math.sqrt(sdsd)/den:0;
+      }
+    }
     let wfx=0,wfy=0,wfz=0;
     for(let c=0;c<fluid;c++){
       const bi=linkIndex[c],o=c*Q;
@@ -380,10 +438,10 @@ export class FlowLattice {
         // mass the interpolation of the wall links creates in this cell; it is taken from the rest population
         let leak=0;
         // wall function: the velocity of the cell along its wall (the wall "slips" with it), and the shear it loses
-        let sx=0,sy=0,sz=0,slip=false;wfx=0;wfy=0;wfz=0;
+        let sx=0,sy=0,sz=0,slip=false,slipPart=-1;wfx=0;wfy=0;wfz=0;
         if(wallLaw&&wallNormal[4*bi+3]>0){
           const n0=wallNormal[4*bi],n1=wallNormal[4*bi+1],n2=wallNormal[4*bi+2],rx=UX[c]-wallVelocity[3*bi]*ramp,ry=UY[c]-wallVelocity[3*bi+1]*ramp,rz=UZ[c]-wallVelocity[3*bi+2]*ramp,un=rx*n0+ry*n1+rz*n2;
-          sx=rx-un*n0;sy=ry-un*n1;sz=rz-un*n2;slip=true;
+          sx=rx-un*n0;sy=ry-un*n1;sz=rz-un*n2;slip=true;slipPart=wallPart[bi];
           const u2=sx*sx+sy*sy+sz*sz;
           if(u2>0){
             const up=Math.sqrt(u2),y=wallDistance[bi],lam=nu0*up/y,pw=Math.sqrt(Math.sqrt(u2*u2*u2*up*nu0*A7/y)),tw=lam>pw?lam:pw;
@@ -402,7 +460,7 @@ export class FlowLattice {
             const q=linkQ[l],own=linkOwner[l],aux=linkAux[l];
             // the wall's own velocity (a moving ground, an inlet); with the wall function also the slip of the cell
             const legit=own<-1?linkAdd[l]*ramp-linkAbsorb[l]*inletOver[-2-own]:linkAdd[l]*ramp;
-            const add=slip&&own>=0?legit+6*w*(FLOW_CX[d]*sx+FLOW_CY[d]*sy+FLOW_CZ[d]*sz):legit;
+            const add=slip&&own===slipPart?legit+6*w*(FLOW_CX[d]*sx+FLOW_CY[d]*sy+FLOW_CZ[d]*sz):legit;
             if(q===0.5){v=out+add;leak+=add-legit;}
             else if(q<0.5){v=2*q*out+(1-2*q)*a[aux]+add;leak+=v-out-legit;}
             else{v=(out+(2*q-1)*a[o+d]+add)/(2*q);leak+=v-out-legit/(2*q);}
@@ -437,6 +495,7 @@ export class FlowLattice {
       const qxx=pxx-rux*ux-third,qyy=pyy-ruy*uy-third,qzz=pzz-ruz*uz-third,qxy=sxy-syx-rux*uy,qxz=sxz-szx-rux*uz,qyz=syz-szy-ruy*uz;
       const tr=(qxx+qyy+qzz)*W0,exx=qxx-tr,eyy=qyy-tr,ezz=qzz-tr;
       let tau=extra?tau0+3*extra[c]:tau0;
+      if(wale)tau+=3*eddy![c];
       if(les)tau=0.5*(tau+Math.sqrt(tau*tau+K*Math.sqrt(exx*exx+eyy*eyy+ezz*ezz+2*(qxy*qxy+qxz*qxz+qyz*qyz))*inv));
       const as=1-1/tau,bt=ab*tr;
       const txx=rux*ux+as*exx+bt,tyy=ruy*uy+as*eyy+bt,tzz=ruz*uz+as*ezz+bt,txy=rux*uy+as*qxy,txz=rux*uz+as*qxz,tyz=ruy*uz+as*qyz;

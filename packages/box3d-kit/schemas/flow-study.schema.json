@@ -2,7 +2,7 @@
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://nathansenn.github.io/box3d-WEBGPU/schemas/flow-study.schema.json",
  "title": "box3d-flow-study/1",
- "description": "A flow study for box3d-webgpu-kit/flow. SI units (m, s, kg, N, Pa). See docs/FLOW.md.",
+ "description": "A flow study for box3d-webgpu-kit/flow (runFlowStudy, the box3d-flow command). SI units: m, s, kg, N, Pa. Unknown fields are errors. See docs/FLOW.md.",
  "$defs": {
   "vec3": {
    "type": "array",
@@ -45,9 +45,12 @@
     },
     {
      "$ref": "#/$defs/mesh"
+    },
+    {
+     "$ref": "#/$defs/apex"
     }
    ],
-   "description": "A primitive or a triangle mesh."
+   "description": "A primitive or a triangle mesh. Metres, the frame of the study (any; +y up by default)."
   },
   "box": {
    "type": "object",
@@ -65,39 +68,36 @@
       "solid",
       "cavity"
      ],
-     "description": "solid (default), or cavity: fluid inside, and everything outside the union of the cavities is solid."
+     "description": "solid (default), or cavity: the inside is fluid, and everything outside the union of the cavities is solid (pipes drawn by their bore, tanks, tunnels)."
+    },
+    "id": {
+     "type": [
+      "string",
+      "number"
+     ],
+     "description": "Carried unchanged to setup.geometry.report (the element id in the model)."
     },
     "center": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3"
+    },
+    "size": {
+     "$ref": "#/$defs/vec3",
+     "description": "FULL extents along the local x, y, z, m."
     },
     "halfExtents": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3",
+     "description": "Half extents, m (instead of size)."
     },
     "rotation": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 4,
-     "maxItems": 4
+     "$ref": "#/$defs/quat"
     }
    },
    "required": [
     "kind",
-    "center",
-    "halfExtents"
+    "center"
    ],
-   "additionalProperties": false
+   "additionalProperties": false,
+   "description": "A box; exactly one of size and halfExtents."
   },
   "sphere": {
    "type": "object",
@@ -115,19 +115,22 @@
       "solid",
       "cavity"
      ],
-     "description": "solid (default), or cavity: fluid inside, and everything outside the union of the cavities is solid."
+     "description": "solid (default), or cavity: the inside is fluid, and everything outside the union of the cavities is solid (pipes drawn by their bore, tanks, tunnels)."
+    },
+    "id": {
+     "type": [
+      "string",
+      "number"
+     ],
+     "description": "Carried unchanged to setup.geometry.report (the element id in the model)."
     },
     "center": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3"
     },
     "radius": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "exclusiveMinimum": 0,
+     "description": "m"
     }
    },
    "required": [
@@ -153,54 +156,53 @@
       "solid",
       "cavity"
      ],
-     "description": "solid (default), or cavity: fluid inside, and everything outside the union of the cavities is solid."
+     "description": "solid (default), or cavity: the inside is fluid, and everything outside the union of the cavities is solid (pipes drawn by their bore, tanks, tunnels)."
+    },
+    "id": {
+     "type": [
+      "string",
+      "number"
+     ],
+     "description": "Carried unchanged to setup.geometry.report (the element id in the model)."
     },
     "from": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3",
+     "description": "One end of the axis, m (with to)."
     },
     "to": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3",
+     "description": "The other end of the axis, m (with from)."
     },
     "center": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3",
+     "description": "Centre, m (with length or halfLength and rotation): the axis is the local +y."
+    },
+    "length": {
+     "type": "number",
+     "exclusiveMinimum": 0,
+     "description": "FULL length along the local +y, m."
     },
     "halfLength": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "exclusiveMinimum": 0,
+     "description": "Half the length along the local +y, m."
     },
     "rotation": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 4,
-     "maxItems": 4
+     "$ref": "#/$defs/quat",
+     "description": "Local-to-world rotation, unit quaternion [x, y, z, w]. Default identity."
     },
     "radius": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "exclusiveMinimum": 0,
+     "description": "m"
     }
    },
    "required": [
     "kind",
     "radius"
    ],
-   "additionalProperties": false
+   "additionalProperties": false,
+   "description": "A flat-ended cylinder: from and to, or center with length (or halfLength) along the local +y."
   },
   "capsule": {
    "type": "object",
@@ -218,54 +220,53 @@
       "solid",
       "cavity"
      ],
-     "description": "solid (default), or cavity: fluid inside, and everything outside the union of the cavities is solid."
+     "description": "solid (default), or cavity: the inside is fluid, and everything outside the union of the cavities is solid (pipes drawn by their bore, tanks, tunnels)."
+    },
+    "id": {
+     "type": [
+      "string",
+      "number"
+     ],
+     "description": "Carried unchanged to setup.geometry.report (the element id in the model)."
     },
     "from": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3",
+     "description": "One end of the axis, m (with to)."
     },
     "to": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3",
+     "description": "The other end of the axis, m (with from)."
     },
     "center": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3",
+     "description": "Centre, m (with length or halfLength and rotation): the axis is the local +y."
+    },
+    "length": {
+     "type": "number",
+     "exclusiveMinimum": 0,
+     "description": "FULL length along the local +y, m."
     },
     "halfLength": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "exclusiveMinimum": 0,
+     "description": "Half the length along the local +y, m."
     },
     "rotation": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 4,
-     "maxItems": 4
+     "$ref": "#/$defs/quat",
+     "description": "Local-to-world rotation, unit quaternion [x, y, z, w]. Default identity."
     },
     "radius": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "exclusiveMinimum": 0,
+     "description": "m"
     }
    },
    "required": [
     "kind",
     "radius"
    ],
-   "additionalProperties": false
+   "additionalProperties": false,
+   "description": "A segment swept by a sphere: the length is the segment between the centres of the end spheres."
   },
   "cone": {
    "type": "object",
@@ -283,51 +284,50 @@
       "solid",
       "cavity"
      ],
-     "description": "solid (default), or cavity: fluid inside, and everything outside the union of the cavities is solid."
+     "description": "solid (default), or cavity: the inside is fluid, and everything outside the union of the cavities is solid (pipes drawn by their bore, tanks, tunnels)."
+    },
+    "id": {
+     "type": [
+      "string",
+      "number"
+     ],
+     "description": "Carried unchanged to setup.geometry.report (the element id in the model)."
     },
     "from": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3",
+     "description": "One end of the axis, m (with to)."
     },
     "to": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3",
+     "description": "The other end of the axis, m (with from)."
     },
     "center": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3",
+     "description": "Centre, m (with length or halfLength and rotation): the axis is the local +y."
+    },
+    "length": {
+     "type": "number",
+     "exclusiveMinimum": 0,
+     "description": "FULL length along the local +y, m."
     },
     "halfLength": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "exclusiveMinimum": 0,
+     "description": "Half the length along the local +y, m."
     },
     "rotation": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 4,
-     "maxItems": 4
+     "$ref": "#/$defs/quat",
+     "description": "Local-to-world rotation, unit quaternion [x, y, z, w]. Default identity."
     },
     "radius": {
      "type": "number",
-     "minimum": 0
+     "minimum": 0,
+     "description": "Radius at the -y end (from), m."
     },
     "radiusTop": {
      "type": "number",
-     "minimum": 0
+     "minimum": 0,
+     "description": "Radius at the +y end (to), m."
     }
    },
    "required": [
@@ -335,7 +335,8 @@
     "radius",
     "radiusTop"
    ],
-   "additionalProperties": false
+   "additionalProperties": false,
+   "description": "A frustum; one radius may be 0."
   },
   "tube": {
    "type": "object",
@@ -353,51 +354,50 @@
       "solid",
       "cavity"
      ],
-     "description": "solid (default), or cavity: fluid inside, and everything outside the union of the cavities is solid."
+     "description": "solid (default), or cavity: the inside is fluid, and everything outside the union of the cavities is solid (pipes drawn by their bore, tanks, tunnels)."
+    },
+    "id": {
+     "type": [
+      "string",
+      "number"
+     ],
+     "description": "Carried unchanged to setup.geometry.report (the element id in the model)."
     },
     "from": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3",
+     "description": "One end of the axis, m (with to)."
     },
     "to": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3",
+     "description": "The other end of the axis, m (with from)."
     },
     "center": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3",
+     "description": "Centre, m (with length or halfLength and rotation): the axis is the local +y."
+    },
+    "length": {
+     "type": "number",
+     "exclusiveMinimum": 0,
+     "description": "FULL length along the local +y, m."
     },
     "halfLength": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "exclusiveMinimum": 0,
+     "description": "Half the length along the local +y, m."
     },
     "rotation": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 4,
-     "maxItems": 4
+     "$ref": "#/$defs/quat",
+     "description": "Local-to-world rotation, unit quaternion [x, y, z, w]. Default identity."
     },
     "radius": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "exclusiveMinimum": 0,
+     "description": "Outer radius, m."
     },
     "innerRadius": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "exclusiveMinimum": 0,
+     "description": "Inner radius, m."
     }
    },
    "required": [
@@ -405,7 +405,8 @@
     "radius",
     "innerRadius"
    ],
-   "additionalProperties": false
+   "additionalProperties": false,
+   "description": "A pipe wall, open at both ends."
   },
   "beam": {
    "type": "object",
@@ -423,31 +424,24 @@
       "solid",
       "cavity"
      ],
-     "description": "solid (default), or cavity: fluid inside, and everything outside the union of the cavities is solid."
+     "description": "solid (default), or cavity: the inside is fluid, and everything outside the union of the cavities is solid (pipes drawn by their bore, tanks, tunnels)."
+    },
+    "id": {
+     "type": [
+      "string",
+      "number"
+     ],
+     "description": "Carried unchanged to setup.geometry.report (the element id in the model)."
     },
     "from": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3"
     },
     "to": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3"
     },
     "up": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3",
+     "description": "Direction of the depth. Default: the world axis least aligned with the member."
     },
     "section": {
      "enum": [
@@ -457,19 +451,23 @@
     },
     "width": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "exclusiveMinimum": 0,
+     "description": "Across, m."
     },
     "depth": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "exclusiveMinimum": 0,
+     "description": "Along up, m."
     },
     "flange": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "exclusiveMinimum": 0,
+     "description": "Flange thickness of an I section, m."
     },
     "web": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "exclusiveMinimum": 0,
+     "description": "Web thickness of an I section, m."
     }
    },
    "required": [
@@ -479,7 +477,8 @@
     "width",
     "depth"
    ],
-   "additionalProperties": false
+   "additionalProperties": false,
+   "description": "A straight member."
   },
   "mesh": {
    "type": "object",
@@ -497,14 +496,21 @@
       "solid",
       "cavity"
      ],
-     "description": "solid (default), or cavity: fluid inside, and everything outside the union of the cavities is solid."
+     "description": "solid (default), or cavity: the inside is fluid, and everything outside the union of the cavities is solid (pipes drawn by their bore, tanks, tunnels)."
+    },
+    "id": {
+     "type": [
+      "string",
+      "number"
+     ],
+     "description": "Carried unchanged to setup.geometry.report (the element id in the model)."
     },
     "positions": {
      "type": "array",
      "items": {
       "type": "number"
      },
-     "description": "x, y, z per vertex, metres."
+     "description": "x, y, z per vertex, m."
     },
     "indices": {
      "type": "array",
@@ -516,28 +522,19 @@
     },
     "file": {
      "type": "string",
-     "description": "A mesh file instead of positions (.stl, .obj or .json with positions and indices), relative to the study file. Resolved by the CLI, or by options.loadMesh."
+     "description": "A mesh file (.stl, .obj, or .json with positions and indices) resolved by the loadMesh option (the command line reads it relative to the study file). Instead of positions."
     },
     "thickness": {
      "type": "number",
-     "exclusiveMinimum": 0,
-     "description": "Thickness of an open surface (a panel), metres. Closed components ignore it."
+     "minimum": 0,
+     "description": "Thickness of an open surface, m (0: none given; it is a shell grown to the thinnest wall the lattice sees). A closed component ignores it. Without it an open component is filled by ray parity, with a warning."
     },
     "position": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3",
+     "description": "Translation applied after rotation and scale."
     },
     "rotation": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 4,
-     "maxItems": 4
+     "$ref": "#/$defs/quat"
     },
     "scale": {
      "oneOf": [
@@ -545,20 +542,100 @@
        "type": "number"
       },
       {
-       "type": "array",
-       "items": {
-        "type": "number"
-       },
-       "minItems": 3,
-       "maxItems": 3
+       "$ref": "#/$defs/vec3"
       }
-     ]
+     ],
+     "description": "Scale applied first."
+    },
+    "elements": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "element": {
+        "type": [
+         "string",
+         "number"
+        ]
+       },
+       "triStart": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "First triangle."
+       },
+       "triCount": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "Number of triangles."
+       },
+       "closed": {
+        "type": "boolean",
+        "description": "true: a closed solid; false: an open surface."
+       },
+       "thickness": {
+        "type": "number",
+        "minimum": 0,
+        "description": "Thickness of an open surface, m; 0 none."
+       }
+      },
+      "required": [
+       "triStart",
+       "triCount",
+       "closed"
+      ],
+      "additionalProperties": false
+     },
+     "description": "Runs of triangles from one model element (the layout of an apex-flow-geometry/1 mesh): each closed, or open with a thickness. Triangles in no run take the mesh thickness."
     }
    },
    "required": [
     "kind"
    ],
-   "additionalProperties": false
+   "additionalProperties": false,
+   "description": "Triangles. Give positions or file."
+  },
+  "apex": {
+   "type": "object",
+   "properties": {
+    "kind": {
+     "const": "apex"
+    },
+    "document": {
+     "type": "object",
+     "description": "An apex-flow-geometry/1 document (metres, +y up, quaternions xyzw)."
+    },
+    "file": {
+     "type": "string",
+     "description": "A JSON file holding one, read by the loadDocument option (the command line: relative to the study)."
+    },
+    "role": {
+     "enum": [
+      "solid",
+      "cavity"
+     ],
+     "description": "Of every item of the document. Default solid."
+    },
+    "partName": {
+     "enum": [
+      "id",
+      "name"
+     ],
+     "description": "Part names from the layer id (default) or name."
+    },
+    "parts": {
+     "type": "array",
+     "items": {
+      "type": "integer",
+      "minimum": 0
+     },
+     "description": "Part indices to keep. Default all."
+    }
+   },
+   "required": [
+    "kind"
+   ],
+   "additionalProperties": false,
+   "description": "The primitives and meshes of an apex-flow-geometry/1 document: boxes with FULL sizes, flat-ended cylinders and capsules along local +y with their full length, meshes with their per-element closed flags and thicknesses. Exactly one of document and file."
   },
   "shape": {
    "oneOf": [
@@ -569,24 +646,16 @@
        "const": "disc"
       },
       "center": {
-       "type": "array",
-       "items": {
-        "type": "number"
-       },
-       "minItems": 3,
-       "maxItems": 3
+       "$ref": "#/$defs/vec3"
       },
       "normal": {
-       "type": "array",
-       "items": {
-        "type": "number"
-       },
-       "minItems": 3,
-       "maxItems": 3
+       "$ref": "#/$defs/vec3",
+       "description": "OUTWARD normal of the fluid domain: out of the fluid through the opening."
       },
       "radius": {
        "type": "number",
-       "exclusiveMinimum": 0
+       "exclusiveMinimum": 0,
+       "description": "m"
       }
      },
      "required": [
@@ -604,36 +673,25 @@
        "const": "rect"
       },
       "center": {
-       "type": "array",
-       "items": {
-        "type": "number"
-       },
-       "minItems": 3,
-       "maxItems": 3
+       "$ref": "#/$defs/vec3"
       },
       "normal": {
-       "type": "array",
-       "items": {
-        "type": "number"
-       },
-       "minItems": 3,
-       "maxItems": 3
+       "$ref": "#/$defs/vec3",
+       "description": "OUTWARD normal of the fluid domain."
       },
       "up": {
-       "type": "array",
-       "items": {
-        "type": "number"
-       },
-       "minItems": 3,
-       "maxItems": 3
+       "$ref": "#/$defs/vec3",
+       "description": "Direction of halfHeight in the plane."
       },
       "halfWidth": {
        "type": "number",
-       "exclusiveMinimum": 0
+       "exclusiveMinimum": 0,
+       "description": "m"
       },
       "halfHeight": {
        "type": "number",
-       "exclusiveMinimum": 0
+       "exclusiveMinimum": 0,
+       "description": "m"
       }
      },
      "required": [
@@ -646,16 +704,113 @@
      "additionalProperties": false
     }
    ],
-   "description": "An opening: a disc or a rectangle. The normal points into the fluid. The cells within 2.5 cells behind the plane and inside the shape become the opening."
+   "description": "An opening: a disc or a rectangle in a plane. The cells within 2.5 cells outside the plane and inside the shape become the opening."
+  },
+  "seed": {
+   "oneOf": [
+    {
+     "type": "object",
+     "properties": {
+      "kind": {
+       "const": "rake"
+      },
+      "from": {
+       "$ref": "#/$defs/vec3"
+      },
+      "to": {
+       "$ref": "#/$defs/vec3"
+      },
+      "count": {
+       "type": "integer",
+       "minimum": 1
+      }
+     },
+     "required": [
+      "kind",
+      "from",
+      "to",
+      "count"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "object",
+     "properties": {
+      "kind": {
+       "const": "plane"
+      },
+      "origin": {
+       "$ref": "#/$defs/vec3"
+      },
+      "u": {
+       "$ref": "#/$defs/vec3"
+      },
+      "v": {
+       "$ref": "#/$defs/vec3"
+      },
+      "nu": {
+       "type": "integer",
+       "minimum": 1
+      },
+      "nv": {
+       "type": "integer",
+       "minimum": 1
+      }
+     },
+     "required": [
+      "kind",
+      "origin",
+      "u",
+      "v",
+      "nu",
+      "nv"
+     ],
+     "additionalProperties": false,
+     "description": "Points origin + s u + t v at the centres of an nu x nv grid."
+    },
+    {
+     "type": "object",
+     "properties": {
+      "kind": {
+       "const": "points"
+      },
+      "points": {
+       "type": "array",
+       "items": {
+        "$ref": "#/$defs/vec3"
+       }
+      }
+     },
+     "required": [
+      "kind",
+      "points"
+     ],
+     "additionalProperties": false
+    }
+   ]
+  },
+  "profile": {
+   "enum": [
+    "uniform",
+    "parabolic",
+    "developed"
+   ],
+   "description": "uniform (default), or parabolic (= developed): 1 - (r/R)^2 on a disc, (1 - (x/a)^2)(1 - (y/b)^2) on a rectangle, scaled to the flow rate or mean speed given."
   }
  },
  "type": "object",
+ "required": [
+  "format",
+  "mode"
+ ],
+ "additionalProperties": false,
  "properties": {
   "format": {
    "const": "box3d-flow-study/1"
   },
   "name": {
-   "type": "string"
+   "type": "string",
+   "description": "Copied to the result."
   },
   "units": {
    "const": "SI"
@@ -664,7 +819,8 @@
    "type": "array",
    "items": {
     "$ref": "#/$defs/item"
-   }
+   },
+   "description": "The solids (and cavities). Required for an external study."
   },
   "fluid": {
    "oneOf": [
@@ -677,27 +833,33 @@
     {
      "type": "object",
      "properties": {
+      "name": {
+       "type": "string"
+      },
       "density": {
        "type": "number",
-       "exclusiveMinimum": 0
+       "exclusiveMinimum": 0,
+       "description": "kg/m^3"
       },
       "viscosity": {
        "type": "number",
        "exclusiveMinimum": 0,
-       "description": "Kinematic viscosity, m^2/s."
+       "description": "Kinematic, m^2/s."
       },
       "dynamicViscosity": {
        "type": "number",
        "exclusiveMinimum": 0,
-       "description": "Pa s. Give this or viscosity."
+       "description": "Pa s."
       }
      },
      "required": [
       "density"
      ],
-     "additionalProperties": false
+     "additionalProperties": false,
+     "description": "Exactly one of viscosity and dynamicViscosity."
     }
-   ]
+   ],
+   "description": "air: 1.204 kg/m^3, 1.825e-5 Pa s; water: 998.207 kg/m^3, 1.0016e-3 Pa s (20 C)."
   },
   "mode": {
    "enum": [
@@ -710,23 +872,16 @@
    "properties": {
     "speed": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "exclusiveMinimum": 0,
+     "description": "Free-stream speed, m/s."
     },
     "direction": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3",
+     "description": "Direction the fluid moves toward (normalised). Default [1, 0, 0]."
     },
     "up": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3",
+     "description": "Lift axis, along one coordinate axis. Default [0, 1, 0]."
     },
     "ground": {
      "oneOf": [
@@ -737,85 +892,90 @@
        "type": "object",
        "properties": {
         "height": {
-         "type": "number"
+         "type": "number",
+         "description": "Coordinate along up, m. Default: the lowest point of the geometry."
         },
-        "moving": {
-         "type": "boolean"
+        "type": {
+         "enum": [
+          "fixed",
+          "moving",
+          "slip"
+         ],
+         "description": "fixed (default): a no-slip floor; moving: slides with the stream; slip: a symmetry plane."
         }
        },
-       "required": [],
        "additionalProperties": false
       }
-     ]
+     ],
+     "description": "A ground plane normal to up; the geometry below it is removed. Default false."
     },
     "margins": {
      "type": "object",
      "properties": {
       "upstream": {
        "type": "number",
-       "minimum": 0
+       "minimum": 0,
+       "description": "Default 3."
       },
       "downstream": {
        "type": "number",
-       "minimum": 0
+       "minimum": 0,
+       "description": "Default 6."
       },
       "side": {
        "type": "number",
-       "minimum": 0
+       "minimum": 0,
+       "description": "Default 2.5."
       },
       "top": {
        "type": "number",
-       "minimum": 0
+       "minimum": 0,
+       "description": "Default 2.5."
       },
       "bottom": {
        "type": "number",
-       "minimum": 0
+       "minimum": 0,
+       "description": "Default: top (without a ground)."
+      },
+      "length": {
+       "type": "number",
+       "exclusiveMinimum": 0,
+       "description": "The length the margins are multiples of, m. Default: referenceLength when given, else the body size across the flow."
       }
      },
-     "required": [],
-     "additionalProperties": false
-    },
-    "referenceLength": {
-     "type": "number",
-     "exclusiveMinimum": 0
-    },
-    "referenceArea": {
-     "type": "number",
-     "exclusiveMinimum": 0
-    },
-    "momentCenter": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "additionalProperties": false,
+     "description": "Free space around the bounding box of the geometry, in multiples of length."
     },
     "domain": {
      "type": "object",
      "properties": {
       "min": {
-       "type": "array",
-       "items": {
-        "type": "number"
-       },
-       "minItems": 3,
-       "maxItems": 3
+       "$ref": "#/$defs/vec3"
       },
       "max": {
-       "type": "array",
-       "items": {
-        "type": "number"
-       },
-       "minItems": 3,
-       "maxItems": 3
+       "$ref": "#/$defs/vec3"
       }
      },
      "required": [
       "min",
       "max"
      ],
-     "additionalProperties": false
+     "additionalProperties": false,
+     "description": "The box itself, instead of margins."
+    },
+    "referenceLength": {
+     "type": "number",
+     "exclusiveMinimum": 0,
+     "description": "m: the Reynolds number, the moment coefficients and (by default) the length of the margins. Default: largest extent of the geometry."
+    },
+    "referenceArea": {
+     "type": "number",
+     "exclusiveMinimum": 0,
+     "description": "m^2. Default: the shadow of the solid cells along the flow."
+    },
+    "momentCenter": {
+     "$ref": "#/$defs/vec3",
+     "description": "Default: the centre of the bounding box."
     }
    },
    "required": [
@@ -839,31 +999,29 @@
         "$ref": "#/$defs/shape"
        },
        "flowRate": {
-        "type": "number"
+        "type": "number",
+        "minimum": 0,
+        "description": "Volume flow INTO the fluid, m^3/s."
        },
        "speed": {
-        "type": "number"
+        "type": "number",
+        "minimum": 0,
+        "description": "Mean speed into the fluid, m/s."
        },
        "velocity": {
-        "type": "array",
-        "items": {
-         "type": "number"
-        },
-        "minItems": 3,
-        "maxItems": 3
+        "$ref": "#/$defs/vec3",
+        "description": "A velocity vector, m/s."
        },
        "profile": {
-        "enum": [
-         "uniform",
-         "parabolic"
-        ]
+        "$ref": "#/$defs/profile"
        }
       },
       "required": [
        "name",
        "shape"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "Exactly one of flowRate, speed and velocity."
      }
     },
     "outlets": {
@@ -879,34 +1037,39 @@
         "$ref": "#/$defs/shape"
        },
        "pressure": {
-        "type": "number"
+        "type": "number",
+        "description": "Gauge pressure, Pa (default 0)."
+       },
+       "flowRate": {
+        "type": "number",
+        "minimum": 0,
+        "description": "Volume flow OUT of the fluid, m^3/s, instead of a pressure."
+       },
+       "speed": {
+        "type": "number",
+        "minimum": 0,
+        "description": "Mean speed out of the fluid, m/s, instead of a pressure."
+       },
+       "profile": {
+        "$ref": "#/$defs/profile"
        }
       },
       "required": [
        "name",
        "shape"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "A pressure, or a flow rate or speed. At least one outlet must be given by a pressure."
      }
     },
     "domain": {
      "type": "object",
      "properties": {
       "min": {
-       "type": "array",
-       "items": {
-        "type": "number"
-       },
-       "minItems": 3,
-       "maxItems": 3
+       "$ref": "#/$defs/vec3"
       },
       "max": {
-       "type": "array",
-       "items": {
-        "type": "number"
-       },
-       "minItems": 3,
-       "maxItems": 3
+       "$ref": "#/$defs/vec3"
       }
      },
      "required": [
@@ -917,23 +1080,22 @@
     },
     "padding": {
      "type": "number",
-     "minimum": 0
-    },
-    "referenceLength": {
-     "type": "number",
-     "exclusiveMinimum": 0
+     "minimum": 0,
+     "description": "Metres added around the bounds of the geometry."
     },
     "referenceSpeed": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "exclusiveMinimum": 0,
+     "description": "m/s; sets the time step. Default: the fastest opening."
+    },
+    "referenceLength": {
+     "type": "number",
+     "exclusiveMinimum": 0,
+     "description": "m, for the Reynolds number. Default: the diameter of the circle with the area of the first inlet."
     },
     "acceleration": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3",
+     "description": "Body force per unit mass, m/s^2 (a duct driven by a pressure gradient, with periodic sides)."
     },
     "periodic": {
      "type": "array",
@@ -943,18 +1105,13 @@
        "y",
        "z"
       ]
-     }
+     },
+     "description": "Axes whose two sides are joined."
     },
     "initialVelocity": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3"
     }
    },
-   "required": [],
    "additionalProperties": false
   },
   "motion": {
@@ -963,34 +1120,19 @@
     "type": "object",
     "properties": {
      "velocity": {
-      "type": "array",
-      "items": {
-       "type": "number"
-      },
-      "minItems": 3,
-      "maxItems": 3
+      "$ref": "#/$defs/vec3"
      },
      "angularVelocity": {
-      "type": "array",
-      "items": {
-       "type": "number"
-      },
-      "minItems": 3,
-      "maxItems": 3
+      "$ref": "#/$defs/vec3",
+      "description": "rad/s about center."
      },
      "center": {
-      "type": "array",
-      "items": {
-       "type": "number"
-      },
-      "minItems": 3,
-      "maxItems": 3
+      "$ref": "#/$defs/vec3"
      }
     },
-    "required": [],
     "additionalProperties": false
    },
-   "description": "Surface velocity of parts, by part name. The solid does not move."
+   "description": "Surface velocity of a part, by part name. The solid does not move."
   },
   "actuators": {
    "type": "array",
@@ -1002,34 +1144,28 @@
       "minLength": 1
      },
      "center": {
-      "type": "array",
-      "items": {
-       "type": "number"
-      },
-      "minItems": 3,
-      "maxItems": 3
+      "$ref": "#/$defs/vec3"
      },
      "axis": {
-      "type": "array",
-      "items": {
-       "type": "number"
-      },
-      "minItems": 3,
-      "maxItems": 3
+      "$ref": "#/$defs/vec3"
      },
      "radius": {
       "type": "number",
-      "exclusiveMinimum": 0
+      "exclusiveMinimum": 0,
+      "description": "m"
      },
      "thickness": {
       "type": "number",
-      "exclusiveMinimum": 0
+      "exclusiveMinimum": 0,
+      "description": "m; at least two cells."
      },
      "force": {
-      "type": "number"
+      "type": "number",
+      "description": "N on the fluid along axis."
      },
      "pressureJump": {
-      "type": "number"
+      "type": "number",
+      "description": "Pa; force = pressureJump pi radius^2."
      }
     },
     "required": [
@@ -1038,7 +1174,8 @@
      "axis",
      "radius"
     ],
-    "additionalProperties": false
+    "additionalProperties": false,
+    "description": "An actuator disc: exactly one of force and pressureJump."
    }
   },
   "resolution": {
@@ -1047,19 +1184,19 @@
     "cells": {
      "type": "number",
      "minimum": 1000,
-     "maximum": 16777216
+     "description": "Budget of fluid cells. Default 400000."
     },
     "cellSize": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "exclusiveMinimum": 0,
+     "description": "m; used when it fits the budget."
     },
     "latticeSpeed": {
      "type": "number",
      "exclusiveMinimum": 0,
-     "maximum": 0.2
+     "description": "Reference speed in cells per step. Default 0.06."
     }
    },
-   "required": [],
    "additionalProperties": false
   },
   "model": {
@@ -1069,13 +1206,24 @@
      "enum": [
       "auto",
       "none",
-      "smagorinsky"
-     ]
+      "smagorinsky",
+      "wale"
+     ],
+     "description": "auto (default): smagorinsky when the cell Reynolds number exceeds 10 and the Reynolds number exceeds 2000, else none."
     },
     "smagorinsky": {
      "type": "number",
      "exclusiveMinimum": 0,
-     "maximum": 0.5
+     "description": "Default 0.16."
+    },
+    "wale": {
+     "type": "number",
+     "exclusiveMinimum": 0,
+     "description": "WALE constant. Default 0.5."
+    },
+    "wallFunction": {
+     "type": "boolean",
+     "description": "With the sub-grid model: walls take a power-law wall function. Default true."
     },
     "walls": {
      "enum": [
@@ -1085,10 +1233,14 @@
     },
     "spongeCells": {
      "type": "number",
-     "minimum": 0
+     "minimum": 0,
+     "description": "Cells in front of pressure sides over which the viscosity rises. Default 0."
+    },
+    "thicken": {
+     "type": "boolean",
+     "description": "Grow walls thinner than 1.44 cells so that they do not leak. Default true."
     }
    },
-   "required": [],
    "additionalProperties": false
   },
   "run": {
@@ -1096,34 +1248,37 @@
    "properties": {
     "transits": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "exclusiveMinimum": 0,
+     "description": "Longest run, in transits. Default 8 external, 12 internal."
     },
     "startupTransits": {
      "type": "number",
-     "minimum": 0
+     "minimum": 0,
+     "description": "Default 1."
     },
     "windowTransits": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "exclusiveMinimum": 0,
+     "description": "Averaging window. Default 1.5."
     },
     "tolerance": {
      "type": "number",
-     "minimum": 0
+     "minimum": 0,
+     "description": "Default 0.02."
     },
     "maxSteps": {
-     "type": "number",
+     "type": "integer",
      "minimum": 1
     },
     "monitorEvery": {
-     "type": "number",
+     "type": "integer",
      "minimum": 1
     },
     "sampleEvery": {
-     "type": "number",
+     "type": "integer",
      "minimum": 1
     }
    },
-   "required": [],
    "additionalProperties": false
   },
   "outputs": {
@@ -1145,123 +1300,22 @@
           {
            "type": "array",
            "items": {
-            "oneOf": [
-             {
-              "type": "object",
-              "properties": {
-               "kind": {
-                "const": "rake"
-               },
-               "from": {
-                "type": "array",
-                "items": {
-                 "type": "number"
-                },
-                "minItems": 3,
-                "maxItems": 3
-               },
-               "to": {
-                "type": "array",
-                "items": {
-                 "type": "number"
-                },
-                "minItems": 3,
-                "maxItems": 3
-               },
-               "count": {
-                "type": "number",
-                "minimum": 1
-               }
-              },
-              "required": [
-               "kind",
-               "from",
-               "to",
-               "count"
-              ],
-              "additionalProperties": false
-             },
-             {
-              "type": "object",
-              "properties": {
-               "kind": {
-                "const": "plane"
-               },
-               "origin": {
-                "type": "array",
-                "items": {
-                 "type": "number"
-                },
-                "minItems": 3,
-                "maxItems": 3
-               },
-               "u": {
-                "type": "array",
-                "items": {
-                 "type": "number"
-                },
-                "minItems": 3,
-                "maxItems": 3
-               },
-               "v": {
-                "type": "array",
-                "items": {
-                 "type": "number"
-                },
-                "minItems": 3,
-                "maxItems": 3
-               },
-               "nu": {
-                "type": "number",
-                "minimum": 1
-               },
-               "nv": {
-                "type": "number",
-                "minimum": 1
-               }
-              },
-              "required": [
-               "kind",
-               "origin",
-               "u",
-               "v",
-               "nu",
-               "nv"
-              ],
-              "additionalProperties": false
-             },
-             {
-              "type": "object",
-              "properties": {
-               "kind": {
-                "const": "points"
-               },
-               "points": {
-                "type": "array",
-                "items": {
-                 "type": "array",
-                 "items": {
-                  "type": "number"
-                 },
-                 "minItems": 3,
-                 "maxItems": 3
-                }
-               }
-              },
-              "required": [
-               "kind",
-               "points"
-              ],
-              "additionalProperties": false
-             }
-            ]
+            "$ref": "#/$defs/seed"
            }
           }
          ]
         },
+        "from": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         },
+         "description": "Internal, automatic seeds: the inlets to seed (default all)."
+        },
         "count": {
-         "type": "number",
-         "minimum": 1
+         "type": "integer",
+         "minimum": 1,
+         "description": "Automatic seeds. Default 64."
         },
         "field": {
          "enum": [
@@ -1271,15 +1325,18 @@
         },
         "step": {
          "type": "number",
-         "exclusiveMinimum": 0
+         "exclusiveMinimum": 0,
+         "description": "Integration step, cells. Default 0.5."
         },
         "maxPoints": {
-         "type": "number",
-         "minimum": 2
+         "type": "integer",
+         "minimum": 2,
+         "description": "Default 400."
         },
         "stride": {
-         "type": "number",
-         "minimum": 1
+         "type": "integer",
+         "minimum": 1,
+         "description": "Keep every n-th point. Default 2."
         },
         "direction": {
          "enum": [
@@ -1289,7 +1346,6 @@
          ]
         }
        },
-       "required": [],
        "additionalProperties": false
       }
      ]
@@ -1307,12 +1363,12 @@
         ]
        },
        "position": {
-        "type": "number"
+        "type": "number",
+        "description": "m"
        },
        "fraction": {
         "type": "number",
-        "minimum": 0,
-        "maximum": 1
+        "description": "0 to 1 of the box."
        },
        "field": {
         "enum": [
@@ -1324,11 +1380,13 @@
       "required": [
        "axis"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "Exactly one of position and fraction."
      }
     },
     "surface": {
-     "type": "boolean"
+     "type": "boolean",
+     "description": "Pressure and pressure coefficient at the vertices of the surface of every part."
     },
     "lines": {
      "type": "array",
@@ -1339,32 +1397,18 @@
         "type": "string"
        },
        "from": {
-        "type": "array",
-        "items": {
-         "type": "number"
-        },
-        "minItems": 3,
-        "maxItems": 3
+        "$ref": "#/$defs/vec3"
        },
        "to": {
-        "type": "array",
-        "items": {
-         "type": "number"
-        },
-        "minItems": 3,
-        "maxItems": 3
+        "$ref": "#/$defs/vec3"
        },
        "samples": {
-        "type": "number",
-        "minimum": 2
+        "type": "integer",
+        "minimum": 2,
+        "description": "Default 101."
        },
        "along": {
-        "type": "array",
-        "items": {
-         "type": "number"
-        },
-        "minItems": 3,
-        "maxItems": 3
+        "$ref": "#/$defs/vec3"
        }
       },
       "required": [
@@ -1390,23 +1434,14 @@
         ]
        },
        "position": {
-        "type": "number"
+        "type": "number",
+        "description": "m"
        },
        "min": {
-        "type": "array",
-        "items": {
-         "type": "number"
-        },
-        "minItems": 3,
-        "maxItems": 3
+        "$ref": "#/$defs/vec3"
        },
        "max": {
-        "type": "array",
-        "items": {
-         "type": "number"
-        },
-        "minItems": 3,
-        "maxItems": 3
+        "$ref": "#/$defs/vec3"
        }
       },
       "required": [
@@ -1417,17 +1452,11 @@
      }
     },
     "history": {
-     "type": "boolean"
+     "type": "boolean",
+     "description": "false leaves the convergence history out. Default true."
     }
    },
-   "required": [],
    "additionalProperties": false
   }
- },
- "required": [
-  "format",
-  "fluid",
-  "mode"
- ],
- "additionalProperties": false
+ }
 }

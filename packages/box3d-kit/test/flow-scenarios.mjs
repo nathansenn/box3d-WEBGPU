@@ -234,3 +234,117 @@ export function massLedger(K) {
   return {interpolated: ledger('interpolated'), halfway: ledger('halfway'), closed: Math.abs(closed.lattice.excessMass() - m0) / closed.fluidCells};
 }
 export {mean, sum};
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Bluff bodies: a circular cylinder in a 2D tunnel (one cell deep, periodic across), a sphere, a cube and a plate
+// ---------------------------------------------------------------------------------------------------------------------
+/** A two-dimensional tunnel: inflow on xMin, outflow on xMax, slip walls on y, periodic and one cell deep in z. D = 1 m,
+ * U = 1 m/s, density 1; the body's centre `up` diameters from the inlet and mid-height (plus `offset` D). */
+function tunnel2d(K, {n, re, length = 18, height = 12, up = 5, offset = 0, latticeSpeed = 0.08, geometry, turbulence = 'none'}) {
+  const h = 1 / n, nx = Math.round(length * n), ny = Math.round(height * n);
+  const centre = [up, height / 2 + offset, 0];
+  return {flow: new K.Flow({grid: {origin: [0, 0, -h / 2], cell: h, nx, ny, nz: 1}, geometry: geometry(centre, h), fluid: {density: 1, viscosity: 1 / re},
+    sides: {xMin: {kind: 'velocity', velocity: [1, 0, 0]}, xMax: {kind: 'pressure'}, yMin: 'slip', yMax: 'slip', zMin: 'periodic', zMax: 'periodic'},
+    referenceSpeed: 1, latticeSpeed, initialVelocity: [1, 0, 0], turbulence}), depth: h, blockage: 1 / height};
+}
+const cylinder2d = (centre, h) => [{kind: 'cylinder', from: [centre[0], centre[1], -1], to: [centre[0], centre[1], 1], radius: 0.5, part: 'cylinder'}];
+/** Steady flow past a cylinder (Re 20, 40): drag coefficient and the length of the recirculation behind it, over D. */
+export function cylinderSteady(K, {re = 20, n = 12, height = 12, length = 18, up = 5, latticeSpeed = 0.08, tolerance = 1e-5, settle = 60, maxSteps = 100000} = {}) {
+  const {flow, depth, blockage} = tunnel2d(K, {n, re, height, length, up, latticeSpeed, geometry: cylinder2d});
+  // at least `settle` D/U, then until the drag changes by less than `tolerance` per D/U
+  const every = Math.round(1 / flow.dt);
+  let last = Infinity, cd = 0;
+  while (flow.stepCount < maxSteps) {
+    flow.step(every);
+    cd = flow.takeSums().parts[0].force[0] / (0.5 * depth);
+    if (flow.time >= settle && Math.abs(cd - last) < tolerance * Math.abs(cd)) break;
+    last = cd;
+  }
+  // recirculation: where u on the centre line behind the cylinder turns positive
+  const f = flow.field(), line = K.flowLine(f, [up + 0.5, height / 2, 0], [up + 10, height / 2, 0], 381, [1, 0, 0]);
+  let first = 0; while (first < line.s.length && line.distance[first] <= 0) first++;
+  const reattach = line.zeroCrossings.find(s => s > line.s[first]) ?? NaN;
+  return {re, n, cd, recirculation: reattach, steps: flow.stepCount, blockage, cells: flow.fluidCells};
+}
+/** Unsteady flow past a cylinder (Re 100 to 200): mean drag coefficient and the Strouhal number of the lift. */
+export function cylinderShedding(K, {re = 100, n = 12, settle = 160, average = 80, latticeSpeed = 0.08} = {}) {
+  // a centre 2% of D off the middle starts the shedding without a kick
+  const {flow, depth, blockage} = tunnel2d(K, {n, re, latticeSpeed, offset: 0.02, geometry: cylinder2d});
+  const unit = 1 / flow.dt, every = Math.max(1, Math.round(unit / 20)); // steps per D/U, and 20 samples per D/U
+  flow.step(Math.round(settle * unit)); flow.takeSums();
+  const cd = [], cl = [];
+  const total = Math.round(average * unit / every);
+  for (let i = 0; i < total; i++) { flow.step(every); const s = flow.takeSums().parts[0]; cd.push(s.force[0] / (0.5 * depth)); cl.push(s.force[1] / (0.5 * depth)); }
+  const shedding = K.flowFrequency(cl, every * flow.dt);
+  return {re, n, cd: mean(cd), clAmplitude: Math.SQRT2 * (shedding?.amplitude ?? 0), strouhal: shedding ? shedding.frequency : 0, periods: shedding?.periods ?? 0, blockage, steps: flow.stepCount, cells: flow.fluidCells};
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Internal studies through the study document: a pipe drawn as a cylinder (the fluid), openings at its ends
+// ---------------------------------------------------------------------------------------------------------------------
+/** Hagen-Poiseuille through a pipe of diameter D = 1 m and length 6 D drawn as a fluid cylinder, inlet by flow rate with
+ * the developed profile, outlet by pressure: the pressure drop between sections 2 D and 4 D from the inlet against
+ * 128 mu L Q / (pi D^4), the peak over the mean speed on the middle section against 2, and the mass balance. */
+export function pipeStudy(K, {re = 1107, cells = 15000, transits = 4, profile = 'developed'} = {}) {
+  const D = 1, L = 6, U = 1, nu = U * D / re, Q = Math.PI / 4 * D * D * U;
+  const study = {format: 'box3d-flow-study/1', name: 'Hagen-Poiseuille', fluid: {density: 1, viscosity: nu}, mode: 'internal',
+    geometry: [{kind: 'cylinder', center: [L / 2, 0, 0], length: L, rotation: [0, 0, -Math.SQRT1_2, Math.SQRT1_2], radius: D / 2, role: 'cavity', part: 'pipe'}],
+    internal: {inlets: [{name: 'in', shape: {kind: 'disc', center: [0, 0, 0], normal: [-1, 0, 0], radius: D / 2}, flowRate: Q, profile}],
+      outlets: [{name: 'out', shape: {kind: 'disc', center: [L, 0, 0], normal: [1, 0, 0], radius: D / 2}, pressure: 0}]},
+    resolution: {cells}, run: {transits, windowTransits: 0.5, startupTransits: 1},
+    outputs: {sections: [{name: 'a', axis: 'x', position: 2}, {name: 'mid', axis: 'x', position: 3}, {name: 'b', axis: 'x', position: 4}], history: false}};
+  const r = K.runFlowStudy(study);
+  const [a, mid, b] = r.flow.sections, drop = a.meanPressure - b.meanPressure, exact = 128 * nu * 1 * 2 * Q / (Math.PI * D ** 4);
+  return {re, cells: r.setup.lattice.fluidCells, cellsAcross: D / r.setup.grid.cell, drop, exact, error: drop / exact - 1, peakOverMean: mid.maxNormalSpeed / mid.meanSpeed, flowRate: mid.flowRate / Q - 1,
+    massBalance: r.flow.massBalance, steps: r.run.steps, converged: r.run.converged, turbulence: r.setup.turbulence.model};
+}
+
+/** A three-dimensional tunnel with slip walls: inflow on xMin, outflow on xMax. D = 1 m, U = 1 m/s, density 1. */
+function tunnel3d(K, {n, re, length = 10, width = 5, up = 3, latticeSpeed = 0.08, geometry, turbulence = 'auto', model = {}}) {
+  const h = 1 / n, nx = Math.round(length * n), ny = Math.round(width * n);
+  return new K.Flow({grid: {origin: [-up, -width / 2, -width / 2], cell: h, nx, ny, nz: ny}, geometry, fluid: {density: 1, viscosity: 1 / re},
+    sides: {xMin: {kind: 'velocity', velocity: [1, 0, 0]}, xMax: {kind: 'pressure'}, yMin: 'slip', yMax: 'slip', zMin: 'slip', zMax: 'slip'},
+    referenceSpeed: 1, latticeSpeed, initialVelocity: [1, 0, 0], turbulence, reynolds: re, ...model});
+}
+/** Mean drag over `average` D/U after `settle` D/U, with the pressure referred to the mean on the inlet (the static
+ * pressure of the stream) as the study runner does; area A. */
+function meanDrag(K, flow, {settle, average, area}) {
+  const unit = 1 / flow.dt, every = Math.max(1, Math.round(unit / 10)), wetted = flow.pressureArea()[0].force[0];
+  flow.step(Math.round(settle * unit)); flow.takeSums();
+  const cd = [];
+  for (let i = 0, total = Math.round(average * unit / every); i < total; i++) { flow.step(every); cd.push(flow.takeSums().parts[0].force[0] / (0.5 * area)); }
+  return {cd: mean(cd), wetted};
+}
+/** A sphere of diameter D at Reynolds number `re`: the drag coefficient. */
+export function sphere(K, {re = 100, n = 8, settle = 25, average = 15, length = 10, width = 5} = {}) {
+  const flow = tunnel3d(K, {n, re, length, width, geometry: [{kind: 'sphere', center: [0, 0, 0], radius: 0.5, part: 'sphere'}]});
+  const {cd} = meanDrag(K, flow, {settle, average, area: Math.PI / 4});
+  return {re, n, cd, blockage: Math.PI / 4 / (width * width), turbulence: flow.turbulence, steps: flow.stepCount, cells: flow.fluidCells};
+}
+/** A cube of side D face-on, and a square plate D x D, thickness `thickness` D, normal to the stream, at Re = 1e5. */
+export function sharpBody(K, {shape = 'cube', re = 1e5, n = 8, settle = 20, average = 20, length = 10, width = 5, up = 3, thickness = 0.05, model = {}} = {}) {
+  const geometry = [{kind: 'box', center: [0, 0, 0], size: shape === 'cube' ? [1, 1, 1] : [thickness, 1, 1], part: shape}];
+  const flow = tunnel3d(K, {n, re, length, width, up, geometry, model});
+  const {cd} = meanDrag(K, flow, {settle, average, area: 1});
+  return {shape, re, n, cd, blockage: 1 / (width * width), turbulence: flow.turbulence, steps: flow.stepCount, cells: flow.fluidCells};
+}
+
+/** Backward-facing step (two-dimensional): an inlet channel of height h over a step S = 0.94 h (expansion ratio 1.94,
+ * as Armaly et al. 1983), Re = U_mean 2 h / nu; the reattachment length behind the step over S. */
+export function backwardStep(K, {re = 100, n = 16, upstream = 3, downstream = 30, latticeSpeed = 0.06, tolerance = 0.002, every = 1000, maxSteps = 200000} = {}) {
+  const hIn = 1, S = 0.9423, H = hIn + S, h = hIn / n, nu = 1 * 2 * hIn / re, ny = Math.round(H / h), nx = Math.round((upstream + downstream) / h);
+  // the parabolic profile of the inlet channel, mean 1 m/s
+  const profile = (x, y) => { const t = (y - S) / hIn; return [t > 0 && t < 1 ? 6 * t * (1 - t) : 0, 0, 0]; };
+  const flow = new K.Flow({grid: {origin: [-upstream, 0, -h / 2], cell: h, nx, ny, nz: 1}, fluid: {density: 1, viscosity: nu},
+    geometry: [{kind: 'box', center: [-upstream / 2 - 1, S / 2, 0], size: [upstream + 2, S, 1], part: 'step'}],
+    sides: {xMin: {kind: 'velocity', velocity: profile}, xMax: {kind: 'pressure'}, yMin: 'wall', yMax: 'wall', zMin: 'periodic', zMax: 'periodic'},
+    referenceSpeed: 1.5, latticeSpeed, turbulence: 'none'});
+  const reattachment = () => {
+    // u one cell above the floor, from the step on: where it turns positive
+    const f = flow.field(), line = K.flowLine(f, [h, 0.5 * h, 0], [downstream - h, 0.5 * h, 0], Math.round(downstream / h) * 2, [1, 0, 0]);
+    return (line.zeroCrossings[0] ?? NaN) + h;
+  };
+  let last = NaN, x = NaN;
+  while (flow.stepCount < maxSteps) { flow.step(every); x = reattachment(); if (Math.abs(x - last) < tolerance * S) break; last = x; }
+  return {re, n, reattachment: x / S, steps: flow.stepCount, cells: flow.fluidCells};
+}

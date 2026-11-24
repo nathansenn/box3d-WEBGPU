@@ -8,19 +8,22 @@
  * cavity with named inlets and outlets. docs/FLOW.md is the reference of both formats and of what is validated.
  */
 import {EngineError} from './contracts.ts';
-import {Flow,FLOW_FLUIDS,FLOW_SOLVER_ID,FLOW_SOLVER_VERSION,FLOW_SIDES,FLOW_MAX_CELLS,type FlowField,type FlowFluid,type FlowOptions,type FlowPatch,type FlowPatchShape,type FlowSide,type FlowSideName} from './flow.ts';
-import {flowGeometryBounds,flowVoxelize,FLOW_THIN_CELLS,type FlowItem,type FlowMesh,type FlowVec3,type FlowGrid} from './flow-geometry.ts';
+import {Flow,FLOW_AUTO_MODEL,FLOW_FLUIDS,FLOW_SOLVER_ID,FLOW_SOLVER_VERSION,FLOW_SIDES,FLOW_MAX_CELLS,type FlowField,type FlowFluid,type FlowOptions,type FlowPatch,type FlowPatchShape,type FlowSide,type FlowSideName} from './flow.ts';
+import {flowGeometryBounds,flowItemsFromApexGeometry,flowVoxelize,FLOW_THIN_CELLS,type FlowItem,type FlowMesh,type FlowVec3,type FlowGrid} from './flow-geometry.ts';
 import {flowFrequency,flowLine,flowProjectedArea,flowRake,flowSection,flowSeedPlane,flowSlice,flowStreamlines,flowSurfacePressure} from './flow-post.ts';
 
 export const FLOW_STUDY_FORMAT='box3d-flow-study/1';
 export const FLOW_RESULT_FORMAT='box3d-flow-result/1';
-export const FLOW_STATEMENT='Weakly compressible lattice-Boltzmann (D3Q19, regularised collision) with a Smagorinsky sub-grid model on a uniform grid. Above a cell Reynolds number of about 10 it is an under-resolved large-eddy simulation without a wall model: an engineering estimate, not certified CFD.';
+/** Default margins of an external study, in multiples of `margins.length`. */
+export const FLOW_MARGINS=Object.freeze({upstream:3,downstream:6,side:2.5,top:2.5});
+export const FLOW_STATEMENT='Weakly compressible lattice-Boltzmann (D3Q19, regularised collision) with a Smagorinsky sub-grid model and a power-law wall function on smooth walls, on a uniform grid of cubic cells, float64, deterministic. Above a cell Reynolds number of about 10 it is an under-resolved large-eddy simulation: an engineering estimate, not certified CFD.';
 export const FLOW_LIMITS:readonly string[]=Object.freeze([
-  'Boundary layers are not resolved and there is no wall model: skin friction, and the separation from smooth curved surfaces (spheres, cylinders, streamlined bodies, wings), are estimates. Sharp-edged bodies, whose separation the geometry fixes, are predicted better.',
+  'Boundary layers are not resolved: friction comes from a wall function, and the separation from smooth curved surfaces (spheres, cylinders, streamlined bodies, wings, hulls) is an estimate; the drag crisis is not predicted. Sharp-edged bodies, whose separation the geometry fixes, are predicted better.',
   'Incompressible flow only. The lattice Mach number of the reference speed is sqrt(3) * latticeSpeed (0.10 by default); the physical flow should be below Mach 0.3. No shocks, no heating by compression.',
-  'One fluid, no free surface (use the free-surface or shallow-water solvers), no heat transfer, no cavitation, no rotating or moving geometry: a rotor is a frozen solid, optionally with a surface velocity.',
-  'The geometry is voxelised: shapes under about two cells are coarse; plates and shells thinner than 1.44 cells are grown to that thickness so that they do not leak; rods thinner than a cell are not resolved (see the warnings and setup.geometry).',
-  'Walls of the tunnel are slip planes; the blockage they cause is reported and not corrected.',
+  'One fluid, no free surface (use the free-surface or shallow-water solvers), no heat transfer, no buoyancy, no cavitation, no rotating or moving geometry: a rotor is a frozen solid with a surface velocity, or an actuator disc.',
+  'The geometry is voxelised on a uniform grid of at most 2^25 cells: shapes under about two cells are coarse; plates and shells thinner than 1.44 cells are grown to that thickness so that they do not leak; rods thinner than a cell are not resolved (see the warnings and setup.geometry).',
+  'Walls of the tunnel are slip planes; the blockage they cause is reported and not corrected. External pressures and forces are gauge to the mean pressure on the inlet.',
+  'Not certified: no result replaces a code check, a wind-tunnel test or a validated commercial solver. docs/FLOW.md lists what was measured against what reference.',
 ]);
 
 type Json=Record<string,unknown>;
@@ -48,6 +51,8 @@ export interface FlowStudyOptions {
   readonly onProgress?:(progress:FlowProgress)=>void;
   /** Resolves a mesh given by `file` in the study. Without it such a mesh is an error. */
   readonly loadMesh?:(file:string)=>{positions:ArrayLike<number>;indices?:ArrayLike<number>};
+  /** Reads a JSON document named by `file` in an `apex` geometry item (the command line reads it relative to the study). */
+  readonly loadDocument?:(file:string)=>unknown;
   /** Wall clock in milliseconds. Default Date.now. */
   readonly now?:()=>number;
   /** Copied to `solver.provenance` of the result: where the solver came from (a commit, a package version, a bundle hash). */
@@ -74,7 +79,8 @@ export interface FlowStudySetup {
   readonly referenceSpeed:number;readonly referenceLength:number;readonly referenceLengthSource:string;readonly reynolds:number;
   readonly transitTime:number;
   readonly external:null|{direction:[number,number,number];up:[number,number,number];side:[number,number,number];speed:number;ground:null|{height:number;type:'fixed'|'moving'|'slip'};
-    bodySize:number;bodyBounds:{min:[number,number,number];max:[number,number,number]};momentCenter:[number,number,number];referenceArea:number|null};
+    bodySize:number;bodyBounds:{min:[number,number,number];max:[number,number,number]};
+    margins:{upstream:number;downstream:number;side:number;top:number;bottom:number;length:number};momentCenter:[number,number,number];referenceArea:number|null};
   readonly internal:null|{inlets:string[];outlets:string[];fluidFraction:number};
   readonly run:{maxSteps:number;startupSteps:number;windowSteps:number;monitorEvery:number;sampleEvery:number;tolerance:number};
   readonly outputs:Json;
@@ -86,14 +92,26 @@ const AXIS=['from','to','center','halfLength','length','rotation'];
 const ITEM_KEYS:Record<string,readonly string[]>={
   box:[...ITEM_BASE,'center','halfExtents','size','rotation'],sphere:[...ITEM_BASE,'center','radius'],
   cylinder:[...ITEM_BASE,...AXIS,'radius'],capsule:[...ITEM_BASE,...AXIS,'radius'],cone:[...ITEM_BASE,...AXIS,'radius','radiusTop'],tube:[...ITEM_BASE,...AXIS,'radius','innerRadius'],
-  beam:[...ITEM_BASE,'from','to','up','section','width','depth','flange','web'],mesh:[...ITEM_BASE,'positions','indices','file','thickness','position','rotation','scale'],
+  beam:[...ITEM_BASE,'from','to','up','section','width','depth','flange','web'],mesh:[...ITEM_BASE,'positions','indices','file','thickness','position','rotation','scale','elements'],
 };
 function readGeometry(raw:unknown,options:FlowStudyOptions):FlowItem[]{
   if(!Array.isArray(raw))fail('geometry must be an array of items.');
-  return (raw as unknown[]).map((item,i)=>{
+  return (raw as unknown[]).flatMap((item,i):FlowItem[]=>{
     if(!isObject(item)||typeof item.kind!=='string')fail(`geometry[${i}] must be an object with a kind.`);
-    const o=item as Json,keys=ITEM_KEYS[o.kind as string];
-    if(!keys)fail(`geometry[${i}].kind "${o.kind}" is unknown. Known: ${Object.keys(ITEM_KEYS).join(', ')}.`);
+    const o=item as Json;
+    if(o.kind==='apex'){
+      // an apex-flow-geometry/1 document, inline or by file
+      known(o,`geometry[${i}]`,['kind','document','file','role','partName','parts']);
+      if((o.document===undefined)===(o.file===undefined))fail(`geometry[${i}] (apex) needs exactly one of document and file.`);
+      if(o.file!==undefined&&(typeof o.file!=='string'||!options.loadDocument))fail(`geometry[${i}] names the file "${String(o.file)}", and no loadDocument was given to read it.`);
+      const document=o.document??options.loadDocument!(o.file as string);
+      if(o.role!==undefined&&o.role!=='solid'&&o.role!=='cavity')fail(`geometry[${i}].role must be 'solid' or 'cavity'.`);
+      if(o.partName!==undefined&&o.partName!=='id'&&o.partName!=='name')fail(`geometry[${i}].partName must be 'id' or 'name'.`);
+      if(o.parts!==undefined&&(!Array.isArray(o.parts)||!o.parts.every(v=>Number.isInteger(v))))fail(`geometry[${i}].parts must be an array of part indices.`);
+      return flowItemsFromApexGeometry(document,{role:o.role as 'solid'|undefined,partName:o.partName as 'id'|undefined,parts:o.parts as number[]|undefined});
+    }
+    const keys=ITEM_KEYS[o.kind as string];
+    if(!keys)fail(`geometry[${i}].kind "${o.kind}" is unknown. Known: ${Object.keys(ITEM_KEYS).join(', ')}, apex.`);
     known(o,`geometry[${i}]`,keys);
     if(o.id!==undefined&&typeof o.id!=='string'&&typeof o.id!=='number')fail(`geometry[${i}].id must be a string or a number.`);
     if(o.kind==='mesh'&&o.file!==undefined){
@@ -101,9 +119,9 @@ function readGeometry(raw:unknown,options:FlowStudyOptions):FlowItem[]{
       if(o.positions!==undefined)fail(`geometry[${i}] has both positions and file.`);
       if(!options.loadMesh)fail(`geometry[${i}] names the file "${o.file}", and no loadMesh was given to resolve it.`);
       const mesh=options.loadMesh!(o.file as string),{file:_file,...rest}=o;void _file;
-      return {...rest,positions:mesh.positions,indices:mesh.indices} as unknown as FlowMesh;
+      return [{...rest,positions:mesh.positions,indices:mesh.indices} as unknown as FlowMesh];
     }
-    return o as unknown as FlowItem;
+    return [o as unknown as FlowItem];
   });
 }
 function readFluid(raw:unknown):FlowFluid{
@@ -139,7 +157,7 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
   known(res,'resolution',['cells','cellSize','latticeSpeed']);
   const budget=res.cells===undefined?400000:num(res.cells,'resolution.cells',1000);
   const model=s.model===undefined?{}:isObject(s.model)?s.model as Json:fail('model must be an object.');
-  known(model,'model',['turbulence','smagorinsky','wallFunction','walls','spongeCells','thicken']);
+  known(model,'model',['turbulence','smagorinsky','wale','wallFunction','walls','spongeCells','thicken']);
   if(model.wallFunction!==undefined&&typeof model.wallFunction!=='boolean')fail('model.wallFunction must be true or false.');
   const runIn=s.run===undefined?{}:isObject(s.run)?s.run as Json:fail('run must be an object.');
   known(runIn,'run',['transits','startupTransits','windowTransits','tolerance','maxSteps','monitorEvery','sampleEvery']);
@@ -167,7 +185,7 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
     return {origin,cell:h,nx:n[0],ny:n[1],nz:n[2]};
   };
   const turbulence=model.turbulence??'auto';
-  if(turbulence!=='auto'&&turbulence!=='none'&&turbulence!=='smagorinsky')fail(`model.turbulence must be 'auto', 'none' or 'smagorinsky'.`);
+  if(turbulence!=='auto'&&turbulence!=='none'&&turbulence!=='smagorinsky'&&turbulence!=='wale')fail(`model.turbulence must be 'auto', 'none', 'smagorinsky' or 'wale'.`);
   const walls=model.walls??'interpolated';
   if(walls!=='interpolated'&&walls!=='halfway')fail(`model.walls must be 'interpolated' or 'halfway'.`);
   // surface velocities of parts, and actuator discs
@@ -189,7 +207,7 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
       thickness:o.thickness===undefined?undefined:num(o.thickness,`actuators[${i}].thickness`,0,true),force:o.force===undefined?undefined:num(o.force,`actuators[${i}].force`),pressureJump:o.pressureJump===undefined?undefined:num(o.pressureJump,`actuators[${i}].pressureJump`)};
   });
   const common={fluid,motion,actuators,turbulence:turbulence as 'auto',walls:walls as 'interpolated',surfaces:outputs.surface===true,thicken:model.thicken as boolean|undefined,wallFunction:model.wallFunction as boolean|undefined,
-    smagorinsky:model.smagorinsky===undefined?undefined:num(model.smagorinsky,'model.smagorinsky',0,true),
+    smagorinsky:model.smagorinsky===undefined?undefined:num(model.smagorinsky,'model.smagorinsky',0,true),wale:model.wale===undefined?undefined:num(model.wale,'model.wale',0,true),
     latticeSpeed:res.latticeSpeed===undefined?undefined:num(res.latticeSpeed,'resolution.latticeSpeed',0,true),
     spongeCells:model.spongeCells===undefined?undefined:num(model.spongeCells,'model.spongeCells',0)};
 
@@ -227,9 +245,11 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
     const bodySize=Math.max(across(lift),across(side));
     const m=e.margins===undefined?{}:isObject(e.margins)?e.margins as Json:fail('external.margins must be an object.');
     known(m,'external.margins',['upstream','downstream','side','top','bottom','length']);
-    const mLen=m.length===undefined?bodySize:num(m.length,'margins.length',0,true);
-    const mUp=(m.upstream===undefined?2:num(m.upstream,'margins.upstream',0))*mLen,mDown=(m.downstream===undefined?5:num(m.downstream,'margins.downstream',0))*mLen,mSide=(m.side===undefined?2:num(m.side,'margins.side',0))*mLen,
-      mTop=(m.top===undefined?2:num(m.top,'margins.top',0))*mLen,mBottom=m.bottom===undefined?mTop:num(m.bottom,'margins.bottom',0)*mLen;
+    const mLen=m.length!==undefined?num(m.length,'margins.length',0,true):e.referenceLength!==undefined?num(e.referenceLength,'external.referenceLength',0,true):bodySize;
+    const margins={upstream:m.upstream===undefined?FLOW_MARGINS.upstream:num(m.upstream,'margins.upstream',0),downstream:m.downstream===undefined?FLOW_MARGINS.downstream:num(m.downstream,'margins.downstream',0),
+      side:m.side===undefined?FLOW_MARGINS.side:num(m.side,'margins.side',0),top:m.top===undefined?FLOW_MARGINS.top:num(m.top,'margins.top',0),bottom:0,length:mLen};
+    margins.bottom=m.bottom===undefined?margins.top:num(m.bottom,'margins.bottom',0);
+    const mUp=margins.upstream*mLen,mDown=margins.downstream*mLen,mSide=margins.side*mLen,mTop=margins.top*mLen,mBottom=margins.bottom*mLen;
     let lo=[0,0,0],hi=[0,0,0];const anchor:(0|1)[]=[0,0,0];
     if(e.domain!==undefined){
       if(!isObject(e.domain))fail('external.domain must be {min, max}.');
@@ -261,7 +281,7 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
     referenceLengthSource=e.referenceLength===undefined?'largest extent of the bounding box of the geometry'+(ground?' above the ground':''):'given';
     flowLength=Math.abs(dir[0])*grid.nx*grid.cell+Math.abs(dir[1])*grid.ny*grid.cell+Math.abs(dir[2])*grid.nz*grid.cell;
     const centre:[number,number,number]=[(b.min[0]+b.max[0])/2,(b.min[1]+b.max[1])/2,(b.min[2]+b.max[2])/2];
-    external={direction:dir,up:lift,side,speed,ground,bodySize,bodyBounds:b,momentCenter:e.momentCenter===undefined?centre:vec3(e.momentCenter,'external.momentCenter'),
+    external={direction:dir,up:lift,side,speed,ground,bodySize,bodyBounds:b,margins,momentCenter:e.momentCenter===undefined?centre:vec3(e.momentCenter,'external.momentCenter'),
       referenceArea:e.referenceArea===undefined?null:num(e.referenceArea,'external.referenceArea',0,true)};
     flowOptions={...common,grid,geometry,sides,referenceSpeed,initialVelocity:velocity};
     const cellsAcross=bodySize/grid.cell;
@@ -276,9 +296,10 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
     const patches:FlowPatch[]=[];let fastest=0,inflow=0,firstInletArea=0,smallestPressureOutlet=Infinity,pressureOutlets=0;
     inletsIn.forEach((raw,i)=>{
       if(!isObject(raw))fail(`internal.inlets[${i}] must be an object.`);
-      const o=raw as Json;known(o,`internal.inlets[${i}]`,['name','shape','flowRate','speed','velocity','profile']);
+      const o={...raw as Json};known(o,`internal.inlets[${i}]`,['name','shape','flowRate','speed','velocity','profile']);
       if(typeof o.name!=='string'||o.name.length===0)fail(`internal.inlets[${i}].name must be a non-empty string.`);
-      if(o.profile!==undefined&&o.profile!=='uniform'&&o.profile!=='parabolic')fail(`internal.inlets[${i}].profile must be 'uniform' or 'parabolic'.`);
+      if(o.profile!==undefined&&o.profile!=='uniform'&&o.profile!=='parabolic'&&o.profile!=='developed')fail(`internal.inlets[${i}].profile must be 'uniform', 'parabolic' or 'developed' (the same as parabolic).`);
+      if(o.profile==='developed')o.profile='parabolic';
       const shape=readShape(o.shape,`internal.inlets[${i}].shape`),area=shapeArea(shape);
       if([o.flowRate,o.speed,o.velocity].filter(v=>v!==undefined).length!==1)fail(`internal.inlets[${i}] needs exactly one of flowRate, speed and velocity.`);
       const patch:FlowPatch={name:o.name as string,kind:'inlet',shape,flowRate:o.flowRate===undefined?undefined:num(o.flowRate,`internal.inlets[${i}].flowRate`,0),speed:o.speed===undefined?undefined:num(o.speed,`internal.inlets[${i}].speed`,0),
@@ -291,9 +312,10 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
     });
     outletsIn.forEach((raw,i)=>{
       if(!isObject(raw))fail(`internal.outlets[${i}] must be an object.`);
-      const o=raw as Json;known(o,`internal.outlets[${i}]`,['name','shape','pressure','flowRate','speed','profile']);
+      const o={...raw as Json};known(o,`internal.outlets[${i}]`,['name','shape','pressure','flowRate','speed','profile']);
       if(typeof o.name!=='string'||o.name.length===0)fail(`internal.outlets[${i}].name must be a non-empty string.`);
-      if(o.profile!==undefined&&o.profile!=='uniform'&&o.profile!=='parabolic')fail(`internal.outlets[${i}].profile must be 'uniform' or 'parabolic'.`);
+      if(o.profile!==undefined&&o.profile!=='uniform'&&o.profile!=='parabolic'&&o.profile!=='developed')fail(`internal.outlets[${i}].profile must be 'uniform', 'parabolic' or 'developed' (the same as parabolic).`);
+      if(o.profile==='developed')o.profile='parabolic';
       const shape=readShape(o.shape,`internal.outlets[${i}].shape`),area=shapeArea(shape),byFlow=o.flowRate!==undefined||o.speed!==undefined;
       if(o.flowRate!==undefined&&o.speed!==undefined)fail(`internal.outlets[${i}] has both flowRate and speed.`);
       if(byFlow&&o.pressure!==undefined)fail(`internal.outlets[${i}] has both a pressure and a flow; give one.`);
@@ -411,7 +433,10 @@ export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowS
   });
   // history
   const H={step:[] as number[],time:[] as number[],residual:[] as number[],maxSpeed:[] as number[],drag:[] as number[],lift:[] as number[],side:[] as number[],massBalance:[] as number[],
-    flowRates:flow.patches.map(()=>[] as number[]),patchPressure:flow.patches.map(()=>[] as number[]),bulkSpeed:[] as number[]};
+    flowRates:flow.patches.map(()=>[] as number[]),patchPressure:flow.patches.map(()=>[] as number[]),bulkSpeed:[] as number[],reference:[] as number[]};
+  // the force a uniform pressure of 1 Pa puts on every part (a footprint on the ground), and the inlets' cells
+  const wetted=flow.pressureArea(about),inletCount=flow.patches.map((p,i)=>p.kind==='inlet'?patchActive[i].length:0),inletTotal=inletCount.reduce((a,b)=>a+b,0);
+  const inletPressure=(pressures:number[]):number=>{let p=0;pressures.forEach((v,i)=>{p+=v*inletCount[i];});return inletTotal>0?p/inletTotal:0;};
   const previous=new Float32Array(3*L.fluidCells);
   let done=false,converged=false,reason='max-steps',windowIndex=0,windowStart=run.startupSteps,lastMean:FlowField|null=null,meanSteps=0,meanFrom=0;
   let lastWindowMeans:number[]|null=null,windowsDone=0;
@@ -452,7 +477,14 @@ export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowS
       done=true;reason='diverged';
       throw new EngineError('INVALID_STATE',`flow study: the run diverged at step ${L.stepCount} (a density or velocity left the valid range). Lower resolution.latticeSpeed, raise the resolution, or set model.turbulence to 'smagorinsky'.`);
     }
-    const sums=flow.takeSums(about);partRows.push(sums.parts);
+    const sums=flow.takeSums(about),pScale=rho*(flow.cell/flow.dt)**2/3;
+    // pressure of each opening: the mean over the fluid cells that touch it
+    const openingPressure=patchActive.map(cellsOf=>{let p=0;for(const c of cellsOf)p+=L.density[c];return cellsOf.length?p/cellsOf.length*pScale:0;});
+    // external: forces refer to the static pressure of the free stream, the mean pressure on the inlet
+    const pin=ext?inletPressure(openingPressure):0;
+    if(pin!==0)for(let p=0;p<sums.parts.length;p++)for(let a=0;a<3;a++){sums.parts[p].force[a]-=pin*wetted[p].force[a];sums.parts[p].moment[a]-=pin*wetted[p].moment[a];}
+    H.reference.push(pin);
+    partRows.push(sums.parts);
     let fx=0,fy=0,fz=0;
     for(let p=0;p<flow.geometryParts&&p<sums.parts.length;p++){fx+=sums.parts[p].force[0];fy+=sums.parts[p].force[1];fz+=sums.parts[p].force[2];}
     let cd=0,cl=0,cs=0;
@@ -470,8 +502,7 @@ export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowS
     H.step.push(L.stepCount);H.time.push(flow.time);H.residual.push(residual);H.maxSpeed.push(Math.sqrt(vmax)*vScale);
     H.drag.push(cd);H.lift.push(cl);H.side.push(cs);H.massBalance.push(balance);H.bulkSpeed.push(bulk/L.fluidCells*vScale);
     sums.flowRates.forEach((q,i)=>H.flowRates[i].push(q));
-    const pScale=rho*vScale*vScale/3;
-    patchActive.forEach((cellsOf,i)=>{let p=0;for(const c of cellsOf)p+=L.density[c];H.patchPressure[i].push(cellsOf.length?p/cellsOf.length*pScale:0);});
+    openingPressure.forEach((p,i)=>H.patchPressure[i].push(p-pin));
     const phase=L.stepCount>run.startupSteps?'averaging':'startup';
     if(L.stepCount-windowStart>=run.windowSteps&&L.stepCount>run.startupSteps)closeWindow();
     if(!done&&L.stepCount>=run.maxSteps){
@@ -485,11 +516,16 @@ export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowS
   };
 
   const result=():Json=>{
-    const field=lastMean??flow.field(false),meanUsed=lastMean!==null,wall=(now()-started)/1000,notes=[...warnings];
+    const raw=lastMean??flow.field(false),meanUsed=lastMean!==null,wall=(now()-started)/1000,notes=[...warnings];
     if(!meanUsed)notes.push('the run ended before any sample was averaged: the fields are those of the last step.');
     // means of the history over the averaged steps
     const from=Math.max(0,H.step.findIndex(sx=>sx>meanFrom)),upto=H.step.length;
     const meanOf=(a:number[]):number=>{let total=0,n=0;for(let i=from;i<upto;i++){total+=a[i];n++;}return n?total/n:0;};
+    // external: pressures are gauge to the static pressure of the free stream (the mean pressure on the inlet over the
+    // averaged steps); internal: gauge to the outlets' reference (0 unless an outlet sets another)
+    const referencePressure=ext?meanOf(H.reference):0;
+    const shift=(f:FlowField):FlowField=>{if(referencePressure===0)return f;const pressure=new Float32Array(f.pressure.length);for(let c=0;c<pressure.length;c++)pressure[c]=f.pressure[c]-referencePressure;return {...f,pressure};};
+    const field=shift(raw),instant=():FlowField=>shift(flow.field(false));
     const rmsOf=(a:number[]):number=>{const m=meanOf(a);let total=0,n=0;for(let i=from;i<upto;i++){total+=(a[i]-m)*(a[i]-m);n++;}return n?Math.sqrt(total/n):0;};
     const vScale=flow.cell/flow.dt,out:Json={format:FLOW_RESULT_FORMAT,name:setup.name,
       solver:{id:FLOW_SOLVER_ID,version:FLOW_SOLVER_VERSION,statement:FLOW_STATEMENT,provenance:options.provenance?{...options.provenance}:null}};
@@ -500,10 +536,11 @@ export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowS
       grid:{origin:[...sg.origin],cell:sg.cell,nx:sg.nx,ny:sg.ny,nz:sg.nz,min:[...sg.origin],max:[sg.origin[0]+sg.nx*sg.cell,sg.origin[1]+sg.ny*sg.cell,sg.origin[2]+sg.nz*sg.cell]},
       lattice:{origin:[...g.origin],cell:g.cell,nx:g.nx,ny:g.ny,nz:g.nz,cells:L.cells,fluidCells:flow.fluidCells,solidCells:flow.solidCells,enclosedCells:flow.enclosedCells,boundaryLinks:L.linkCount},
       timeStep:flow.dt,latticeSpeed:flow.latticeSpeed,latticeMach:flow.latticeSpeed*Math.sqrt(3),relaxationTime:flow.relaxationTime,cellReynolds:flow.cellReynolds,
-      turbulence:{model:flow.turbulence,smagorinsky:flow.turbulence==='smagorinsky'?flow.smagorinsky:null,wallFunction:flow.turbulence==='smagorinsky'&&L.wallFunction,rule:setup.options.turbulence==='auto'||setup.options.turbulence===undefined?'auto: Smagorinsky when the cell Reynolds number exceeds 10 and the Reynolds number exceeds 2000':'given'},walls:L.walls,
+      turbulence:{model:flow.turbulence,constant:flow.turbulence==='smagorinsky'?flow.smagorinsky:flow.turbulence==='wale'?flow.wale:null,wallFunction:flow.turbulence!=='none'&&L.wallFunction,rule:setup.options.turbulence==='auto'||setup.options.turbulence===undefined?`auto: ${FLOW_AUTO_MODEL} when the cell Reynolds number exceeds 10 and the Reynolds number exceeds 2000`:'given'},walls:L.walls,
       referenceSpeed:setup.referenceSpeed,referenceLength:{value:setup.referenceLength,source:setup.referenceLengthSource},reynolds:setup.reynolds,transitTime:setup.transitTime,
       external:ext?{speed:ext.speed,direction:ext.direction,up:ext.up,side:ext.side,ground:ext.ground,bodySize:ext.bodySize,bodyCells:ext.bodySize/g.cell,bodyBounds:ext.bodyBounds,blockage,
-        referenceArea:{value:referenceArea,source:ext.referenceArea===null?'shadow of the solid cells along the flow (half-cell grid)':'given'},dynamicPressure,momentCenter:ext.momentCenter}:null,
+        referenceArea:{value:referenceArea,source:ext.referenceArea===null?'shadow of the solid cells along the flow (half-cell grid)':'given'},dynamicPressure,momentCenter:ext.momentCenter,margins:ext.margins,
+        referencePressure:{value:referencePressure,source:'mean pressure on the inlet over the averaged steps, above the outlet pressure: every pressure, pressure coefficient and force of the result is gauge to it'}}:null,
       internal:setup.internal,
       sides:Object.fromEntries(FLOW_SIDES.map(name=>{const sd=setup.options.sides?.[name]??'wall';return [name,typeof sd==='string'?sd:sd.kind];})),
       patches:flow.patches.map(p=>({...p})),parts:[...flow.parts],geometryParts:flow.geometryParts,
@@ -589,7 +626,7 @@ export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowS
       const o=sl===true?{}:isObject(sl)?sl as Json:fail('outputs.streamlines must be true, false or an object.');
       known(o,'outputs.streamlines',['seeds','from','count','field','step','maxPoints','stride','direction']);
       const which=o.field??'mean';if(which!=='mean'&&which!=='instant')fail(`outputs.streamlines.field must be 'mean' or 'instant'.`);
-      const f=which==='instant'?flow.field(false):field,count=o.count===undefined?64:Math.max(1,Math.floor(num(o.count,'outputs.streamlines.count',1)));
+      const f=which==='instant'?instant():field,count=o.count===undefined?64:Math.max(1,Math.floor(num(o.count,'outputs.streamlines.count',1)));
       const seeds=readSeeds(o.seeds??'auto',o.from,count,setup,flow);
       const lines=flowStreamlines(f,seeds,{step:o.step===undefined?undefined:num(o.step,'outputs.streamlines.step',0,true),maxPoints:o.maxPoints===undefined?undefined:num(o.maxPoints,'outputs.streamlines.maxPoints',2),stride:o.stride===undefined?undefined:num(o.stride,'outputs.streamlines.stride',1),direction:(o.direction??'forward') as 'forward'});
       let lo=Infinity,hi=-Infinity;for(const l of lines)for(let i=0;i<l.speed.length;i++){if(l.speed[i]<lo)lo=l.speed[i];if(l.speed[i]>hi)hi=l.speed[i];}
@@ -605,7 +642,7 @@ export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowS
         const lo=sg.origin[a],len=[sg.nx,sg.ny,sg.nz][a]*sg.cell;
         if((o.position===undefined)===(o.fraction===undefined))fail(`outputs.slices[${i}] needs exactly one of position (m) and fraction (0 to 1 of the box).`);
         const position=o.position!==undefined?num(o.position,`outputs.slices[${i}].position`):lo+len*num(o.fraction,`outputs.slices[${i}].fraction`,0);
-        const sc=flowSlice(o.field==='instant'?flow.field(false):field,o.axis as 'x',position);
+        const sc=flowSlice(o.field==='instant'?instant():field,o.axis as 'x',position);
         return {axis:sc.axis,position:sc.position,axes:sc.axes,nu:sc.nu,nv:sc.nv,origin:sc.origin,cell:sc.cell,speed:list(sc.speed),pressure:list(sc.pressure),u:list(sc.u),v:list(sc.v),fluid:Array.from(sc.fluid)};
       });
     }

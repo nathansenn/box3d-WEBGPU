@@ -2,8 +2,86 @@
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://nathansenn.github.io/box3d-WEBGPU/schemas/flow-result.schema.json",
  "title": "box3d-flow-result/1",
- "description": "The result of a flow study of box3d-webgpu-kit/flow. SI units. See docs/FLOW.md.",
+ "description": "The result of a box3d-flow-study/1 run. SI units, the frame of the study. Numbers rounded to six significant digits. See docs/FLOW.md.",
+ "$defs": {
+  "vec3": {
+   "type": "array",
+   "items": {
+    "type": "number"
+   },
+   "minItems": 3,
+   "maxItems": 3
+  },
+  "bounds": {
+   "type": "object",
+   "properties": {
+    "min": {
+     "$ref": "#/$defs/vec3"
+    },
+    "max": {
+     "$ref": "#/$defs/vec3"
+    }
+   },
+   "required": [
+    "min",
+    "max"
+   ],
+   "additionalProperties": false
+  },
+  "forceMoment": {
+   "type": "object",
+   "properties": {
+    "force": {
+     "$ref": "#/$defs/vec3",
+     "description": "N"
+    },
+    "moment": {
+     "$ref": "#/$defs/vec3",
+     "description": "N m about forces.about"
+    }
+   },
+   "required": [
+    "force",
+    "moment"
+   ],
+   "additionalProperties": false
+  },
+  "extreme": {
+   "type": "object",
+   "properties": {
+    "value": {
+     "type": "number"
+    },
+    "cp": {
+     "type": "number"
+    },
+    "at": {
+     "$ref": "#/$defs/vec3"
+    }
+   },
+   "required": [
+    "value",
+    "at"
+   ],
+   "additionalProperties": true
+  }
+ },
  "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "format",
+  "name",
+  "solver",
+  "setup",
+  "run",
+  "forces",
+  "extremes",
+  "flow",
+  "actuators",
+  "wake",
+  "warnings",
+  "limits"
+ ],
  "properties": {
   "format": {
    "const": "box3d-flow-result/1"
@@ -15,19 +93,41 @@
    "type": "object",
    "properties": {
     "id": {
-     "type": "string"
+     "type": "string",
+     "description": "flow-lbm-d3q19-regularized-les-js-f64-v1"
     },
     "version": {
      "type": "string"
     },
     "statement": {
-     "type": "string"
+     "type": "string",
+     "description": "What the solver is, in one paragraph."
+    },
+    "provenance": {
+     "anyOf": [
+      {
+       "type": "object",
+       "additionalProperties": {
+        "type": [
+         "string",
+         "number",
+         "boolean",
+         "null"
+        ]
+       }
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "description": "The provenance option: where the solver came from (a commit, a package version, a bundle hash)."
     }
    },
    "required": [
     "id",
     "version",
-    "statement"
+    "statement",
+    "provenance"
    ],
    "additionalProperties": false
   },
@@ -45,11 +145,11 @@
      "properties": {
       "density": {
        "type": "number",
-       "exclusiveMinimum": 0
+       "description": "kg/m^3"
       },
       "viscosity": {
        "type": "number",
-       "exclusiveMinimum": 0
+       "description": "m^2/s"
       }
      },
      "required": [
@@ -62,16 +162,11 @@
      "type": "object",
      "properties": {
       "origin": {
-       "type": "array",
-       "items": {
-        "type": "number"
-       },
-       "minItems": 3,
-       "maxItems": 3
+       "$ref": "#/$defs/vec3"
       },
       "cell": {
        "type": "number",
-       "exclusiveMinimum": 0
+       "description": "m"
       },
       "nx": {
        "type": "integer"
@@ -83,20 +178,10 @@
        "type": "integer"
       },
       "min": {
-       "type": "array",
-       "items": {
-        "type": "number"
-       },
-       "minItems": 3,
-       "maxItems": 3
+       "$ref": "#/$defs/vec3"
       },
       "max": {
-       "type": "array",
-       "items": {
-        "type": "number"
-       },
-       "minItems": 3,
-       "maxItems": 3
+       "$ref": "#/$defs/vec3"
       }
      },
      "required": [
@@ -108,22 +193,17 @@
       "min",
       "max"
      ],
-     "additionalProperties": false
+     "additionalProperties": false,
+     "description": "The box of fluid cells."
     },
     "lattice": {
      "type": "object",
      "properties": {
       "origin": {
-       "type": "array",
-       "items": {
-        "type": "number"
-       },
-       "minItems": 3,
-       "maxItems": 3
+       "$ref": "#/$defs/vec3"
       },
       "cell": {
-       "type": "number",
-       "exclusiveMinimum": 0
+       "type": "number"
       },
       "nx": {
        "type": "integer"
@@ -157,29 +237,29 @@
       "ny",
       "nz",
       "cells",
-      "fluidCells"
+      "fluidCells",
+      "solidCells",
+      "enclosedCells",
+      "boundaryLinks"
      ],
-     "additionalProperties": false
+     "additionalProperties": false,
+     "description": "The box plus its boundary layers."
     },
     "timeStep": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "description": "s"
     },
     "latticeSpeed": {
-     "type": "number",
-     "exclusiveMinimum": 0
+     "type": "number"
     },
     "latticeMach": {
-     "type": "number",
-     "exclusiveMinimum": 0
+     "type": "number"
     },
     "relaxationTime": {
-     "type": "number",
-     "exclusiveMinimum": 0
+     "type": "number"
     },
     "cellReynolds": {
-     "type": "number",
-     "exclusiveMinimum": 0
+     "type": "number"
     },
     "turbulence": {
      "type": "object",
@@ -187,19 +267,33 @@
       "model": {
        "enum": [
         "none",
-        "smagorinsky"
+        "smagorinsky",
+        "wale"
        ]
       },
-      "smagorinsky": {
-       "type": [
-        "number",
-        "null"
-       ]
+      "constant": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Cs or Cw"
+      },
+      "wallFunction": {
+       "type": "boolean"
+      },
+      "rule": {
+       "type": "string"
       }
      },
      "required": [
       "model",
-      "smagorinsky"
+      "constant",
+      "wallFunction",
+      "rule"
      ],
      "additionalProperties": false
     },
@@ -211,14 +305,14 @@
     },
     "referenceSpeed": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "description": "m/s"
     },
     "referenceLength": {
      "type": "object",
      "properties": {
       "value": {
        "type": "number",
-       "exclusiveMinimum": 0
+       "description": "m"
       },
       "source": {
        "type": "string"
@@ -231,116 +325,75 @@
      "additionalProperties": false
     },
     "reynolds": {
-     "type": "number",
-     "exclusiveMinimum": 0
+     "type": "number"
     },
     "transitTime": {
      "type": "number",
-     "exclusiveMinimum": 0
+     "description": "s"
     },
     "external": {
-     "oneOf": [
-      {
-       "type": "null"
-      },
+     "anyOf": [
       {
        "type": "object",
        "properties": {
         "speed": {
-         "type": "number",
-         "exclusiveMinimum": 0
+         "type": "number"
         },
         "direction": {
-         "type": "array",
-         "items": {
-          "type": "number"
-         },
-         "minItems": 3,
-         "maxItems": 3
+         "$ref": "#/$defs/vec3"
         },
         "up": {
-         "type": "array",
-         "items": {
-          "type": "number"
-         },
-         "minItems": 3,
-         "maxItems": 3
+         "$ref": "#/$defs/vec3"
         },
         "side": {
-         "type": "array",
-         "items": {
-          "type": "number"
-         },
-         "minItems": 3,
-         "maxItems": 3
+         "$ref": "#/$defs/vec3"
         },
         "ground": {
-         "oneOf": [
-          {
-           "type": "null"
-          },
+         "anyOf": [
           {
            "type": "object",
            "properties": {
             "height": {
              "type": "number"
             },
-            "moving": {
-             "type": "boolean"
+            "type": {
+             "enum": [
+              "fixed",
+              "moving",
+              "slip"
+             ]
             }
            },
            "required": [
             "height",
-            "moving"
+            "type"
            ],
            "additionalProperties": false
+          },
+          {
+           "type": "null"
           }
          ]
         },
         "bodySize": {
          "type": "number",
-         "exclusiveMinimum": 0
+         "description": "m across the flow"
         },
         "bodyCells": {
-         "type": "number",
-         "exclusiveMinimum": 0
+         "type": "number"
         },
         "bodyBounds": {
-         "type": "object",
-         "properties": {
-          "min": {
-           "type": "array",
-           "items": {
-            "type": "number"
-           },
-           "minItems": 3,
-           "maxItems": 3
-          },
-          "max": {
-           "type": "array",
-           "items": {
-            "type": "number"
-           },
-           "minItems": 3,
-           "maxItems": 3
-          }
-         },
-         "required": [
-          "min",
-          "max"
-         ],
-         "additionalProperties": false
+         "$ref": "#/$defs/bounds"
         },
         "blockage": {
-         "type": "number",
-         "minimum": 0
+         "type": "number"
         },
         "referenceArea": {
          "type": "object",
          "properties": {
           "value": {
            "type": "number",
-           "exclusiveMinimum": 0
+           "description": "m^2"
           },
           "source": {
            "type": "string"
@@ -354,15 +407,62 @@
         },
         "dynamicPressure": {
          "type": "number",
-         "exclusiveMinimum": 0
+         "description": "Pa"
         },
         "momentCenter": {
-         "type": "array",
-         "items": {
-          "type": "number"
+         "$ref": "#/$defs/vec3"
+        },
+        "margins": {
+         "type": "object",
+         "properties": {
+          "upstream": {
+           "type": "number"
+          },
+          "downstream": {
+           "type": "number"
+          },
+          "side": {
+           "type": "number"
+          },
+          "top": {
+           "type": "number"
+          },
+          "bottom": {
+           "type": "number"
+          },
+          "length": {
+           "type": "number",
+           "description": "m"
+          }
          },
-         "minItems": 3,
-         "maxItems": 3
+         "required": [
+          "upstream",
+          "downstream",
+          "side",
+          "top",
+          "bottom",
+          "length"
+         ],
+         "additionalProperties": false,
+         "description": "As used, in multiples of length."
+        },
+        "referencePressure": {
+         "type": "object",
+         "properties": {
+          "value": {
+           "type": "number",
+           "description": "Pa above the outlet pressure"
+          },
+          "source": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "value",
+          "source"
+         ],
+         "additionalProperties": false,
+         "description": "The static pressure of the free stream: the mean pressure on the inlet. Every pressure, cp and force of an external result is gauge to it."
         }
        },
        "required": [
@@ -372,20 +472,24 @@
         "side",
         "ground",
         "bodySize",
+        "bodyCells",
+        "bodyBounds",
         "blockage",
         "referenceArea",
         "dynamicPressure",
-        "momentCenter"
+        "momentCenter",
+        "margins",
+        "referencePressure"
        ],
        "additionalProperties": false
+      },
+      {
+       "type": "null"
       }
      ]
     },
     "internal": {
-     "oneOf": [
-      {
-       "type": "null"
-      },
+     "anyOf": [
       {
        "type": "object",
        "properties": {
@@ -400,27 +504,90 @@
          "items": {
           "type": "string"
          }
+        },
+        "fluidFraction": {
+         "type": "number"
         }
        },
        "required": [
         "inlets",
-        "outlets"
+        "outlets",
+        "fluidFraction"
        ],
        "additionalProperties": false
+      },
+      {
+       "type": "null"
       }
      ]
     },
     "sides": {
      "type": "object",
-     "additionalProperties": {
-      "enum": [
-       "wall",
-       "slip",
-       "periodic",
-       "velocity",
-       "pressure"
-      ]
-     }
+     "properties": {
+      "xMin": {
+       "enum": [
+        "wall",
+        "slip",
+        "periodic",
+        "velocity",
+        "pressure"
+       ]
+      },
+      "xMax": {
+       "enum": [
+        "wall",
+        "slip",
+        "periodic",
+        "velocity",
+        "pressure"
+       ]
+      },
+      "yMin": {
+       "enum": [
+        "wall",
+        "slip",
+        "periodic",
+        "velocity",
+        "pressure"
+       ]
+      },
+      "yMax": {
+       "enum": [
+        "wall",
+        "slip",
+        "periodic",
+        "velocity",
+        "pressure"
+       ]
+      },
+      "zMin": {
+       "enum": [
+        "wall",
+        "slip",
+        "periodic",
+        "velocity",
+        "pressure"
+       ]
+      },
+      "zMax": {
+       "enum": [
+        "wall",
+        "slip",
+        "periodic",
+        "velocity",
+        "pressure"
+       ]
+      }
+     },
+     "required": [
+      "xMin",
+      "xMax",
+      "yMin",
+      "yMax",
+      "zMin",
+      "zMax"
+     ],
+     "additionalProperties": false
     },
     "patches": {
      "type": "array",
@@ -437,35 +604,31 @@
         ]
        },
        "area": {
-        "type": "number"
+        "type": "number",
+        "description": "m^2 the lattice gives the opening"
        },
        "normal": {
-        "type": "array",
-        "items": {
-         "type": "number"
-        },
-        "minItems": 3,
-        "maxItems": 3
+        "$ref": "#/$defs/vec3",
+        "description": "outward"
        },
        "velocity": {
-        "oneOf": [
+        "anyOf": [
          {
-          "type": "null"
+          "$ref": "#/$defs/vec3"
          },
          {
-          "type": "array",
-          "items": {
-           "type": "number"
-          },
-          "minItems": 3,
-          "maxItems": 3
+          "type": "null"
          }
         ]
        },
        "pressure": {
-        "type": [
-         "number",
-         "null"
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
         ]
        },
        "cells": {
@@ -488,63 +651,132 @@
      "type": "array",
      "items": {
       "type": "string"
-     }
+     },
+     "description": "Names of the parts that take force: those of the geometry (the first geometryParts), then the walls of the box (the ground, the sides)."
+    },
+    "geometryParts": {
+     "type": "integer"
     },
     "geometry": {
-     "type": "array",
-     "items": {
-      "type": "object",
-      "properties": {
-       "index": {
-        "type": "integer"
-       },
-       "kind": {
-        "type": "string"
-       },
-       "part": {
-        "type": "string"
-       },
-       "role": {
-        "enum": [
-         "solid",
-         "cavity"
-        ]
-       },
-       "smallestDimension": {
-        "type": [
-         "number",
-         "null"
-        ]
-       },
-       "triangles": {
-        "type": "integer"
-       },
-       "components": {
-        "type": "integer"
-       },
-       "closedComponents": {
-        "type": "integer"
-       },
-       "surfaceArea": {
-        "type": "number",
-        "minimum": 0
-       },
-       "unresolvedFraction": {
-        "type": "number",
-        "minimum": 0
-       }
+     "type": "object",
+     "properties": {
+      "items": {
+       "type": "integer"
       },
-      "required": [
-       "index",
-       "kind",
-       "part",
-       "role",
-       "smallestDimension",
-       "surfaceArea",
-       "unresolvedFraction"
-      ],
-      "additionalProperties": false
-     }
+      "thinCells": {
+       "type": "number"
+      },
+      "thinSize": {
+       "type": "number",
+       "description": "m"
+      },
+      "thickened": {
+       "type": "integer",
+       "description": "Items grown so that they do not leak."
+      },
+      "largestThickening": {
+       "type": "number",
+       "description": "m"
+      },
+      "closedCells": {
+       "type": "integer",
+       "description": "Cells made solid to close thin closed meshes."
+      },
+      "slender": {
+       "type": "integer",
+       "description": "Items thinner than a cell in two directions."
+      },
+      "report": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "index": {
+          "type": "integer"
+         },
+         "id": {
+          "type": [
+           "string",
+           "number"
+          ]
+         },
+         "part": {
+          "type": "string"
+         },
+         "role": {
+          "enum": [
+           "solid",
+           "cavity"
+          ]
+         },
+         "kind": {
+          "type": "string"
+         },
+         "smallestDimension": {
+          "anyOf": [
+           {
+            "type": "number"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "m"
+         },
+         "thickened": {
+          "type": "number",
+          "description": "m added"
+         },
+         "thickenedCells": {
+          "type": "integer"
+         },
+         "triangles": {
+          "type": "integer"
+         },
+         "components": {
+          "type": "integer"
+         },
+         "closedComponents": {
+          "type": "integer"
+         },
+         "surfaceArea": {
+          "type": "number",
+          "description": "m^2"
+         },
+         "unresolvedFraction": {
+          "type": "number"
+         }
+        },
+        "required": [
+         "index",
+         "part",
+         "role",
+         "kind",
+         "smallestDimension",
+         "thickened",
+         "surfaceArea",
+         "unresolvedFraction"
+        ],
+        "additionalProperties": false
+       },
+       "description": "Every item when there are at most 100, else those the grid changed or could not hold; at most 200."
+      },
+      "reportTruncated": {
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "items",
+      "thinCells",
+      "thinSize",
+      "thickened",
+      "largestThickening",
+      "closedCells",
+      "slender",
+      "report",
+      "reportTruncated"
+     ],
+     "additionalProperties": false
     },
     "controls": {
      "type": "object",
@@ -565,8 +797,7 @@
        "type": "integer"
       },
       "tolerance": {
-       "type": "number",
-       "minimum": 0
+       "type": "number"
       }
      },
      "required": [
@@ -601,6 +832,7 @@
     "sides",
     "patches",
     "parts",
+    "geometryParts",
     "geometry",
     "controls"
    ],
@@ -614,15 +846,14 @@
     },
     "time": {
      "type": "number",
-     "minimum": 0
+     "description": "s simulated"
     },
     "wallTime": {
      "type": "number",
-     "minimum": 0
+     "description": "s"
     },
     "cellUpdatesPerSecond": {
-     "type": "number",
-     "minimum": 0
+     "type": "number"
     },
     "converged": {
      "type": "boolean"
@@ -637,10 +868,7 @@
      "type": "integer"
     },
     "averaged": {
-     "oneOf": [
-      {
-       "type": "null"
-      },
+     "anyOf": [
       {
        "type": "object",
        "properties": {
@@ -651,8 +879,7 @@
          "type": "integer"
         },
         "time": {
-         "type": "number",
-         "minimum": 0
+         "type": "number"
         },
         "samples": {
          "type": "integer"
@@ -665,18 +892,22 @@
         "samples"
        ],
        "additionalProperties": false
+      },
+      {
+       "type": "null"
       }
      ]
     },
     "maxSpeed": {
      "type": "number",
-     "minimum": 0
+     "description": "m/s"
     }
    },
    "required": [
     "steps",
     "time",
     "wallTime",
+    "cellUpdatesPerSecond",
     "converged",
     "reason",
     "windows",
@@ -689,8 +920,7 @@
    "type": "object",
    "properties": {
     "tolerance": {
-     "type": "number",
-     "minimum": 0
+     "type": "number"
     },
     "startupSteps": {
      "type": "integer"
@@ -707,7 +937,7 @@
       "step": {
        "type": "array",
        "items": {
-        "type": "number"
+        "type": "integer"
        }
       },
       "time": {
@@ -720,7 +950,8 @@
        "type": "array",
        "items": {
         "type": "number"
-       }
+       },
+       "description": "rms change of the velocity over an interval over the reference speed"
       },
       "maxSpeed": {
        "type": "array",
@@ -765,7 +996,8 @@
         "items": {
          "type": "number"
         }
-       }
+       },
+       "description": "By opening name, m^3/s into the box."
       },
       "patchPressure": {
        "type": "object",
@@ -774,7 +1006,8 @@
         "items": {
          "type": "number"
         }
-       }
+       },
+       "description": "By opening name, Pa."
       }
      },
      "required": [
@@ -788,6 +1021,9 @@
    },
    "required": [
     "tolerance",
+    "startupSteps",
+    "windowSteps",
+    "monitorEvery",
     "history"
    ],
    "additionalProperties": false
@@ -796,38 +1032,10 @@
    "type": "object",
    "properties": {
     "about": {
-     "type": "array",
-     "items": {
-      "type": "number"
-     },
-     "minItems": 3,
-     "maxItems": 3
+     "$ref": "#/$defs/vec3"
     },
     "total": {
-     "type": "object",
-     "properties": {
-      "force": {
-       "type": "array",
-       "items": {
-        "type": "number"
-       },
-       "minItems": 3,
-       "maxItems": 3
-      },
-      "moment": {
-       "type": "array",
-       "items": {
-        "type": "number"
-       },
-       "minItems": 3,
-       "maxItems": 3
-      }
-     },
-     "required": [
-      "force",
-      "moment"
-     ],
-     "additionalProperties": false
+     "$ref": "#/$defs/forceMoment"
     },
     "parts": {
      "type": "array",
@@ -838,20 +1046,10 @@
         "type": "string"
        },
        "force": {
-        "type": "array",
-        "items": {
-         "type": "number"
-        },
-        "minItems": 3,
-        "maxItems": 3
+        "$ref": "#/$defs/vec3"
        },
        "moment": {
-        "type": "array",
-        "items": {
-         "type": "number"
-        },
-        "minItems": 3,
-        "maxItems": 3
+        "$ref": "#/$defs/vec3"
        }
       },
       "required": [
@@ -863,10 +1061,7 @@
      }
     },
     "coefficients": {
-     "oneOf": [
-      {
-       "type": "null"
-      },
+     "anyOf": [
       {
        "type": "object",
        "properties": {
@@ -880,63 +1075,37 @@
          "type": "number"
         },
         "cdRms": {
-         "type": "number",
-         "minimum": 0
+         "type": "number"
         },
         "clRms": {
-         "type": "number",
-         "minimum": 0
+         "type": "number"
         },
         "csRms": {
-         "type": "number",
-         "minimum": 0
+         "type": "number"
         },
         "cm": {
-         "type": "array",
-         "items": {
-          "type": "number"
-         },
-         "minItems": 3,
-         "maxItems": 3
+         "$ref": "#/$defs/vec3"
         },
         "referenceArea": {
-         "type": "number",
-         "exclusiveMinimum": 0
+         "type": "number"
         },
         "referenceLength": {
-         "type": "number",
-         "exclusiveMinimum": 0
+         "type": "number"
         },
         "dynamicPressure": {
-         "type": "number",
-         "exclusiveMinimum": 0
+         "type": "number"
         },
         "axes": {
          "type": "object",
          "properties": {
           "drag": {
-           "type": "array",
-           "items": {
-            "type": "number"
-           },
-           "minItems": 3,
-           "maxItems": 3
+           "$ref": "#/$defs/vec3"
           },
           "lift": {
-           "type": "array",
-           "items": {
-            "type": "number"
-           },
-           "minItems": 3,
-           "maxItems": 3
+           "$ref": "#/$defs/vec3"
           },
           "side": {
-           "type": "array",
-           "items": {
-            "type": "number"
-           },
-           "minItems": 3,
-           "maxItems": 3
+           "$ref": "#/$defs/vec3"
           }
          },
          "required": [
@@ -951,6 +1120,9 @@
         "cd",
         "cl",
         "cs",
+        "cdRms",
+        "clRms",
+        "csRms",
         "cm",
         "referenceArea",
         "referenceLength",
@@ -958,6 +1130,9 @@
         "axes"
        ],
        "additionalProperties": false
+      },
+      {
+       "type": "null"
       }
      ]
     }
@@ -969,6 +1144,32 @@
     "coefficients"
    ],
    "additionalProperties": false
+  },
+  "extremes": {
+   "type": "object",
+   "properties": {
+    "pressureMax": {
+     "$ref": "#/$defs/extreme"
+    },
+    "pressureMin": {
+     "$ref": "#/$defs/extreme"
+    },
+    "speedMax": {
+     "$ref": "#/$defs/extreme"
+    },
+    "dynamicPressure": {
+     "type": "number",
+     "description": "Pa: rho U^2 / 2 of the reference speed; cp = pressure / dynamicPressure."
+    }
+   },
+   "required": [
+    "pressureMax",
+    "pressureMin",
+    "speedMax",
+    "dynamicPressure"
+   ],
+   "additionalProperties": false,
+   "description": "Of the averaged field over the fluid cells."
   },
   "flow": {
    "type": "object",
@@ -988,21 +1189,21 @@
         ]
        },
        "flowRate": {
-        "type": "number"
+        "type": "number",
+        "description": "m^3/s into the box"
        },
        "area": {
         "type": "number"
        },
        "meanSpeed": {
-        "type": "number",
-        "minimum": 0
-       },
-       "meanPressure": {
         "type": "number"
        },
-       "meanDynamicPressure": {
+       "meanPressure": {
         "type": "number",
-        "minimum": 0
+        "description": "Pa, area mean over the fluid cells touching the opening"
+       },
+       "meanDynamicPressure": {
+        "type": "number"
        },
        "meanTotalPressure": {
         "type": "number"
@@ -1022,15 +1223,14 @@
      }
     },
     "inflow": {
-     "type": "number",
-     "minimum": 0
+     "type": "number"
     },
     "outflow": {
-     "type": "number",
-     "minimum": 0
+     "type": "number"
     },
     "massBalance": {
-     "type": "number"
+     "type": "number",
+     "description": "(inflow - outflow) / inflow"
     },
     "splits": {
      "type": "array",
@@ -1097,15 +1297,19 @@
         "type": "number"
        },
        "area": {
-        "type": "number",
-        "minimum": 0
+        "type": "number"
        },
        "flowRate": {
         "type": "number"
        },
        "meanSpeed": {
-        "type": "number",
-        "minimum": 0
+        "type": "number"
+       },
+       "maxSpeed": {
+        "type": "number"
+       },
+       "maxNormalSpeed": {
+        "type": "number"
        },
        "meanPressure": {
         "type": "number"
@@ -1114,8 +1318,7 @@
         "type": "number"
        },
        "momentumFactor": {
-        "type": "number",
-        "minimum": 0
+        "type": "number"
        }
       },
       "required": [
@@ -1125,6 +1328,8 @@
        "area",
        "flowRate",
        "meanSpeed",
+       "maxSpeed",
+       "maxNormalSpeed",
        "meanPressure",
        "meanTotalPressure",
        "momentumFactor"
@@ -1159,16 +1364,10 @@
       "type": "number"
      },
      "axis": {
-      "type": "array",
-      "items": {
-       "type": "number"
-      },
-      "minItems": 3,
-      "maxItems": 3
+      "$ref": "#/$defs/vec3"
      },
      "area": {
-      "type": "number",
-      "exclusiveMinimum": 0
+      "type": "number"
      },
      "pressureJump": {
       "type": "number"
@@ -1198,39 +1397,31 @@
    }
   },
   "wake": {
-   "oneOf": [
-    {
-     "type": "null"
-    },
+   "anyOf": [
     {
      "type": "object",
      "properties": {
       "shedding": {
-       "oneOf": [
-        {
-         "type": "null"
-        },
+       "anyOf": [
         {
          "type": "object",
          "properties": {
           "frequency": {
            "type": "number",
-           "exclusiveMinimum": 0
+           "description": "Hz"
           },
           "strouhal": {
-           "type": "number",
-           "exclusiveMinimum": 0
+           "type": "number"
           },
           "length": {
            "type": "number",
-           "exclusiveMinimum": 0
+           "description": "m"
           },
           "periods": {
-           "type": "integer"
+           "type": "number"
           },
           "amplitude": {
-           "type": "number",
-           "minimum": 0
+           "type": "number"
           },
           "axis": {
            "enum": [
@@ -1248,22 +1439,25 @@
           "axis"
          ],
          "additionalProperties": false
+        },
+        {
+         "type": "null"
         }
        ]
       },
       "recirculationLength": {
-       "type": [
-        "number",
-        "null"
-       ]
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "m from the rear of the bounding box"
       },
       "recirculationFrom": {
-       "type": "array",
-       "items": {
-        "type": "number"
-       },
-       "minItems": 3,
-       "maxItems": 3
+       "$ref": "#/$defs/vec3"
       }
      },
      "required": [
@@ -1272,6 +1466,9 @@
       "recirculationFrom"
      ],
      "additionalProperties": false
+    },
+    {
+     "type": "null"
     }
    ]
   },
@@ -1298,15 +1495,11 @@
       "type": "object",
       "properties": {
        "seed": {
-        "type": "array",
-        "items": {
-         "type": "number"
-        },
-        "minItems": 3,
-        "maxItems": 3
+        "$ref": "#/$defs/vec3"
        },
        "termination": {
         "enum": [
+         "opening",
          "wall",
          "outside",
          "stagnation",
@@ -1317,19 +1510,22 @@
         "type": "array",
         "items": {
          "type": "number"
-        }
+        },
+        "description": "x, y, z per vertex, m"
        },
        "speed": {
         "type": "array",
         "items": {
          "type": "number"
-        }
+        },
+        "description": "m/s per vertex"
        },
        "pressure": {
         "type": "array",
         "items": {
          "type": "number"
-        }
+        },
+        "description": "Pa gauge per vertex"
        }
       },
       "required": [
@@ -1392,8 +1588,7 @@
       "maxItems": 2
      },
      "cell": {
-      "type": "number",
-      "exclusiveMinimum": 0
+      "type": "number"
      },
      "speed": {
       "type": "array",
@@ -1463,21 +1658,33 @@
      "indices": {
       "type": "array",
       "items": {
-       "type": "integer",
-       "minimum": 0
+       "type": "integer"
       }
      },
      "pressure": {
       "type": "array",
       "items": {
        "type": "number"
-      }
+      },
+      "description": "Pa per vertex"
      },
      "cp": {
       "type": "array",
       "items": {
        "type": "number"
       }
+     },
+     "pressureMin": {
+      "type": "number"
+     },
+     "pressureMax": {
+      "type": "number"
+     },
+     "cpMin": {
+      "type": "number"
+     },
+     "cpMax": {
+      "type": "number"
      }
     },
     "required": [
@@ -1485,7 +1692,11 @@
      "positions",
      "indices",
      "pressure",
-     "cp"
+     "cp",
+     "pressureMin",
+     "pressureMax",
+     "cpMin",
+     "cpMax"
     ],
     "additionalProperties": false
    }
@@ -1499,20 +1710,10 @@
       "type": "string"
      },
      "from": {
-      "type": "array",
-      "items": {
-       "type": "number"
-      },
-      "minItems": 3,
-      "maxItems": 3
+      "$ref": "#/$defs/vec3"
      },
      "to": {
-      "type": "array",
-      "items": {
-       "type": "number"
-      },
-      "minItems": 3,
-      "maxItems": 3
+      "$ref": "#/$defs/vec3"
      },
      "s": {
       "type": "array",
@@ -1591,19 +1792,5 @@
     "type": "string"
    }
   }
- },
- "required": [
-  "format",
-  "name",
-  "solver",
-  "setup",
-  "run",
-  "forces",
-  "flow",
-  "actuators",
-  "wake",
-  "warnings",
-  "limits"
- ],
- "additionalProperties": false
+ }
 }

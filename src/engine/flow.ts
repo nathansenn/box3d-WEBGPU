@@ -28,6 +28,8 @@ import {flowVoxelize,type FlowGrid,type FlowItem,type FlowItemReport,type FlowSu
 
 export const FLOW_SOLVER_ID=FLOW_LATTICE_ID;
 export const FLOW_SOLVER_VERSION='1.0.0';
+/** The sub-grid model `turbulence: 'auto'` picks above its thresholds. */
+export const FLOW_AUTO_MODEL:'smagorinsky'|'wale'='smagorinsky';
 export {FLOW_MAX_CELLS};
 
 export interface FlowFluid {
@@ -107,7 +109,9 @@ export interface FlowOptions {
   readonly latticeSpeed?:number;
   /** 'auto' (default): Smagorinsky when the cell Reynolds number referenceSpeed h / nu exceeds 10 and the Reynolds
    * number of the flow, when `reynolds` gives it, exceeds 2000; else none. */
-  readonly turbulence?:'auto'|'none'|'smagorinsky';
+  readonly turbulence?:'auto'|'none'|'smagorinsky'|'wale';
+  /** WALE constant Cw. Default 0.5. */
+  readonly wale?:number;
   /** Reynolds number of the flow (reference speed, a length of the body or the duct), for the 'auto' rule. */
   readonly reynolds?:number;
   /** Smagorinsky constant. Default 0.16. */
@@ -115,6 +119,10 @@ export interface FlowOptions {
   /** With the sub-grid model on: cells that touch a wall take the viscosity of a power-law wall function (Werner &
    * Wengle) instead of the Smagorinsky formula. Default true. */
   readonly wallFunction?:boolean;
+  /** The wall function is used only next to smooth walls: where h times the Laplacian of the signed distance (the
+   * curvature of the wall, convex positive) is below this. Next to sharper convex edges the wall is plain bounce-back,
+   * so the geometry fixes the separation. Default 0.5 (a convex radius of two cells). */
+  readonly wallFunctionCurvature?:number;
   /** 'interpolated' (default): the wall is where the geometry puts it on every link; 'halfway': half-way, mass-exact. */
   readonly walls?:'interpolated'|'halfway';
   /** Body force per unit mass, m/s^2 (a pressure gradient that drives a periodic duct). */
@@ -152,12 +160,15 @@ export interface FlowField {
   readonly pressure:Float32Array;
   /** Signed distance to the geometry, m (positive in the fluid). */
   readonly distance:Float32Array;
+  /** Per cell: the index of the opening (in `Flow.patches`) the cell belongs to, or -1. Openings include the velocity
+   * and pressure sides of the box. Streamlines end where they enter an opening. */
+  readonly opening?:Int16Array;
 }
 
 const fail=(message:string):never=>{throw new EngineError('INVALID_ARGUMENT',`Flow: ${message}`);};
 const isVec=(v:unknown):v is FlowVec3=>Array.isArray(v)&&v.length===3&&v.every(x=>typeof x==='number'&&Number.isFinite(x));
 const vec=(v:unknown,name:string):FlowVec3=>isVec(v)?v:fail(`${name} must be three finite numbers.`);
-const FLOW_FIELDS:FieldOptions={label:'Flow',skip:['grid','lattice','fluid','dt','cell','latticeSpeed','referenceSpeed','turbulence','smagorinsky','cellReynolds','relaxationTime','parts','patches','voxels','warnings','surfaces','items','solidCells','fluidCells','enclosedCells','forceScale','momentScale','flowScale','pressureScale','velocityScale','rampSteps','kinds','inletVelocity','actuators','actuatorCells','geometryParts','thickening'],
+const FLOW_FIELDS:FieldOptions={label:'Flow',skip:['grid','lattice','fluid','dt','cell','latticeSpeed','referenceSpeed','turbulence','smagorinsky','wale','cellReynolds','relaxationTime','parts','patches','voxels','warnings','surfaces','items','solidCells','fluidCells','enclosedCells','forceScale','momentScale','flowScale','pressureScale','velocityScale','rampSteps','kinds','inletVelocity','actuators','actuatorCells','geometryParts','thickening'],
   nested:{}};
 
 export class Flow {
@@ -166,7 +177,7 @@ export class Flow {
   readonly lattice:FlowLattice;
   readonly fluid:FlowFluid;
   readonly dt:number;readonly cell:number;readonly latticeSpeed:number;readonly referenceSpeed:number;
-  readonly turbulence:'none'|'smagorinsky';readonly smagorinsky:number;
+  readonly turbulence:'none'|'smagorinsky'|'wale';readonly smagorinsky:number;readonly wale:number;
   /** referenceSpeed h / nu, and the relaxation time 3 nu dt / h^2 + 1/2 of the lattice. */
   readonly cellReynolds:number;readonly relaxationTime:number;
   /** Names of the parts that take force: the parts of the geometry, then the wall sides. */
@@ -227,8 +238,10 @@ export class Flow {
     const nuLat=this.fluid.viscosity*dt/(h*h);
     this.cellReynolds=options.referenceSpeed*h/this.fluid.viscosity;this.relaxationTime=3*nuLat+0.5;
     const mode=options.turbulence??'auto';
-    if(mode!=='auto'&&mode!=='none'&&mode!=='smagorinsky')fail(`unknown turbulence "${mode}".`);
-    this.turbulence=mode==='auto'?(this.cellReynolds>10&&(options.reynolds===undefined||options.reynolds>2000)?'smagorinsky':'none'):mode;
+    if(mode!=='auto'&&mode!=='none'&&mode!=='smagorinsky'&&mode!=='wale')fail(`unknown turbulence "${mode}".`);
+    this.turbulence=mode==='auto'?(this.cellReynolds>10&&(options.reynolds===undefined||options.reynolds>2000)?FLOW_AUTO_MODEL:'none'):mode;
+    this.wale=options.wale??0.5;
+    if(!(this.wale>0&&this.wale<=2))fail('wale must be in (0, 2].');
     this.smagorinsky=options.smagorinsky??0.16;
     if(!(this.smagorinsky>0&&this.smagorinsky<=0.5))fail('smagorinsky must be in (0, 0.5].');
     const warnings:string[]=[];
@@ -468,8 +481,22 @@ export class Flow {
     this.actuators=actuators;this.actuatorCells=actuatorCells;
     const acc=options.acceleration?vec(options.acceleration,'acceleration'):[0,0,0],u0=options.initialVelocity?vec(options.initialVelocity,'initialVelocity'):[0,0,0];
     const aScale=dt*dt/h;
-    this.lattice=new FlowLattice({nx,ny,nz,periodic,kind,owner,distance,walls:options.walls??'interpolated',parts:lparts,patches:lpatches,viscosity:nuLat,
-      smagorinsky:this.turbulence==='smagorinsky'?this.smagorinsky:0,wallFunction:options.wallFunction,force:[acc[0]*aScale,acc[1]*aScale,acc[2]*aScale],initialVelocity:[u0[0]/vScale,u0[1]/vScale,u0[2]/vScale],extraViscosity:extra,cellVelocity,
+    // where the wall function may be used: next to walls whose convex curvature is under wallFunctionCurvature / h
+    let wfMask:Uint8Array|undefined;
+    if(hasGeometry&&this.turbulence!=='none'&&options.wallFunction!==false){
+      const limit=options.wallFunctionCurvature??0.5;wfMask=new Uint8Array(cells).fill(1);
+      for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
+        if(kind[c]!==FLOW_FLUID)continue;
+        const d=distance[c];if(!(d<2*h))continue;
+        let lap=0;
+        if(i>0)lap+=distance[c-1]-d;if(i<nx-1)lap+=distance[c+1]-d;
+        if(j>0)lap+=distance[c-nx]-d;if(j<ny-1)lap+=distance[c+nx]-d;
+        if(k>0)lap+=distance[c-nx*ny]-d;if(k<nz-1)lap+=distance[c+nx*ny]-d;
+        if(lap/h>limit)wfMask[c]=0;
+      }
+    }
+    this.lattice=new FlowLattice({wallFunctionMask:wfMask,nx,ny,nz,periodic,kind,owner,distance,walls:options.walls??'interpolated',parts:lparts,patches:lpatches,viscosity:nuLat,
+      smagorinsky:this.turbulence==='smagorinsky'?this.smagorinsky:0,wale:this.turbulence==='wale'?this.wale:0,wallFunction:options.wallFunction,force:[acc[0]*aScale,acc[1]*aScale,acc[2]*aScale],initialVelocity:[u0[0]/vScale,u0[1]/vScale,u0[2]/vScale],extraViscosity:extra,cellVelocity,
       forceCells:fCells.length?Int32Array.from(fCells):undefined,forceValues:fCells.length?Float64Array.from(fValues):undefined});
     this.kinds=kind;this.voxels={distance:vox.distance};
     this.solidCells=cells-this.lattice.fluidCells;this.fluidCells=this.lattice.fluidCells;
@@ -499,6 +526,14 @@ export class Flow {
     this.time=L.stepCount*this.dt;
   }
 
+  /** Force (N) and moment about `about` (N m) that a uniform gauge pressure of 1 Pa exerts on every part: zero for a
+   * closed body in the fluid; for a body on the ground, its footprint. Subtract `p` times it from the forces to refer
+   * them to the static pressure `p` (the free stream's) instead of the outlet's. */
+  pressureArea(about:FlowVec3=[0,0,0]):{name:string;force:[number,number,number];moment:[number,number,number]}[]{
+    // a lattice pressure p_l on the links gives p_l times the wetted sums; 1 Pa is h^2 / forceScale of lattice force
+    const {force,moment}=this.lattice.wettedArea(),k=this.cell*this.cell/this.forceScale;
+    return this.scaleForces(force.map(v=>v*k),moment.map(v=>v*k),1,about);
+  }
   /** Force (N) and moment about `about` (N m) on every part in the last step. */
   forces(about:FlowVec3=[0,0,0]):{name:string;force:[number,number,number];moment:[number,number,number]}[]{
     return this.scaleForces(this.lattice.partForce,this.lattice.partMoment,1,about);
@@ -573,7 +608,9 @@ export class Flow {
       }
       else if(kc!==FLOW_WALL){ux[c]=vx/count;uy[c]=vy/count;uz[c]=vz/count;}
     }
-    return {grid:this.grid,fluid,ux,uy,uz,pressure,distance:this.voxels.distance};
+    const opening=new Int16Array(n).fill(-1);
+    for(let c=0;c<n;c++)if(kind[c]===FLOW_VELOCITY||kind[c]===FLOW_PRESSURE)opening[c]=L.owner[c];
+    return {grid:this.grid,fluid,ux,uy,uz,pressure,distance:this.voxels.distance,opening};
   }
 
   /** The state of the run (populations, sums, averages, time). Restore it into a Flow built with the same options. */

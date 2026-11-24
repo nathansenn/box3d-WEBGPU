@@ -72,6 +72,10 @@
       "types": "./dist/flow.d.ts",
       "default": "./dist/flow.js"
     },
+    "./flow-bundle": {
+      "types": "./dist/flow-bundle.d.ts",
+      "default": "./dist/flow-bundle.js"
+    },
     "./flow-three": {
       "types": "./dist/flow-three.d.ts",
       "default": "./dist/flow-three.js"

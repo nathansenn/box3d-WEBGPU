@@ -10,7 +10,7 @@
 // Meshes given by "file" in the study are read relative to the study file: .stl (binary or ASCII), .obj, or .json
 // with {positions, indices}. Progress goes to standard error. Exit codes: 0 converged, 2 ran to its step limit without
 // converging (the result is still written), 1 on an invalid study, a missing file or a diverged run.
-import {existsSync, readFileSync, writeFileSync} from 'node:fs';
+import {existsSync, readFileSync, statSync, writeFileSync} from 'node:fs';
 import {dirname, extname, resolve} from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 
@@ -26,6 +26,28 @@ async function load(name, source) {
     return Object.assign({}, ...modules);
   }
   throw new Error(`box3d-flow: ${built} is missing; build the package first (npm run build).`);
+}
+
+function packageVersion() {
+  try { return JSON.parse(readFileSync(resolve(here, '../package.json'), 'utf8')).version ?? null; } catch { return null; }
+}
+/** The commit of the repository the command runs from, read from .git without running git; null when there is none. */
+function gitCommit() {
+  try {
+    let dir = resolve(here, '../../..'), git = resolve(dir, '.git');
+    if (!existsSync(git)) return null;
+    if (!statSync(git).isDirectory()) { const m = /gitdir: (.*)/.exec(readFileSync(git, 'utf8')); if (!m) return null; git = resolve(dir, m[1].trim()); }
+    const head = readFileSync(resolve(git, 'HEAD'), 'utf8').trim();
+    if (!head.startsWith('ref: ')) return head;
+    const ref = head.slice(5), loose = resolve(git, ref);
+    if (existsSync(loose)) return readFileSync(loose, 'utf8').trim();
+    // a worktree keeps its refs in the common directory
+    const common = existsSync(resolve(git, 'commondir')) ? resolve(git, readFileSync(resolve(git, 'commondir'), 'utf8').trim()) : git;
+    if (existsSync(resolve(common, ref))) return readFileSync(resolve(common, ref), 'utf8').trim();
+    const packed = existsSync(resolve(common, 'packed-refs')) ? readFileSync(resolve(common, 'packed-refs'), 'utf8') : '';
+    const line = packed.split('\n').find(l => l.endsWith(' ' + ref));
+    return line ? line.split(' ')[0] : null;
+  } catch { return null; }
 }
 
 function usage(code) {
@@ -48,7 +70,7 @@ for (let i = 0; i < args.length; i++) {
 if (studyFile === null) usage(1);
 
 try {
-  const flow = await load('flow', ['flow-study.ts']);
+  const flow = await load('flow', ['flow-study.ts', 'flow.ts']);
   const study = JSON.parse(readFileSync(studyFile, 'utf8'));
   const base = dirname(resolve(studyFile));
   const loadMesh = file => {
@@ -79,7 +101,10 @@ try {
   if (Array.isArray(study?.geometry) && study.geometry.some(item => item && typeof item.file === 'string' && !item.file.toLowerCase().endsWith('.json'))) {
     geometryModule = await load('geometry', ['geometry.ts']);
   }
-  const options = {loadMesh};
+  const loadDocument = file => JSON.parse(readFileSync(resolve(base, file), 'utf8'));
+  // where the solver came from: the package version, the build's source commit when it was recorded, this file's path
+  const provenance = {cli: 'box3d-flow', solverVersion: flow.FLOW_SOLVER_VERSION ?? null, package: packageVersion(), sourceCommit: flow.FLOW_SOURCE_COMMIT ?? gitCommit()};
+  const options = {loadMesh, loadDocument, provenance};
   const setup = flow.flowStudySetup(study, options);
   const g = setup.grid;
   const summary = {

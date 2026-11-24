@@ -68,6 +68,48 @@ export interface FlowMesh extends ItemBase {
   /** For an open surface (a panel, a sheet): its thickness; 0 for a surface without one. A closed component ignores it. */
   readonly thickness?:number;
   readonly position?:FlowVec3;readonly rotation?:FlowQuat;readonly scale?:number|FlowVec3;
+  /** Runs of triangles that came from one model element, each closed (a solid, signed by ray parity) or open (a thin
+   * surface of the given thickness, 0 for none: it becomes a shell grown to the thinnest wall the lattice sees).
+   * Triangles in no run take the mesh's own `thickness`. Same layout as an `apex-flow-geometry/1` mesh. */
+  readonly elements?:readonly FlowMeshElement[];
+}
+export interface FlowMeshElement {
+  readonly element?:string|number;
+  /** First triangle and number of triangles (three indices each). */
+  readonly triStart:number;readonly triCount:number;
+  /** true: a closed solid. false: an open surface. */
+  readonly closed:boolean;
+  /** Thickness of an open surface, metres (0: none given). Ignored for a closed element. */
+  readonly thickness?:number;
+}
+/** Split a mesh with `elements` into one mesh per kind of element (closed, or open of one thickness), so that every
+ * triangle is voxelised the way its element says. A mesh without elements is returned as it is. */
+function splitElements(item:FlowMesh):FlowMesh[]{
+  const els=item.elements;
+  if(!els||els.length===0)return [item];
+  if(!Array.isArray(els))fail('mesh.elements must be an array.');
+  const triangles=item.indices?item.indices.length/3:item.positions.length/9;
+  const group=new Int32Array(triangles).fill(-1),keys:(number|undefined)[]=[],keyOf=new Map<string,number>();
+  for(let e=0;e<els.length;e++){
+    const el=els[e];
+    if(!el||typeof el!=='object')fail(`mesh.elements[${e}] must be an object.`);
+    if(!Number.isInteger(el.triStart)||!Number.isInteger(el.triCount)||el.triStart<0||el.triCount<0||el.triStart+el.triCount>triangles)fail(`mesh.elements[${e}]: triStart and triCount must lie within the ${triangles} triangles.`);
+    if(typeof el.closed!=='boolean')fail(`mesh.elements[${e}].closed must be true or false.`);
+    const t=el.closed?undefined:(el.thickness??0);
+    if(t!==undefined&&(!(t>=0)||!Number.isFinite(t)))fail(`mesh.elements[${e}].thickness must not be negative.`);
+    const key=t===undefined?'closed':`open ${t}`;
+    let g=keyOf.get(key);if(g===undefined){g=keys.length;keys.push(t);keyOf.set(key,g);}
+    for(let f=el.triStart;f<el.triStart+el.triCount;f++)group[f]=g;
+  }
+  const out:FlowMesh[]=[],{elements:_e,...rest}=item;void _e;
+  const indexOf=(f:number,k:number):number=>item.indices?item.indices[3*f+k]:3*f+k;
+  for(let g=-1;g<keys.length;g++){
+    const idx:number[]=[];
+    for(let f=0;f<triangles;f++)if(group[f]===g)idx.push(indexOf(f,0),indexOf(f,1),indexOf(f,2));
+    if(idx.length===0)continue;
+    out.push(g<0?{...rest,indices:idx}:{...rest,indices:idx,thickness:keys[g]});
+  }
+  return out;
 }
 export type FlowPrimitive=FlowBox|FlowSphere|FlowCylinder|FlowCapsule|FlowCone|FlowTube|FlowBeam;
 export type FlowItem=FlowPrimitive|FlowMesh;
@@ -597,15 +639,25 @@ export function flowVoxelize(items:readonly FlowItem[],grid:FlowGrid,options:Flo
     const field=role==='cavity'?cavity!:solid!,owner=role==='cavity'?cavityPart!:solidPart!;
     const base={index,...(item.id!==undefined?{id:item.id}:{}),part:name,role};
     if(item.kind==='mesh'){
-      const mesh=prepareMesh(item,true);
-      if(item.thickness!==undefined&&(!(item.thickness>=0)||!Number.isFinite(item.thickness)))fail(`item ${index}: thickness must not be negative.`);
-      // a cavity is not grown: its walls are everything else
-      const done=voxelizeMesh(mesh,item.thickness,grid,band,field,owner,part,warnings,`item ${index} (${name})`);
-      const closedCount=mesh.closed.filter(Boolean).length,open=closedCount<mesh.componentCount;
-      if(done.shellAdded>0){thickenedItems++;largestThickening=Math.max(largestThickening,done.shellAdded);}
-      if(role==='solid'&&thicken&&done.parityFaces.length>0)leakMeshes.push({mesh,faces:done.parityFaces,part,item:index});
-      pending.push({report:{...base,kind:'mesh',smallestDimension:item.thickness!==undefined&&open?item.thickness:null,thickened:done.shellAdded,thickenedCells:0,
-        triangles:mesh.indices.length/3,components:mesh.componentCount,closedComponents:closedCount,surfaceArea:0,unresolvedFraction:0},surface:{positions:mesh.positions,indices:mesh.indices}});
+      // a mesh with elements is voxelised as one mesh per kind of element; it is still one item of the report
+      const pieces=splitElements(item),allPositions:number[]=[],allIndices:number[]=[];
+      let shellAdded=0,triangles=0,components=0,closedCount=0,smallest:number|null=null;
+      for(const sub of pieces){
+        const mesh=prepareMesh(sub,true);
+        if(sub.thickness!==undefined&&(!(sub.thickness>=0)||!Number.isFinite(sub.thickness)))fail(`item ${index}: thickness must not be negative.`);
+        // a cavity is not grown: its walls are everything else
+        const done=voxelizeMesh(mesh,sub.thickness,grid,band,field,owner,part,warnings,`item ${index} (${name})`);
+        const cc=mesh.closed.filter(Boolean).length,open=cc<mesh.componentCount;
+        shellAdded=Math.max(shellAdded,done.shellAdded);triangles+=mesh.indices.length/3;components+=mesh.componentCount;closedCount+=cc;
+        if(sub.thickness!==undefined&&open)smallest=smallest===null?sub.thickness:Math.min(smallest,sub.thickness);
+        if(role==='solid'&&thicken&&done.parityFaces.length>0)leakMeshes.push({mesh,faces:done.parityFaces,part,item:index});
+        const first=allPositions.length/3;
+        for(let v=0;v<mesh.positions.length;v++)allPositions.push(mesh.positions[v]);
+        for(let f=0;f<mesh.indices.length;f++)allIndices.push(first+mesh.indices[f]);
+      }
+      if(shellAdded>0){thickenedItems++;largestThickening=Math.max(largestThickening,shellAdded);}
+      pending.push({report:{...base,kind:'mesh',smallestDimension:smallest,thickened:shellAdded,thickenedCells:0,
+        triangles,components,closedComponents:closedCount,surfaceArea:0,unresolvedFraction:0},surface:{positions:allPositions,indices:allIndices}});
     }else{
       const {pieces,smallest}=piecesOf(item);let added=0,slender=false;
       for(const piece of pieces){
@@ -705,4 +757,51 @@ export function flowTubeMesh(path:readonly FlowVec3[],radius:number,segments=24)
   const c1=c0+1;positions.push(path[n-1][0],path[n-1][1],path[n-1][2]);
   for(let s=0;s<segments;s++){indices.push(c0,(s+1)%segments,s);indices.push(c1,(n-1)*segments+s,(n-1)*segments+(s+1)%segments);}
   return {positions,indices};
+}
+
+/** Options of `flowItemsFromApexGeometry`. */
+export interface FlowApexOptions {
+  /** 'solid' (default; a body in a tunnel, the walls of a cavity) or 'cavity' (the items are the fluid: "fluid layers"). */
+  readonly role?:'solid'|'cavity';
+  /** Name of a part in the result: the layer's 'id' (default; unique) or its 'name'. */
+  readonly partName?:'id'|'name';
+  /** Keep only these part indices. Default: every part. */
+  readonly parts?:readonly number[];
+}
+/**
+ * The items of an `apex-flow-geometry/1` document (metres, +y up, right-handed, quaternions x, y, z, w, not recentred):
+ * a box has its FULL extents in `size` along its local axes; a cylinder (flat ends) and a capsule lie along their local
+ * +y with the full `length` (for a capsule, the segment between the centres of its end spheres); a mesh keeps its
+ * per-element closed / open flags and thicknesses. Every item carries its element id as `id` and its layer as `part`.
+ * The units and axes are those of this solver: nothing is converted.
+ */
+export function flowItemsFromApexGeometry(document:unknown,options:FlowApexOptions={}):FlowItem[]{
+  if(!document||typeof document!=='object')fail('the apex-flow-geometry document must be an object.');
+  const doc=document as {schema?:unknown;parts?:unknown;primitives?:unknown;meshes?:unknown;frame?:{units?:unknown;up?:unknown;quaternion?:unknown}};
+  if(doc.schema!=='apex-flow-geometry/1')fail(`the document's schema is "${String(doc.schema)}", not "apex-flow-geometry/1".`);
+  if(doc.frame&&(doc.frame.units!==undefined&&doc.frame.units!=='m'||doc.frame.up!==undefined&&doc.frame.up!=='+y'||doc.frame.quaternion!==undefined&&doc.frame.quaternion!=='xyzw'))fail('the document\'s frame must be metres, +y up, quaternions xyzw.');
+  const parts=Array.isArray(doc.parts)?doc.parts as {id?:unknown;name?:unknown}[]:fail('the document has no parts array.');
+  const role=options.role??'solid',by=options.partName??'id',keep=options.parts?new Set(options.parts):null;
+  const nameOf=(index:unknown):string=>{
+    if(!Number.isInteger(index)||(index as number)<0||(index as number)>=parts.length)fail(`part index ${String(index)} is out of range.`);
+    const p=parts[index as number],n=by==='name'?p.name:p.id;
+    return typeof n==='string'&&n.length>0?n:`part-${index as number}`;
+  };
+  const items:FlowItem[]=[];
+  for(const raw of (Array.isArray(doc.primitives)?doc.primitives:[]) as Record<string,unknown>[]){
+    if(keep&&!keep.has(raw.part as number))continue;
+    const base={part:nameOf(raw.part),role,...(raw.element!==undefined?{id:raw.element as string}:{})},center=raw.center as FlowVec3,rotation=raw.rotation as FlowQuat|undefined;
+    switch(raw.shape){
+      case 'box':items.push({...base,kind:'box',center,size:raw.size as FlowVec3,rotation});break;
+      case 'cylinder':items.push({...base,kind:'cylinder',center,length:raw.length as number,rotation,radius:raw.radius as number});break;
+      case 'capsule':items.push({...base,kind:'capsule',center,length:raw.length as number,rotation,radius:raw.radius as number});break;
+      case 'sphere':items.push({...base,kind:'sphere',center,radius:raw.radius as number});break;
+      default:fail(`primitive shape "${String(raw.shape)}" is unknown.`);
+    }
+  }
+  for(const raw of (Array.isArray(doc.meshes)?doc.meshes:[]) as Record<string,unknown>[]){
+    if(keep&&!keep.has(raw.part as number))continue;
+    items.push({kind:'mesh',part:nameOf(raw.part),role,positions:raw.positions as number[],indices:raw.indices as number[],elements:raw.elements as FlowMeshElement[]|undefined});
+  }
+  return items;
 }

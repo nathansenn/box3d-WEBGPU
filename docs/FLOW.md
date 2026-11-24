@@ -6,10 +6,10 @@ and triangle meshes in SI units. It reports forces and moments per part, drag, l
 pressure, flow rates, pressure drops and flow splits, slices, streamlines and wake measures.
 
 **What it is.** A weakly compressible lattice-Boltzmann solver (D3Q19, regularised collision, Smagorinsky sub-grid
-model, interpolated bounce-back walls) on a uniform grid of cubic cells, float64 JavaScript, deterministic. Above a cell
-Reynolds number of about 10 it is an under-resolved large-eddy simulation without a wall model: an engineering
-estimate, **not certified CFD**. [Validation](#validation) lists what was measured against which reference, at what
-resolution and with what error; [Limits](#limits) says what it cannot do.
+model with a wall function on smooth walls, interpolated bounce-back walls) on a uniform grid of cubic cells, float64
+JavaScript, deterministic. Above a cell Reynolds number of about 10 it is an **under-resolved large-eddy simulation: an
+engineering estimate, not certified CFD**. [Validation](#validation) lists what was measured against which reference, at
+what resolution and with what error; [Limits](#limits) says what it cannot do.
 
 The existing `box3d-webgpu-kit/fluid` (staggered-grid projection, [`FLUID.md`](FLUID.md)) is unchanged; it remains the
 solver for resolved laminar flow with moving and coupled rigid bodies and for the free surface.
@@ -19,11 +19,13 @@ solver for resolved laminar flow with moving and coupled rigid bodies and for th
 - [Quick start](#quick-start)
 - [Why this method](#why-this-method)
 - [Method](#method)
+- [Frame and units](#frame-and-units)
 - [Geometry](#geometry)
 - [The study document: `box3d-flow-study/1`](#the-study-document-box3d-flow-study-1)
 - [The result document: `box3d-flow-result/1`](#the-result-document-box3d-flow-result-1)
 - [Programming interface](#programming-interface)
-- [Command line](#command-line)
+- [Command line and the single-file bundle](#command-line-and-the-single-file-bundle)
+- [Requirements of the apex flow studies](#requirements-of-the-apex-flow-studies)
 - [Drawing results with three.js](#drawing-results-with-three-js)
 - [On the GPU](#on-the-gpu)
 - [Validation](#validation)
@@ -37,10 +39,11 @@ import {runFlowStudy} from 'box3d-webgpu-kit/flow';
 
 const result = runFlowStudy({
   format: 'box3d-flow-study/1',
-  geometry: [{kind: 'box', center: [0, 0.7, 0], halfExtents: [2.2, 0.7, 0.9], part: 'body'}],
+  name: 'block in wind',
+  geometry: [{kind: 'box', center: [0, 10, 0], size: [20, 20, 20], part: 'building'}],
   fluid: 'air',
   mode: 'external',
-  external: {speed: 30, ground: {moving: true}},
+  external: {speed: 20, direction: [1, 0, 0], ground: {height: 0, type: 'fixed'}},
   resolution: {cells: 400000},
   outputs: {streamlines: true, surface: true, slices: [{axis: 'z', fraction: 0.5}]},
 }, {onProgress: p => console.log(p.step, p.maxSteps, p.coefficients)});
@@ -49,26 +52,27 @@ console.log(result.forces.coefficients.cd, result.setup.reynolds, result.warning
 ```
 
 ```
-node packages/box3d-kit/bin/flow-cli.mjs study.json --out result.json
+node packages/box3d-kit/bin/flow-cli.mjs study.json --out result.json        # in the repository
+npx box3d-flow study.json --out result.json                                  # from the installed package
 ```
 
-Both documents are plain JSON. JSON Schema files: `packages/box3d-kit/schemas/flow-study.schema.json` and
-`flow-result.schema.json` (in the published package: `box3d-webgpu-kit/schemas/flow-study.schema.json`).
+Both documents are plain JSON. JSON Schemas: `packages/box3d-kit/schemas/flow-study.schema.json` and
+`flow-result.schema.json` (in the package: `box3d-webgpu-kit/schemas/flow-study.schema.json`), written by
+`packages/box3d-kit/scripts/flow-schemas.mjs`; the test file validates real results against the result schema.
 
 ## Why this method
 
 The existing volumetric solver is a pressure-projection method: each step solves a Poisson equation by conjugate
 gradients, in float64 on one thread. That is the right tool for a resolved laminar flow and a coupled body. For flow
-around voxelised engineering geometry at high Reynolds number the measured numbers favour a lattice-Boltzmann method:
+around voxelised engineering geometry at high Reynolds number the lattice-Boltzmann method is the better fit:
 
 | | Projection (`fluid`) | Lattice-Boltzmann (`flow`) |
 |---|---|---|
-| Cell updates per second, one thread, this machine | 0.33 million at 48³, falling as the grid grows (the pressure iterations grow with it; [`FLUID.md`](FLUID.md#cost)) | 6 to 10 million, independent of the grid size ([Cost](#cost)) |
-| Steps per flow-through of a box N cells long | about 2 N (Courant number 0.5) | N / 0.06 = 17 N (the lattice speed) |
-| Cell updates per flow-through at 48³, relative | 1 | about 0.35 (2.9 times faster); the ratio grows with the grid |
-| Stability at small viscosity | central differences oscillate above a cell Reynolds number of a few; upwind is first order | regularised collision with the Smagorinsky model runs at cell Reynolds numbers of 10⁵ ([Validation](#validation)) |
+| Work per step | a Poisson solve whose iterations grow with the grid | one local update per fluid cell |
 | Arbitrary solid | four primitive kinds | any voxelised shape; the wall position enters through the link fractions |
-| Parallel form | global linear solves | one local update per cell: a single compute pass on a GPU |
+| Small viscosity | central differences oscillate above a cell Reynolds number of a few | regularised collision with a sub-grid model stays stable at cell Reynolds numbers of 10⁵ and more |
+| Sparse domains | the box | only fluid cells hold populations: a pipe network costs what its fluid costs |
+| Parallel form | global linear solves | one gather per cell: a single compute pass on a GPU |
 
 The price is the weak compressibility (an error of the order of the lattice Mach number squared, about 1%), a time
 step tied to the cell size, and no implicit steady solver: a steady state is reached by marching in time.
@@ -78,70 +82,110 @@ step tied to the cell size, and no implicit steady solver: a steady state is rea
 Lattice units below: cell 1, step 1, reference density 1. `src/engine/flow-lattice.ts` is the kernel.
 
 - **Lattice.** D3Q19: populations `f_i` with velocities `c_i` (rest, 6 axis and 12 edge neighbours), weights 1/3, 1/18,
-  1/36, sound speed `1/sqrt(3)`. The arrays hold `f_i - w_i`.
+  1/36, sound speed `1/sqrt(3)`. The arrays hold `f_i - w_i`, and only for the fluid cells (`cellOf` / `activeOf` map
+  between fluid numbers and cells of the box).
 - **Collision.** Regularised (Latt & Chopard 2006): after streaming, the density, momentum and stress
   `P = sum c_i c_i f_i` are computed and the populations are rebuilt from those ten moments, with the deviatoric
   non-equilibrium stress relaxed with `tau = 3 nu + 1/2` and its trace with `tau_b = 1` (a bulk viscosity that damps
   sound). The ghost modes that make the plain BGK collision unstable at small viscosity are discarded every step.
 - **Sub-grid model.** Smagorinsky with the strain rate read from the non-equilibrium stress (Hou et al. 1996):
   `tau = (tau_0 + sqrt(tau_0² + 18 sqrt(2) Cs² |dev Pi| / rho)) / 2`, `Cs = 0.16`. `model.turbulence: 'auto'`
-  switches it on when the cell Reynolds number `U h / nu` exceeds 10 and off otherwise (the rule is the same for
-  every case; nothing is tuned per case).
+  (default) switches it on when the cell Reynolds number `U h / nu` exceeds 10 and the Reynolds number of the study
+  exceeds 2000, and off otherwise; the rule is the same for every case, nothing is tuned per case. `'wale'` (Nicoud &
+  Ducros 1999, `Cw = 0.5`, the velocity gradient by central differences of the last step) is available and not
+  validated: on the cube case it gave erratic drag (0.45 to 1.37 in four runs), so `auto` does not use it.
 - **Walls.** Interpolated bounce-back (Bouzidi, Firdaouss & Lallemand 2001) with the link fraction `q` taken from the
   signed distance to the geometry, so a wall sits where the geometry puts it, to second order, not on the staircase.
   What the interpolation would create or destroy in mass is taken from the rest population of the same cell, so walls
-  conserve mass exactly. `model.walls: 'halfway'` uses the plain half-way bounce-back. There is **no wall model**.
-- **Inlets** are walls that "move" with the inlet velocity (Ladd's velocity bounce-back): the mass that enters per face
-  is exactly `rho U`. An inlet also gives way to sound: its velocity is lowered by `(rho - <rho>) / sqrt(3)` (the
-  acoustic impedance), with `rho` the mean density on the inlet and `<rho>` its slow average, so the pressure waves of
-  the start-up leave through the inlet instead of standing between inlet and outlet, and in a steady flow the velocity
-  is exactly the one given.
-- **Outlets** are anti-bounce-back pressure boundaries (gauge pressure 0 unless given).
-- **Tunnel sides** are specular (free slip); a ground is a no-slip wall, optionally moving with the stream.
-- **Forces** by momentum exchange on every wall link (Ladd 1994), summed per named part, with gauge pressure (a body
-  standing on the ground takes no force from the ambient pressure under it).
+  conserve mass. `model.walls: 'halfway'` uses the plain half-way bounce-back.
+- **Wall function.** With a sub-grid model on, boundary layers are not resolved and a no-slip wall then takes a shear
+  set by the lattice (measured: a skin-friction coefficient of 0.056 on a tunnel floor, ten times a turbulent boundary
+  layer's). A fluid cell next to a **smooth** wall therefore treats its wall as slipping with the cell's own tangential
+  velocity and takes the wall shear stress of a power law, `u+ = 8.3 (y+)^(1/7)` (Werner & Wengle 1991), with the
+  viscous law below it (measured: `Cf` = 0.0055 on the same floor). "Smooth" means `h` times the Laplacian of the
+  signed distance (the convex curvature) is under 0.5: next to a sharp convex edge the wall is plain no-slip
+  bounce-back, so the geometry fixes the separation. `model.wallFunction: false` switches it off.
+- **Inlets** are walls that "move" with the inlet velocity (velocity bounce-back): the mass that enters per link is
+  exactly `rho c . u`. An inlet also gives way to sound: its velocity is lowered by `(rho - <rho>) / sqrt(3)` with `rho`
+  the mean density on the inlet and `<rho>` its slow average, so start-up pressure waves leave through the inlet and a
+  steady flow has exactly the velocity given.
+- **Outlets** are anti-bounce-back pressure boundaries (gauge pressure 0 unless given), or velocity boundaries when an
+  outlet is given by a flow rate.
+- **Tunnel sides** are specular (free slip); a ground is a no-slip wall (with the wall function), a moving belt, or a
+  slip plane.
+- **Forces** by momentum exchange on every wall link (Ladd 1994), plus the wall-function shear, summed per named part.
+  In an external study they are referred to the static pressure of the free stream (below).
+- **Reference pressure (external).** The outlet holds gauge pressure 0; the static pressure of the stream ahead of the
+  body is higher by the losses of the tunnel (drag, wake). As in a wind tunnel, the reference is the mean pressure on
+  the inlet over the averaged steps (`setup.external.referencePressure`): every pressure, pressure coefficient and force
+  of an external result is gauge to it. For a body standing on the ground the footprint matters: the force a uniform
+  1 Pa puts on each part (`Flow.pressureArea()`, zero for a body surrounded by fluid) times the reference is taken off.
 - **Flow rates** are the mass that crosses each inlet and outlet link: what enters minus what leaves is the change of
-  the mass in the box to round-off.
+  the mass in the box.
 - **Units.** `dt = latticeSpeed h / referenceSpeed`; `nu_lattice = nu dt / h²`; pressure `rho (h/dt)² (rho_lattice - 1) / 3`.
 - **Determinism.** Fixed loop orders and only `+ - * /` and the square root: repeat runs are bit-identical.
   `Flow.saveState()` / `restoreState()` resume bit-exactly.
 
+## Frame and units
+
+Everything is SI: metres, seconds, kilograms, newtons, pascals; flow rates in m³/s. Results are in the frame of the study
+(nothing is recentred or rotated). The frame is any right-handed one; `external.up` says which axis is up (default
+`+y`). Rotations are unit quaternions **`[x, y, z, w]`** taking local to world coordinates. A **box** takes either its
+**full** extents `size` or its half extents `halfExtents` along its local x, y, z (exactly one). A **cylinder**,
+**capsule**, **cone** and **tube** lie along their **local +y**: either `from` and `to`, or `center`, `rotation` and the
+**full** `length` (or `halfLength`); a capsule's length is the segment between the centres of its end spheres. These
+are the conventions of `apex-flow-geometry/1` (metres, +y up, right-handed, xyzw, FULL box sizes, cylinders along
+local +y with their full length), so its items map one to one.
+
 ## Geometry
 
 An item is a **solid** (default) or a **cavity** (`role: 'cavity'`). With cavities the solid is everything outside
-their union, plus the solid items: a pipe is a cylinder cavity, a tank a box cavity, a valve disc a solid inside.
-Every item may name a `part`; forces and surfaces are reported per part (default part `"body"`).
+their union, plus the solid items: a pipe drawn by its bore is a cylinder cavity, a tank a box cavity, a valve disc a
+solid inside. Every item may name a `part`; forces and surfaces are reported per part (default part `"body"`), and may
+carry an `id` (the model's element id), which the report repeats.
 
 | `kind` | Fields | Notes |
 |---|---|---|
-| `box` | `center`, `halfExtents`, `rotation?` | |
+| `box` | `center`, `size` (full) or `halfExtents`, `rotation?` | |
 | `sphere` | `center`, `radius` | |
 | `cylinder`, `capsule` | `radius` and an axis | flat ends / round ends |
-| `cone` | `radius` (at `from`), `radiusTop` (at `to`) and an axis | a frustum; one radius may be 0 |
+| `cone` | `radius` (at `from`, the -y end), `radiusTop` (at `to`) and an axis | a frustum; one radius may be 0 |
 | `tube` | `radius`, `innerRadius` and an axis | a pipe wall, open at both ends |
-| `beam` | `from`, `to`, `width`, `depth`, `up?`, `section?: 'rect' \| 'i'`, `flange?`, `web?` | `depth` is measured along `up`, `width` across; an I section needs `flange` and `web` |
-| `mesh` | `positions` (x, y, z per vertex), `indices?`, `thickness?`, `position?`, `rotation?`, `scale?`; or `file` | triangles; without `indices` every three vertices are a triangle |
+| `beam` | `from`, `to`, `width`, `depth`, `up?`, `section?: 'rect' \| 'i'`, `flange?`, `web?` | `depth` along `up`, `width` across |
+| `mesh` | `positions` (x, y, z per vertex), `indices?`, `thickness?`, `elements?`, `position?`, `rotation?`, `scale?`; or `file` | triangles; without `indices` every three vertices are a triangle |
+| `apex` | `document` or `file`, `role?`, `partName?: 'id' \| 'name'`, `parts?` | every primitive and mesh of an `apex-flow-geometry/1` document |
 
-An **axis** is either `from` and `to` (two points), or `center`, `halfLength` and `rotation` (the axis is the local Y).
-Rotations are unit quaternions `[x, y, z, w]`. All lengths are metres.
+An **axis** is `from` and `to`, or `center`, `rotation` and `length` / `halfLength` (the axis is the local +y).
 
-**Meshes.** Vertices are welded (10⁻⁶ of the bounding box) and the mesh is split into connected components.
-A closed component (every edge shared by an even number of triangles) is filled by ray parity along the three axes
-through every cell centre with a majority vote, so the orientation of the triangles does not matter and a ray that
-slips through a crack is outvoted. Overlapping closed components are united. An open component with a `thickness` is a
-shell of that thickness, never thinner than 1.74 cells (the thinnest sheet every lattice link is certain to hit);
-without a thickness it is filled by parity with a warning. Distances are exact within 4 cells of the surface.
+**Voxelisation.** Each primitive is evaluated (an exact signed distance) only on the cells of its own bounding box plus
+a band of 4 cells, and each mesh component on its own bounding box: the work is proportional to the cells near each
+item, not to cells times items. Distances are exact within the band.
 
-**What the grid did to the geometry** is reported in `setup.geometry` of the result: for each item its smallest
-dimension when it is known from the definition, its surface area inside the box, and the fraction of that surface with
-no cell of the item within 1.25 cells. Warnings are raised when an item's smallest dimension is under two cells
-("coarse") or under one ("not resolved"), when more than 5% of a surface is unresolved, and when a shell had to be
-thickened. The resolved feature size is the cell size `setup.grid.cell`: shapes are represented from about two cells up.
+**Meshes.** Vertices are welded (10⁻⁶ of the bounding box) and the mesh is split into connected components. A closed
+component (every edge shared by an even number of triangles) is signed by ray parity along the three axes through
+every cell centre with a majority vote, so the winding does not matter and a ray that slips through a crack is
+outvoted; overlapping closed components are united. An open component with a `thickness` (0 allowed) is a shell of
+that thickness; without one it is filled by parity, with a warning. `elements` (the layout of an
+`apex-flow-geometry/1` mesh: `{element?, triStart, triCount, closed, thickness?}`) says per run of triangles whether it
+is a closed solid or an open surface of a thickness; triangles in no run take the mesh's `thickness`.
+
+**Walls do not leak.** A lattice link that crosses a wall has an end within `sqrt(2)/2` cells of it, so a sheet at
+least **1.44 cells** thick blocks every link. A plate-like solid primitive (thin in one direction: a panel, a disc, a
+pipe wall) or an open mesh thinner than that is **grown to 1.44 cells** about its mid-surface; in a closed mesh, every
+link that crosses the surface between two fluid cells has its end nearer to the surface made solid. Both are reported:
+`setup.geometry.thickened` (items grown), `largestThickening` (metres added), `closedCells` (cells made solid), the
+per-item `thickened` and `thickenedCells`, and a warning. Slender items (thinner than a cell in two directions: rods,
+cables) are not walls; they are counted in `slender` and warned about.
+
+**What the grid did to the geometry** is in `setup.geometry`: for each item (all of them up to 100 items, else those
+the grid changed or could not hold, at most 200) its smallest dimension when the definition gives one, its surface
+area inside the box, and the fraction of that surface with no cell of the item within 1.25 cells. Warnings are raised
+when an item's smallest dimension is under two cells ("coarse"), when more than 5% of a surface is unresolved, and
+when walls were grown. The **resolved feature size** is about two cells (`2 setup.grid.cell`).
 
 ## The study document: `box3d-flow-study/1`
 
-Unknown fields are errors (a typing mistake is not silently ignored). Schema:
-`packages/box3d-kit/schemas/flow-study.schema.json`.
+Unknown fields are errors (a typing mistake is not silently ignored).
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -149,14 +193,14 @@ Unknown fields are errors (a typing mistake is not silently ignored). Schema:
 | `name` | string | copied to the result |
 | `units` | `"SI"` | optional; nothing else is accepted |
 | `geometry` | array of items | see [Geometry](#geometry) |
-| `fluid` | `"air"`, `"water"`, or `{density, viscosity}` or `{density, dynamicViscosity}` | kg/m³; `viscosity` is kinematic, m²/s. The names are the 20 °C entries of the material library: air 1.204 kg/m³, 1.825·10⁻⁵ Pa s; water 998.207 kg/m³, 1.0016·10⁻³ Pa s |
+| `fluid` | `"air"`, `"water"`, or `{name?, density, viscosity}` or `{name?, density, dynamicViscosity}` | kg/m³; `viscosity` kinematic, m²/s; `dynamicViscosity` Pa s. Air 1.204 kg/m³, 1.825·10⁻⁵ Pa s; water 998.207 kg/m³, 1.0016·10⁻³ Pa s (20 °C, the material library) |
 | `mode` | `"external"` or `"internal"` | required |
 | `external` | object | required for `external`, see below |
 | `internal` | object | required for `internal`, see below |
-| `motion` | `{partName: {velocity?, angularVelocity?, center?}}` | surface velocity of a part, m/s and rad/s about `center`. The solid does not move (a "frozen" rotor, a belt, a rolling wheel) |
-| `actuators` | array of `{name, center, axis, radius, thickness?, force \| pressureJump}` | actuator discs: a momentum source over the fluid cells of a disc. `force` (N) acts on the fluid along `axis`; `pressureJump` (Pa) is `force / (pi radius²)`. `thickness` defaults to, and is at least, two cells |
-| `resolution` | `{cells?, cellSize?, latticeSpeed?}` | `cells`: budget of lattice cells, default 400,000 (the boundary layers of the box count). `cellSize` (m) overrides it. `latticeSpeed`: the reference speed in cells per step, default 0.06, at most 0.2 |
-| `model` | `{turbulence?, smagorinsky?, walls?, spongeCells?}` | `turbulence`: `"auto"` (default), `"none"`, `"smagorinsky"`; `smagorinsky`: the constant, default 0.16; `walls`: `"interpolated"` (default) or `"halfway"`; `spongeCells`: cells in front of pressure sides over which the viscosity rises, default 0 |
+| `motion` | `{partName: {velocity?, angularVelocity?, center?}}` | surface velocity of a part, m/s and rad/s about `center`. The solid does not move (a frozen rotor, a belt) |
+| `actuators` | array of `{name, center, axis, radius, thickness?, force \| pressureJump}` | actuator discs: a momentum source over the fluid cells of a disc; `force` N on the fluid along `axis`, or `pressureJump` Pa |
+| `resolution` | `{cells?, cellSize?, latticeSpeed?}` | `cells`: budget of **fluid** cells, default 400,000. `cellSize` (m) is used when it fits the budget. `latticeSpeed`: reference speed in cells per step, default 0.06 |
+| `model` | `{turbulence?, smagorinsky?, wale?, wallFunction?, walls?, spongeCells?, thicken?}` | `turbulence`: `"auto"` (default), `"none"`, `"smagorinsky"`, `"wale"`; `wallFunction` default true; `walls`: `"interpolated"` (default) or `"halfway"`; `thicken` default true |
 | `run` | object | run lengths, see below |
 | `outputs` | object | what to post-process, see below |
 
@@ -164,43 +208,55 @@ Unknown fields are errors (a typing mistake is not silently ignored). Schema:
 
 | Field | Default | Meaning |
 |---|---|---|
-| `speed` | required | m/s |
-| `direction` | `[1, 0, 0]` | the direction the fluid moves in; any direction (it is normalised). A side of the box is an inlet where the stream enters it (direction component above 0.2), an outlet where it leaves, else a slip wall |
-| `up` | `[0, 1, 0]` | the lift axis; must be along one coordinate axis |
-| `ground` | `false` | `true` or `{height?, moving?}`: a no-slip plane normal to `up` at `height` (default: the lowest point of the geometry). `moving: true` slides it with the stream. The direction must be parallel to it |
-| `margins` | `{upstream: 2, downstream: 5, side: 2, top: 2, bottom: top}` | free space around the bounding box of the geometry, in multiples of the body size across the flow (the larger of its height and its width seen along the flow) |
+| `speed` | required | free-stream speed, m/s |
+| `direction` | `[1, 0, 0]` | direction the fluid moves toward, any direction (normalised). A side of the box is an inlet where the stream enters (component above 0.2), an outlet where it leaves, else a slip wall |
+| `up` | `[0, 1, 0]` | the lift axis, along one coordinate axis |
+| `ground` | `false` | `true` or `{height?, type?}`: a plane normal to `up` at `height` (default: the lowest point of the geometry). `type`: `"fixed"` (default, no-slip with the wall function), `"moving"` (slides with the stream), `"slip"` (a symmetry plane). The geometry below the ground is removed; the direction must be parallel to the ground |
+| `margins` | `{upstream: 3, downstream: 6, side: 2.5, top: 2.5, bottom: top}` | free space around the bounding box of the geometry, in multiples of `margins.length` |
+| `margins.length` | `referenceLength` when given, else the body size across the flow (the larger of its height and its width seen along the flow) | m |
 | `domain` | | `{min, max}`: the box itself, instead of margins |
-| `referenceLength` | largest extent of the bounding box | m; used for the Reynolds number and the moment coefficients |
-| `referenceArea` | shadow of the solid cells along the flow | m²; used for the coefficients |
+| `referenceLength` | largest extent of the geometry | m; for the Reynolds number and the moment coefficients |
+| `referenceArea` | shadow of the solid cells along the flow | m²; for the coefficients |
 | `momentCenter` | centre of the bounding box | point the moments are taken about |
 
-The box grows to whole cells on the downstream and upper sides. The fluid starts at the free-stream velocity.
-Solid items only (no cavities). Coefficients: `cd` along `direction`, `cl` along `up` made normal to the direction,
-`cs` along `direction × up`.
+The box grows to whole cells on the downstream and upper sides. The fluid starts at the free-stream velocity. Solid
+items only (no cavities). Coefficients: `cd` along `direction`, `cl` along `up` made normal to the direction, `cs` along
+`direction × up`. A ground of type `"moving"` under a body that stands on it makes a singular corner (the belt drives
+the fluid into the junction; measured surface `cp` up to 2.2 there): leave a gap, as wheels do.
 
 ### `internal`: flow through a cavity
 
+Two kinds of domain, both by the `role` of the items:
+
+- **Fluid layers**: the items are the fluid (`role: "cavity"`): a pipe run drawn as round members whose diameter is
+  the bore, a tank as a box. Everything outside their union is wall. Ends of the members are closed unless an opening
+  is placed on them.
+- **Cavity**: the items are the walls (`role: "solid"`, a tunnel lining, a casing) and the fluid is the space they
+  enclose; the box of the study (`domain` or the bounds plus `padding`) closes the rest. Fluid that no opening reaches
+  is made solid (`setup.lattice.enclosedCells`).
+
 | Field | Default | Meaning |
 |---|---|---|
-| `inlets` | `[]` | array of `{name, shape, flowRate \| speed \| velocity, profile?}`: volume flow rate m³/s, or mean speed along the normal m/s, or a velocity vector. `profile`: `"uniform"` (default) or `"parabolic"` (`1 - (r/R)²` on a disc, `(1 - (x/a)²)(1 - (y/b)²)` on a rectangle, scaled to the given flow rate; the shape must then match the opening) |
-| `outlets` | `[]` | array of `{name, shape, pressure?}`: gauge pressure, Pa, default 0 |
+| `inlets` | `[]` | `{name, shape, flowRate \| speed \| velocity, profile?}`: volume flow **into** the fluid m³/s, or mean speed into the fluid m/s, or a velocity vector. `profile`: `"uniform"` (default), `"parabolic"` or its alias `"developed"` (`1 - (r/R)²` on a disc, `(1 - (x/a)²)(1 - (y/b)²)` on a rectangle, scaled to the flow rate: peak twice the mean on a disc) |
+| `outlets` | `[]` | `{name, shape, pressure?}` (gauge, Pa, default 0), or `{name, shape, flowRate \| speed, profile?}`: flow **out of** the fluid. At least one outlet must be given by a pressure (with every opening's flow imposed, the pressure level and the mass in the box drift) |
 | `domain` | bounds of the geometry | `{min, max}` |
 | `padding` | 0 | metres added around the bounds of the geometry |
-| `referenceSpeed` | the largest of the inlet speeds and the total inflow over the smallest outlet | m/s; sets the time step. Give it when the flow is faster somewhere inside (a nozzle, a valve seat) |
+| `referenceSpeed` | the fastest opening (peak of a parabolic profile) or the total inflow over the smallest pressure outlet | m/s; sets the time step. Give it when the flow is faster somewhere inside (a nozzle, a valve seat) |
 | `referenceLength` | diameter of the circle with the area of the first inlet | m; for the Reynolds number |
-| `acceleration`, `periodic`, `initialVelocity` | | a duct driven by a body force (m/s²) with periodic axes (`["x"]`), instead of inlets and outlets; `referenceSpeed` is then required |
+| `acceleration`, `periodic`, `initialVelocity` | | a duct driven by a body force (m/s²) with periodic axes (`["x"]`), instead of openings; `referenceSpeed` is then required |
 
 A **shape** is `{kind: "disc", center, normal, radius}` or `{kind: "rect", center, normal, up?, halfWidth, halfHeight}`.
-The `normal` points **into the fluid** (for an inlet, the direction of the inflow; for an outlet, against the outflow).
-The cells within 2.5 cells behind the plane and inside the shape become the opening, whatever they were, so the plane
-is put at the end of the pipe (it may lie on a side of the box) and a shape somewhat larger than the opening does no
-harm with a uniform profile. Sides of the box that are not openings are walls. Fluid cells that no opening reaches are
-made solid (`setup.lattice.enclosedCells`). With inlets there must be at least one outlet.
+The `normal` is the **outward normal of the fluid domain**: it points out of the fluid through the opening (for an
+inlet, against the inflow; for an outlet, along the outflow), as in `apex-flow-geometry/1` studies. The cells within
+2.5 cells outside the plane and inside the shape become the opening, whatever they were; a cell of that slab that has no
+fluid in front of the plane stays wall, so a pipe that ends inside the box is fed only through its end. Place the plane
+at the end of the pipe (it may lie on a side of the box). Sides of the box that are not openings are walls. Openings
+that touch no fluid cell raise a warning. The pressure of an internal result is gauge to the pressure outlets' 0.
 
 ### `run`
 
 Lengths are in **transits**: the length of the box along the flow (external) or its longest side (internal) over the
-reference speed (`setup.transitTime` in the result).
+reference speed (`setup.transitTime`).
 
 | Field | Default | Meaning |
 |---|---|---|
@@ -218,52 +274,52 @@ All reported means (forces, flow rates, fields, streamlines of the mean field) a
 
 | Field | Meaning |
 |---|---|
-| `streamlines` | `true` or `{seeds?, count?, field?, step?, maxPoints?, stride?, direction?}`. `seeds`: `"auto"` (default: a grid upstream of the body over its shadow, or points spread over every inlet) or an array of `{kind: "rake", from, to, count}`, `{kind: "plane", origin, u, v, nu, nv}` (points `origin + s u + t v`), `{kind: "points", points}`. `count`: number of automatic seeds, default 64. `field`: `"mean"` (default) or `"instant"`. `step`: integration step in cells, default 0.5. `stride`: keep every n-th point, default 2. `maxPoints`: default 400. `direction`: `"forward"` (default), `"backward"`, `"both"` |
-| `slices` | array of `{axis, position \| fraction, field?}`: a plane normal to `axis` at `position` (m) or at `fraction` (0 to 1) of the box |
+| `streamlines` | `true` or `{seeds?, from?, count?, field?, step?, maxPoints?, stride?, direction?}`. `seeds`: `"auto"` (default: a grid upstream of the body over its shadow, or points spread over the inlets) or an array of `{kind: "rake", from, to, count}`, `{kind: "plane", origin, u, v, nu, nv}`, `{kind: "points", points}`. `from`: names of the inlets the automatic seeds are spread over. `count`: automatic seeds, default 64. `field`: `"mean"` (default) or `"instant"`. `step`: RK4 step in cells, default 0.5. `stride`: keep every n-th point, default 2. `maxPoints`: default 400. `direction`: `"forward"` (default), `"backward"`, `"both"` |
+| `slices` | array of `{axis, position \| fraction, field?}`: a plane normal to `axis` at `position` (m) or `fraction` (0 to 1) of the box |
 | `surface` | `true`: pressure and pressure coefficient at the vertices of the surface of every part |
-| `lines` | array of `{name?, from, to, samples?, along?}`: the fields along a line (default 101 samples) and where the velocity component along `along` (default: the line) changes sign (a reattachment point) |
+| `lines` | array of `{name?, from, to, samples?, along?}`: the fields along a line (default 101 samples) and where the velocity component along `along` changes sign |
 | `sections` | array of `{name?, axis, position, min?, max?}`: integrals over the cell layer at `axis = position`, optionally inside the box `min`..`max` |
 | `history` | `false` leaves the convergence history out. Default `true` |
 
 ## The result document: `box3d-flow-result/1`
 
-Schema: `packages/box3d-kit/schemas/flow-result.schema.json`. Field numbers are rounded to six significant digits.
-Vectors are `[x, y, z]`. Optional members are absent when the output was not requested.
+Numbers are rounded to six significant digits. Vectors are `[x, y, z]` in the frame of the study. Optional members are
+absent when the output was not requested. Pressures are gauge (see the reference pressure under [Method](#method)).
 
 | Member | Content |
 |---|---|
 | `format`, `name` | `"box3d-flow-result/1"`, the study's name |
-| `solver` | `{id, version, statement}`: `id` is `flow-lbm-d3q19-regularized-les-js-f64-v1`; `statement` says what the solver is |
+| `solver` | `{id, version, statement, provenance}`: `id` `flow-lbm-d3q19-regularized-les-js-f64-v1`; `version` `1.0.0`; `statement` says what the solver is; `provenance` is the `provenance` option (the command line fills `{cli, solverVersion, package, sourceCommit}`), else `null` |
 | `setup` | everything derived from the study, below |
-| `run` | `{steps, time, wallTime, cellUpdatesPerSecond, converged, reason, windows, averaged, maxSpeed}`: `time` simulated seconds; `wallTime` seconds; `reason` `"tolerance"` or `"max-steps"`; `averaged` `{fromStep, steps, time, samples}` of the window the means are over (`null` when no sample was taken); `maxSpeed` the largest speed seen, m/s |
-| `convergence` | `{tolerance, startupSteps, windowSteps, monitorEvery, history}`; `history` holds parallel arrays `step`, `time`, `residual` (rms change of the velocity over an interval, over the reference speed), `maxSpeed`, and for an external study `cd`, `cl`, `cs` (means over each interval), for an internal one `massBalance`, `bulkSpeed`, `flowRates` and `patchPressure` (objects of arrays by opening name) |
-| `forces` | `{about, total: {force, moment}, parts: [{name, force, moment}], coefficients}`: N and N m about `about`, means over the window. `total` sums the parts of the geometry (not the ground or the sides of the box). `coefficients` (external; `null` for internal): `{cd, cl, cs, cdRms, clRms, csRms, cm, referenceArea, referenceLength, dynamicPressure, axes: {drag, lift, side}}`; `cm = moment / (q A L)` |
-| `flow` | `{patches, inflow, outflow, massBalance, splits, pressureDrops, sections}`. `patches`: per opening `{name, kind, flowRate, area, meanSpeed, meanPressure, meanDynamicPressure, meanTotalPressure}`; `flowRate` is m³/s **into the box** (negative at outlets); pressures are means over the fluid cells that touch the opening, Pa gauge. `massBalance = (inflow - outflow) / inflow`. `splits`: per outlet its `fraction` of the outflow. `pressureDrops`: for every inlet and outlet pair `{from, to, static, total}`, Pa. `sections`: per requested section `{name, axis, position, area, flowRate, meanSpeed, meanPressure, meanTotalPressure, momentumFactor}` (`flowRate` along +axis; `meanTotalPressure` is flux-weighted; `momentumFactor` is `area ∫u_n² / Q²`) |
-| `actuators` | per actuator `{name, cells, force, axis, area, pressureJump, meanSpeed, flowRate, power}`: the speed of the fluid through the disc, `flowRate = meanSpeed × area`, `power = force × meanSpeed` |
-| `wake` | external: `{shedding, recirculationLength, recirculationFrom}`; `shedding` is `null` or `{frequency, strouhal, length, periods, amplitude, axis}` from the cross-flow force history (Strouhal number with `length` = the body size across the flow); `recirculationLength` is the distance from the rear of the bounding box, on its centre line, to where the mean streamwise velocity turns positive, or `null`. Internal: `null` |
-| `streamlines` | `{field, speedRange: [min, max], lines: [{seed, termination, points, speed, pressure}]}`: `points` is x, y, z per vertex (m), `speed` (m/s) and `pressure` (Pa gauge) one per vertex; `termination` is `"wall"`, `"outside"` (left through an outlet or a side), `"stagnation"` or `"length"` (reached `maxPoints`) |
-| `slices` | per slice `{axis, position, axes: [u, v], nu, nv, origin: [u0, v0], cell, speed, pressure, u, v, fluid}`: row-major arrays of `nu × nv` samples (index `i + nu j`), sample `(i, j)` at `origin + cell (i, j)` along the in-plane axes `axes` (cyclic: x → y, z; y → z, x; z → x, y); `u`, `v` the in-plane velocity; `fluid` 1 where the sample is in the fluid |
-| `surface` | per part `{part, positions, indices, pressure, cp}`: triangles (meshes as given, primitives tessellated at 1.5 cells), `pressure` (Pa gauge) and `cp = pressure / (rho U² / 2)` per vertex, read one cell out from the wall |
-| `lines` | per line `{name, from, to, s, ux, uy, uz, speed, pressure, distance, zeroCrossings}`: `s` distance from `from`; `distance` the signed distance to the wall (negative in the solid) |
-| `warnings` | array of strings: blockage, resolution, unresolved features, Mach number, non-convergence |
-| `limits` | array of strings: the standing limits of the solver |
+| `run` | `{steps, time, wallTime, cellUpdatesPerSecond, converged, reason, windows, averaged, maxSpeed}`: `time` simulated s; `wallTime` s; `reason` `"tolerance"` or `"max-steps"`; `averaged` `{fromStep, steps, time, samples}` of the window the means are over (`null` when no sample was taken); `maxSpeed` m/s |
+| `convergence` | `{tolerance, startupSteps, windowSteps, monitorEvery, history}`; `history` has parallel arrays `step`, `time`, `residual` (rms change of the velocity over an interval over the reference speed), `maxSpeed`, and external `cd`, `cl`, `cs`, internal `massBalance`, `bulkSpeed`, `flowRates` and `patchPressure` (by opening name) |
+| `forces` | `{about, total: {force, moment}, parts: [{name, force, moment}], coefficients}`: N and N m about `about`, means over the window. `parts` lists the parts of the geometry, then the walls of the box that took force (the `ground`, sides by name); `total` sums the parts of the geometry only. `coefficients` (external; `null` internal): `{cd, cl, cs, cdRms, clRms, csRms, cm, referenceArea, referenceLength, dynamicPressure, axes: {drag, lift, side}}`, `cm = moment / (q A L)` |
+| `extremes` | `{pressureMax, pressureMin, speedMax, dynamicPressure}` of the averaged field over the fluid cells: `{value, cp?, at}`; `cp = pressure / dynamicPressure`, `dynamicPressure = rho U² / 2` of the reference speed |
+| `flow` | `{patches, inflow, outflow, massBalance, splits, pressureDrops, sections}`. `patches`: per opening `{name, kind, flowRate, area, meanSpeed, meanPressure, meanDynamicPressure, meanTotalPressure}`; `flowRate` m³/s **into** the box (negative at outlets), the mass that crossed its links; pressures are area means over the fluid cells touching the opening. `massBalance = (inflow - outflow) / inflow`. `splits`: per outlet its `fraction` of the outflow. `pressureDrops`: per inlet-outlet pair `{from, to, static, total}` Pa. `sections`: `{name, axis, position, area, flowRate, meanSpeed, maxSpeed, maxNormalSpeed, meanPressure, meanTotalPressure, momentumFactor}` (`flowRate` along +axis; peak over mean is `maxNormalSpeed / meanSpeed`) |
+| `actuators` | per disc `{name, cells, force, axis, area, pressureJump, meanSpeed, flowRate, power}` |
+| `wake` | external `{shedding, recirculationLength, recirculationFrom}`: `shedding` `null` or `{frequency, strouhal, length, periods, amplitude, axis}` from the cross-flow force history (`length` the body size across the flow); `recirculationLength` from the rear of the bounding box along its centre line to where the mean streamwise velocity turns positive, or `null`. Internal: `null` |
+| `streamlines` | `{field, speedRange, lines: [{seed, termination, points, speed, pressure}]}`: RK4 through the trilinear field; `points` x, y, z per vertex (m); `speed` (m/s) and `pressure` (Pa) per vertex; `termination` `"opening"` (entered an outlet, or an inlet when traced backwards), `"wall"`, `"outside"`, `"stagnation"`, `"length"` |
+| `slices` | `{axis, position, axes: [u, v], nu, nv, origin: [u0, v0], cell, speed, pressure, u, v, fluid}`: row-major `nu × nv` samples (index `i + nu j`) at `origin + cell (i + 1/2, j + 1/2)` along the in-plane axes (x → y, z; y → z, x; z → x, y); `fluid` is 1 in the fluid |
+| `surface` | per part `{part, positions, indices, pressure, cp, pressureMin, pressureMax, cpMin, cpMax}`: triangles (meshes as given, primitives tessellated at 1.5 cells), pressure read one cell out from the wall |
+| `lines` | per line `{name, from, to, s, ux, uy, uz, speed, pressure, distance, zeroCrossings}` |
+| `warnings` | strings: blockage, resolution, thickening, unresolved features, Mach number, non-convergence |
+| `limits` | strings: the standing limits of the solver |
 
-`setup` holds: `mode`; `fluid`; `grid` (the box of fluid cells: `origin`, `cell`, `nx`, `ny`, `nz`, `min`, `max`);
-`lattice` (the box plus its boundary layers: `origin`, `cell`, `nx`, `ny`, `nz`, `cells`, `fluidCells`, `solidCells`,
-`enclosedCells`, `boundaryLinks`; slices are sampled on this grid); `timeStep`; `latticeSpeed`; `latticeMach`;
-`relaxationTime`; `cellReynolds`; `turbulence: {model, smagorinsky}`; `walls`; `referenceSpeed`;
-`referenceLength: {value, source}`; `reynolds`; `transitTime`; `external` (`speed`, `direction`, `up`, `side`,
-`ground`, `bodySize`, `bodyCells`, `bodyBounds`, `blockage`, `referenceArea: {value, source}`, `dynamicPressure`,
-`momentCenter`; `null` for internal); `internal` (`{inlets, outlets}` names; `null` for external); `sides` (kind of each
-of `xMin` … `zMax`); `patches` (per opening `{name, kind, area, normal, velocity, pressure, cells}`: the area the
-lattice gives it and what is imposed); `parts` (names, in the order of `forces.parts`); `geometry` (the per-item report
-of [Geometry](#geometry): `{index, kind, part, role, smallestDimension, surfaceArea, unresolvedFraction}` and for
-meshes `triangles`, `components`, `closedComponents`); `controls` (the run lengths in steps).
+`setup` holds: `mode`; `fluid` `{density, viscosity}`; `grid` (the box of fluid cells: `origin`, `cell`, `nx`, `ny`,
+`nz`, `min`, `max`); `lattice` (the box plus its boundary layers: `origin`, `cell`, `nx`, `ny`, `nz`, `cells`,
+`fluidCells`, `solidCells`, `enclosedCells`, `boundaryLinks`; slices are sampled on it); `timeStep`; `latticeSpeed`;
+`latticeMach`; `relaxationTime`; `cellReynolds`; `turbulence` `{model, constant, wallFunction, rule}`; `walls`;
+`referenceSpeed`; `referenceLength` `{value, source}`; `reynolds`; `transitTime`; `external` (`speed`, `direction`, `up`,
+`side`, `ground`, `bodySize`, `bodyCells`, `bodyBounds`, `blockage`, `referenceArea {value, source}`,
+`dynamicPressure`, `momentCenter`, `margins`, `referencePressure {value, source}`; `null` internal); `internal`
+`{inlets, outlets, fluidFraction}` (`null` external); `sides` (kind of `xMin` … `zMax`); `patches` (per opening `{name,
+kind, area, normal, velocity, pressure, cells}`, `normal` outward); `parts`, `geometryParts`; `geometry` (the report
+of [Geometry](#geometry)); `controls` (the run lengths in steps).
 
 The **reference area** of an external study is the shadow of the solid cells along the flow: every solid cell is cut
 into eight, the centres are dropped on a plane grid of half the cell size, and the squares hit are counted
-(`setup.external.referenceArea.source` says so; a given `referenceArea` is reported as `"given"`). The **blockage** is
-that shadow over the cross-section of the tunnel; above 5% a warning is raised and nothing is corrected.
+(`setup.external.referenceArea.source` says so; a given `referenceArea` is `"given"`). The **blockage** is that shadow
+over the cross-section of the tunnel; above 5% a warning is raised and nothing is corrected.
 
 ## Programming interface
 
@@ -273,10 +329,13 @@ that shadow over the cross-section of the tunnel; above 5% a warning is raised a
 runFlowStudy(study, options?): result              // set up, run, post-process
 createFlowStudy(study, options?): FlowStudyRun     // {setup, flow, done, advance(), result()}: step it yourself
 flowStudySetup(study, options?): FlowStudySetup    // check a study and work out the set-up without running
-// options: {onProgress?(p), loadMesh?(file) => {positions, indices?}, now?() => ms}
+// options: {onProgress?(p), loadMesh?(file) => {positions, indices?}, loadDocument?(file) => object, now?() => ms,
+//           provenance?: {key: string | number | boolean | null}}
 
+flowItemsFromApexGeometry(document, {role?, partName?, parts?}): FlowItem[]   // apex-flow-geometry/1 to items
 new Flow(options)                                  // the solver: grid, geometry, fluid, sides, patches, motion, actuators
-  .step(n) .time .dt .forces(about) .takeSums(about) .accumulate() .field(mean) .saveState() .restoreState(state)
+  .step(n) .time .dt .forces(about) .takeSums(about) .pressureArea(about) .accumulate() .field(mean)
+  .saveState() .restoreState(state)
 flowVoxelize(items, grid)                          // signed distance, parts, surfaces, report
 flowGeometryBounds(items)  flowTubeMesh(path, radius, segments)  flowPrimitiveSurface(item, size)
 flowStreamlines(field, seeds, options)  flowRake(from, to, count)  flowSeedPlane(origin, u, v, nu, nv)
@@ -284,61 +343,87 @@ flowSlice(field, axis, position)  flowSurfacePressure(field, surfaces)  flowLine
 flowSection(field, density, axis, position, bounds)  flowProjectedArea(grid, solid, direction)  flowFrequency(samples, dt)
 flowSample(field, x, y, z, out)                    // trilinear [ux, uy, uz, pressure, distance]
 FlowLattice                                        // the kernel in lattice units
+FLOW_STUDY_FORMAT, FLOW_RESULT_FORMAT, FLOW_SOLVER_ID, FLOW_SOLVER_VERSION, FLOW_MARGINS, FLOW_LIMITS, FLOW_STATEMENT
 ```
 
 `Flow` takes the sides of the box directly (`'wall'`, `'slip'`, `'periodic'`, `{kind: 'velocity', velocity}` with a
 vector or a function of the position, `{kind: 'pressure', pressure}`, `{kind: 'wall', velocity, part}`), which is how
-the validation cases set up channels with parabolic inflow.
+the validation cases set up channels and tunnels.
 
-## Command line
+## Command line and the single-file bundle
 
 ```
-node packages/box3d-kit/bin/flow-cli.mjs study.json --out result.json [--quiet] [--setup]
-npx box3d-flow study.json --out result.json            # from the installed package
+box3d-flow study.json --out result.json [--quiet] [--setup]
 ```
 
 Reads the study, resolves meshes given by `file` (`.stl` binary or ASCII, `.obj`, or `.json` with `positions` and
-`indices`) relative to the study file, prints the set-up and a progress line per monitor interval to standard error,
-and writes the result (to standard output without `--out`). `--setup` prints the set-up and stops. It exits with code 1
-and a message on an invalid study or a diverged run, and with code 2 when the run ended without converging.
+`indices`) and `apex` documents given by `file`, relative to the study file; prints the set-up and a progress line per
+second (step, fraction, phase, window, residual, coefficients or mass balance) to standard error; writes the result (to
+standard output without `--out`). `--setup` prints the set-up and stops. Exit codes: 0 converged; 2 ran to its step limit
+without converging (the result is still written); 1 an invalid study, a missing file or a diverged run.
+
+`box3d-webgpu-kit/flow-bundle` (`dist/flow-bundle.js`) is the whole flow entry as **one ES module** with no imports and
+no WebAssembly, for vendoring: its header names the package version and the source commit it was built from, and it
+exports `FLOW_SOURCE_COMMIT`. Copy it with its sha256 sum.
+
+## Requirements of the apex flow studies
+
+| Requirement | Supported | How |
+|---|---|---|
+| `apex-flow-geometry/1` in: metres, +y up, right-handed, xyzw, not recentred; boxes with FULL sizes; flat-ended cylinders along local +y; meshes with per-element closed / open and thickness; part index and element id on every item | yes | `{kind: 'apex', document}` items or `flowItemsFromApexGeometry`; part names from the layer `id` (or `name`), element ids in `setup.geometry.report[].id`. Capsules and spheres also work |
+| Hundreds of thousands of elements, spatial binning | yes | per-item bounding boxes (see [Geometry](#geometry)); the report is cut to 200 items |
+| Force and moment per part and in total | yes | `forces.parts`, `forces.total` |
+| Conservative thin-wall rasterisation, report of the thickening | yes | grown to 1.44 cells; `setup.geometry` and a warning |
+| Fluid-layer domains | yes | `role: 'cavity'` items; named openings are inlets / outlets, the rest closed |
+| Studies of 72 M and 34 M dense cells against budgets of 3 M and 2 M | **partly** | populations are stored for fluid cells only, so a pipe network's cost is its fluid; but the box still holds about 15 to 45 bytes per cell (cell kinds, distances, the fields for slices), so a box is limited to 2²⁵ = 33.5 M cells. A study whose box at the wanted cell size exceeds that gets coarser cells and a warning (a 72 M box: cells 1.29 times larger, 2.15 times fewer fluid cells). The largest network that fits at a given cell size is one whose bounding box holds 33.5 M cells; cropping (`internal.domain`) is the remedy. No multi-block |
+| Cavity domains | yes | solid items, `domain` or `padding` |
+| External: inflow in any horizontal direction, ground at a height fixed / moving / slip, geometry below removed, margins in multiples of a reference length | yes | `external` |
+| Internal: round openings with outward normal and radius; inlet by flow rate or mean velocity, uniform or parabolic ("developed"); outlet by gauge pressure or flow rate | yes | `internal.inlets` / `outlets` (one outlet must be by pressure) |
+| Max surface Cp; mean pressure and flow per opening; peak velocity on a section; mass imbalance; streamlines with speed; axis-plane slices; surface pressure per part; convergence history; solver id, version and source commit | yes | `surface[].cpMax`, `extremes`; `flow.patches`; `flow.sections[].maxNormalSpeed`; `flow.massBalance`; `streamlines`; `slices`; `surface`; `convergence`; `solver` |
+| Laminar pipe flow (Hagen–Poiseuille at Re 1107), a sharp-edged building (Cd 1.0–1.7) | measured | [Validation](#validation) |
+| Node-importable single-file bundle and the CLI | yes | `flow-bundle`, `box3d-flow` |
 
 ## Drawing results with three.js
 
-`box3d-webgpu-kit/flow-three`: see the section in the kit README. `createFlowView(THREE, result, options)` builds a
-group with the streamlines as tubes coloured by speed, the surfaces of the parts (optionally coloured by the pressure
-coefficient) and the slices, and `flowLegend` draws the colour scale. `flow-demo.html` shows four studies.
+`box3d-webgpu-kit/flow-three` (no dependency on three: pass your `THREE` namespace in):
+`createFlowView(THREE, result, options)` builds a group with the streamlines as tubes (or lines) coloured by speed or
+pressure, the surfaces of the parts (plain, or coloured by the pressure coefficient) and the slices as coloured planes
+with the solid left out; `flowLegend(context2d, {min, max, title, unit, colormap})` draws the colour scale on a canvas;
+`flowColormap(name)` gives the colour maps (`rainbow`, `turbo`, `viridis`, `coolwarm`). `flow-demo.html` (built with the
+site) shows four studies; [Validation](#validation) lists the screenshots.
 
 ## On the GPU
 
-See [`GPU_COMPUTE.md`](GPU_COMPUTE.md).
+See [`GPU_COMPUTE.md`](GPU_COMPUTE.md#flow).
 
 ## Validation
 
 The cases are in the validation registry (`validation/domains/flow.mjs`, [`VALIDATION.md`](VALIDATION.md)) and asserted
-by `packages/box3d-kit/test/v24-flow.test.mjs`. The table is completed with the validation commit.
+by `packages/box3d-kit/test/v24-flow.test.mjs`; their set-ups are in `packages/box3d-kit/test/flow-scenarios.mjs`.
 
 ## Cost
 
-Completed with the validation commit.
+Measured on this machine (one thread, shared with other jobs); see the table under [Validation](#validation) for the
+wall time of each case.
 
 ## Limits
 
-- **Boundary layers are not resolved and there is no wall model.** Skin friction, and the separation from smooth
-  curved surfaces (spheres, cylinders at high Reynolds number, streamlined bodies, wings, ship hulls) are estimates;
-  the drag crisis is not predicted. Sharp-edged bodies, whose separation the geometry fixes, are predicted better.
+- **Boundary layers are not resolved.** The wall function models the friction of an attached turbulent boundary layer
+  on smooth walls; separation from smooth curved surfaces (spheres, cylinders at high Reynolds number, streamlined
+  bodies, wings, ship hulls) is an estimate and the drag crisis is not predicted. Sharp-edged bodies, whose separation
+  the geometry fixes, are predicted better.
 - **Incompressible flow only.** The lattice Mach number of the reference speed is `sqrt(3) × latticeSpeed`, 0.10 by
-  default, and the density varies by about that squared. The physical flow should be below **Mach 0.3**; there are no
-  shocks and no heating by compression. A warning is raised when the largest speed passes three times the reference.
-- **No free surface.** Spillways, hulls at the water line and open tanks need the free-surface solver
+  default; the physical flow should be below **Mach 0.3**. No shocks, no heating by compression. A warning is raised
+  when the largest speed passes three times the reference.
+- **No free surface.** Spillways, hulls at the water line and open channels need the free-surface solver
   ([`FLUID.md`](FLUID.md#free-surface)) or the shallow-water solver ([`SHALLOW_WATER.md`](SHALLOW_WATER.md)). A spillway
-  or a ship can be run here only as a fully submerged, single-fluid shape.
-- **No rotating or moving geometry.** There is no sliding mesh. A rotor is a frozen solid, optionally with the surface
-  velocity of its rotation (`motion`), or an actuator disc (`actuators`). A frozen rotor gives the blockage and the wake
-  of the stopped blades at one position; an actuator disc gives the thrust, the pressure rise and the slipstream of a
-  given force. Neither gives the torque, the efficiency, the blade loads or the swirl of a working machine.
+  or a ship can be run here only as a fully submerged, single-fluid shape, or with a slip ground as the water line.
+- **No rotating or moving geometry.** No sliding mesh. A rotor is a frozen solid, optionally with the surface velocity
+  of its rotation (`motion`), or an actuator disc (`actuators`): neither gives the torque, efficiency or blade loads.
 - **No heat transfer**, no buoyancy, no cavitation, one fluid. The heat solver is not coupled.
-- **Uniform grid.** The cell budget is spent on the whole box; a body 20 cells across in a tunnel with 5% blockage
-  needs about a million cells. Features under two cells are coarse, under one cell lost.
+- **Uniform grid** of at most 2²⁵ cells per box. Features under two cells are coarse, under one cell lost; thin walls
+  are grown to 1.44 cells.
 - **Tunnel walls are slip planes**; the blockage is reported, not corrected.
 - **A steady state is reached by marching in time**; the convergence monitor compares window means, so a slow drift
   longer than two windows passes as converged.
+- **Not certified.** No case here is a substitute for a code check, a wind-tunnel test or a validated commercial solver.
