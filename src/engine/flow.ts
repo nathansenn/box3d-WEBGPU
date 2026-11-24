@@ -184,7 +184,7 @@ export interface FlowField {
   readonly opening?:Int16Array;
 }
 
-const fail=(message:string):never=>{throw new EngineError('INVALID_ARGUMENT',`Flow: ${message}`);};
+const fail=(message:string):never=>{throw new EngineError('INVALID_PAYLOAD',`Flow: ${message}`);};
 const isVec=(v:unknown):v is FlowVec3=>Array.isArray(v)&&v.length===3&&v.every(x=>typeof x==='number'&&Number.isFinite(x));
 const vec=(v:unknown,name:string):FlowVec3=>isVec(v)?v:fail(`${name} must be three finite numbers.`);
 const FLOW_FIELDS:FieldOptions={label:'Flow',skip:['grid','lattice','fluid','dt','cell','latticeSpeed','referenceSpeed','turbulence','smagorinsky','wale','cellReynolds','relaxationTime','parts','patches','voxels','warnings','surfaces','items','solidCells','fluidCells','enclosedCells','forceScale','momentScale','flowScale','pressureScale','velocityScale','rampSteps','kinds','inletVelocity','actuators','actuatorCells','geometryParts','thickening'],

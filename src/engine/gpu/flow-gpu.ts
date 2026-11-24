@@ -42,7 +42,7 @@ export interface FlowGpuTables {
 /** The tables of a lattice in the shader's layout; throws when the lattice uses a feature the kernel does not have. */
 export function flowGpuTables(lattice:FlowLattice):FlowGpuTables{
   const p=lattice.program();
-  if(p.features.length)throw new EngineError('INVALID_ARGUMENT',`FlowGpu: this lattice uses ${p.features.join(', ')}, which the GPU kernel does not have. Build the Flow with wallFunction: false, absorbSteps: 0 and collision: 'regularized', without sponges or actuators.`);
+  if(p.features.length)throw new EngineError('INVALID_PAYLOAD',`FlowGpu: this lattice uses ${p.features.join(', ')}, which the GPU kernel does not have. Build the Flow with wallFunction: false, absorbSteps: 0 and collision: 'regularized', without sponges or actuators.`);
   const n=p.fluidCells,links=p.linkDir.length,boundaryCells=p.linkStart.length-1;
   const u32=(a:Int32Array):Uint32Array=>{const o=new Uint32Array(a.length);for(let i=0;i<a.length;i++)o[i]=a[i]<0?NONE:a[i];return o;};
   const code=new Uint32Array(links);for(let l=0;l<links;l++)code[l]=p.linkDir[l]|(p.linkKind[l]<<8);

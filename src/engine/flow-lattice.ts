@@ -176,7 +176,7 @@ export interface FlowLatticeOptions {
   readonly cellVelocity?:ReadonlyMap<number,readonly [number,number,number]>;
 }
 
-const fail=(message:string):never=>{throw new EngineError('INVALID_ARGUMENT',`FlowLattice: ${message}`);};
+const fail=(message:string):never=>{throw new EngineError('INVALID_PAYLOAD',`FlowLattice: ${message}`);};
 const LINK_WALL=0,LINK_PRESSURE=1,LINK_SLIP=2;
 const LATTICE_FIELDS:FieldOptions={label:'FlowLattice',skip:['nx','ny','nz','cells','periodic','kind','owner','walls','viscosity','smagorinsky','wale','eddy','collision','openCell','bulkRelaxation','extraViscosity','cellOf','activeOf','linkIndex','boundaryCell','source','linkStart','linkDir','linkKind','linkQ','linkAdd','linkOwner','linkAux','linkArm','linkAbsorb','absorbRate','wallDistance','wallVelocity','wallNormal','wallPart','wallFunction','inletCell','inletPatch','inletCount','inletOver','forceCells','forceValues','partCount','patchCount','fluidCells','partForce','partMoment','patchMass','scratch']};
 

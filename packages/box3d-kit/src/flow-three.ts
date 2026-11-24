@@ -47,10 +47,9 @@ const MAPS: Record<FlowColormap, readonly (readonly [number, number, number])[]>
   viridis: [[0.27, 0, 0.33], [0.28, 0.2, 0.5], [0.21, 0.36, 0.55], [0.15, 0.5, 0.56], [0.12, 0.63, 0.53], [0.29, 0.76, 0.43], [0.63, 0.85, 0.22], [0.99, 0.91, 0.14]],
   coolwarm: [[0.23, 0.3, 0.75], [0.44, 0.55, 0.95], [0.67, 0.78, 0.99], [0.87, 0.87, 0.87], [0.97, 0.72, 0.62], [0.91, 0.47, 0.37], [0.7, 0.02, 0.15]],
 };
-/** A colour map: `t` in [0, 1] to [r, g, b] in [0, 1]. */
+/** A colour map: `t` in [0, 1] to [r, g, b] in [0, 1]. A name that is not a colour map gives 'rainbow'. */
 export function flowColormap(name: FlowColormap = 'rainbow'): (t: number) => [number, number, number] {
-  const stops = MAPS[name];
-  if (!stops) throw new RangeError(`flowColormap: unknown colour map "${name}". Known: ${Object.keys(MAPS).join(', ')}.`);
+  const stops = MAPS[name] ?? MAPS.rainbow;
   return t => {
     const x = (Number.isFinite(t) ? Math.min(1, Math.max(0, t)) : 0) * (stops.length - 1), i = Math.min(stops.length - 2, Math.floor(x)), f = x - i, a = stops[i], b = stops[i + 1];
     return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];

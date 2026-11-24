@@ -153,7 +153,7 @@ export interface FlowVoxels {
 /** Triangles of the surface of one part, for sampling and drawing. */
 export interface FlowSurface {readonly part:string;readonly positions:Float32Array;readonly indices:Uint32Array}
 
-const fail=(message:string):never=>{throw new EngineError('INVALID_ARGUMENT',`flow geometry: ${message}`);};
+const fail=(message:string):never=>{throw new EngineError('INVALID_PAYLOAD',`flow geometry: ${message}`);};
 const finite3=(v:unknown,name:string):FlowVec3=>{
   if(!Array.isArray(v)&&!ArrayBuffer.isView(v))fail(`${name} must be [x, y, z].`);
   const a=v as ArrayLike<number>;

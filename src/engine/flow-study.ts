@@ -31,7 +31,7 @@ export const FLOW_LIMITS:readonly string[]=Object.freeze([
 ]);
 
 type Json=Record<string,unknown>;
-const fail=(message:string):never=>{throw new EngineError('INVALID_ARGUMENT',`flow study: ${message}`);};
+const fail=(message:string):never=>{throw new EngineError('INVALID_PAYLOAD',`flow study: ${message}`);};
 const isObject=(v:unknown):v is Json=>typeof v==='object'&&v!==null&&!Array.isArray(v)&&!ArrayBuffer.isView(v);
 const num=(v:unknown,name:string,min=-Infinity,exclusive=false):number=>{
   if(typeof v!=='number'||!Number.isFinite(v)||v<min||(exclusive&&v===min))fail(`${name} must be a finite number${min>-Infinity?(exclusive?` above ${min}`:` of at least ${min}`):''}.`);
@@ -508,7 +508,7 @@ export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowS
     }
     if(!flow.healthy()){
       done=true;reason='diverged';
-      throw new EngineError('INVALID_STATE',`flow study: the run diverged at step ${L.stepCount} (a density or velocity left the valid range). Lower resolution.latticeSpeed, raise the resolution, or set model.turbulence to 'smagorinsky'.`);
+      throw new EngineError('NUMERICAL_FAILURE',`flow study: the run diverged at step ${L.stepCount} (a density or velocity left the valid range). Lower resolution.latticeSpeed, raise the resolution, or set model.turbulence to 'smagorinsky'.`);
     }
     const sums=flow.takeSums(about),pScale=rho*(flow.cell/flow.dt)**2/3;
     // pressure of each opening: the mean over the fluid cells that touch it

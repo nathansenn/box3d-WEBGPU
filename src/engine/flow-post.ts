@@ -6,7 +6,7 @@ import {EngineError} from './contracts.ts';
 import {flowSample,type FlowField} from './flow.ts';
 import type {FlowSurface,FlowVec3} from './flow-geometry.ts';
 
-const fail=(message:string):never=>{throw new EngineError('INVALID_ARGUMENT',`flow: ${message}`);};
+const fail=(message:string):never=>{throw new EngineError('INVALID_PAYLOAD',`flow: ${message}`);};
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Streamlines
