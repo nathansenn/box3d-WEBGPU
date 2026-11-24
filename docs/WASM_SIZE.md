@@ -128,39 +128,55 @@ recording writers still referenced 17 KiB; libc 25 KiB.
 ## Time to the first step
 
 Import the kit's main entry, instantiate the WebAssembly, build a small jointed assembly (8 bodies of 3 shapes, 7
-joints), step once: `packages/box3d-kit/test/first-step-child.mjs`, each measurement in a fresh Node process, the two
-builds alternating. Median of 31 processes, load average 2.2:
+joints), step once: `packages/box3d-kit/test/first-step-child.mjs`, each measurement in a fresh Node process, the
+builds alternating. Median of 25 processes each, 2026-11-24, load average 2.8 to 2.9:
 
 | Build | Import | Instantiate | Build | First step | Total (min to max) |
 |---|---:|---:|---:|---:|---|
-| Kit 0.9.0 as published | 19.8 | 8.8 | 11.0 | 6.8 | 47.7 ms (38.7 to 73.6) |
-| Now | 9.5 | 8.2 | 10.3 | 6.9 | 34.8 ms (30.5 to 52.4) |
-| Now, with Node's compile cache on (21 processes) | 4.2 | 7.8 | 9.6 | 6.7 | 30.1 ms (25.7 to 65.2) |
+| Kit 0.9.0 as published (18 files) | 15.6 | 7.2 | 10.5 | 6.4 | 39.8 ms (36.9 to 55.8) |
+| 5 files, names kept (first commit of this work) | 9.2 | 6.9 | 8.7 | 6.6 | 31.6 ms (29.4 to 41.8) |
+| Now (3 files, short local names) | 7.6 | 6.3 | 9.5 | 6.4 | 30.1 ms (28.7 to 48.4) |
 
-Where the time was and is:
+The same through the apex benchmark (`tests/gold/run_physics_bench.mjs --first-runs 21`, its own adapter, which builds
+every body as one compound), against the thinner bridge build of the same Box3D commit that the benchmark calls
+"current"; median of 21 processes per engine, ms, import / instantiate / build / step:
+
+| Assembly | Thin build | Kit 0.9.0 | Ratio | Now | Ratio |
+|---|---|---|---:|---|---:|
+| machining centre | 20.9 (0.9 / 5.3 / 5.1 / 7.8) | 38.0 (13.4 / 7.4 / 9.5 / 6.6) | 1.87 | 29.9 (7.7 / 7.0 / 7.8 / 6.8) | 1.43 |
+| container crane | 23.4 (0.9 / 5.5 / 6.1 / 9.6) | 42.9 (14.3 / 9.5 / 10.2 / 7.5) | 1.82 | 32.6 (7.9 / 7.1 / 8.8 / 7.8) | 1.39 |
+| four-bar | 20.4 (0.9 / 5.3 / 5.5 / 7.1) | 41.5 (14.0 / 9.0 / 10.1 / 6.3) | 1.96 | 30.1 (7.6 / 6.6 / 8.3 / 6.3) | 1.48 |
+
+(The thin-build column is from the run of the new kit; the 0.9.0 run measured the thin build at 20.2, 23.5 and 21.2.)
+The goal was an import of at most 5 ms and a total within 1.25 times the thin build. Neither is reached: the import is
+7.6 ms and the total 1.39 to 1.48 times. Where the time is:
 
 - **Import.** `tsc` emits one file per module and the main entry reached 18 of them, 302,742 bytes with their comments.
   A cold Node pays a resolve, a read and a compile per file (0.3 to 0.7 ms each) and parses every byte. The kit's build now
-  runs `scripts/bundle-rigid.mjs`: the 15 modules only the rigid world needs become `dist/rigid.js` without comments
-  and indentation, one statement per line (names are kept), and each keeps its file as a list of re-exports, so every entry point and deep import
-  still shares one `PhysicsWorld` and one module state. The main entry loads 5 files and 210,693 bytes. The import alone,
-  median of 41 processes: 18.2 ms before, 8.2 ms now. What remains is V8 parsing about 200 KiB of JavaScript that
-  `PhysicsWorld` and the native bridge class need (5 to 6 ms) and Node's module loader (about 1 ms). Mangling names and
-  folding the five files into one measured 7.0 ms; it was not done, because the saving is 1 ms and names in stack traces
-  are worth more. Going lower needs the two classes split so that rarely used methods load later, which changes the API
-  from synchronous to asynchronous for those methods.
-- **An application can remove most of the rest**: `NODE_COMPILE_CACHE=<dir>` or `module.enableCompileCache()` (Node
-  22.1 and later) at the top of its entry file keeps V8's compiled code between processes; the import is then 4.2 ms.
+  runs `scripts/bundle-rigid.mjs`: the 15 modules only the rigid world needs become `dist/rigid.js`, and the three that
+  the solver entries share (the error table, the checkpoint codec, the shared frames) become `dist/shared.js`, which never
+  loads the rigid world. Both are without comments and indentation, one statement per line, with short names for
+  parameters and local variables; the names of functions, classes, methods and exports stay (the script checks that every
+  exported function and class keeps its `name`), so stack traces read as before. Every bundled module keeps its file as a
+  list of re-exports, so every entry point and deep import shares one `PhysicsWorld` and one module state. The main entry
+  loads 3 files and 163,700 bytes. What remains is V8 parsing that code: in this container a module costs 0.7 ms with
+  nothing in it and about 0.04 ms per KiB on top. The whole main entry as one file, fully minified (147 KiB), measured
+  6.7 ms; wrapping it in a function that is never called made it slower, so the time is the parse, not the evaluation.
+  An import of 5 ms needs about 100 KiB, a third less code than the loader, `PhysicsWorld` and the native bridge class
+  are now, which means loading rarely used methods later and so making them asynchronous: an API change, not done.
+- **An application can remove most of the import**: `NODE_COMPILE_CACHE=<dir>` or `module.enableCompileCache()` (Node
+  22.1 and later) at the top of its entry file keeps V8's compiled code between processes; the import is then about 4 ms.
   The kit cannot turn this on itself: it has to happen before the kit is imported, and it writes to disk.
-- **Instantiate** is the compilation of the WebAssembly (3.1 ms for the new file, 3.8 ms for the old one) and the
-  Emscripten start-up; it is the same as for other builds of Box3D.
+- **Instantiate** is the import of `box3d.js` (about 1 ms, which the thin build counts as import), the compilation of
+  the WebAssembly and the Emscripten start-up. Without the kit around it the new artifact instantiates in 4.2 ms and the
+  thin build's in 5.1 ms (median of 15 processes).
 - **Build** is first-call cost: V8 compiles each WebAssembly function when it is first called, and runs the kit's
-  argument checks in its interpreter. Smaller bridge functions took the first joint from 2.6 to 1.6 ms. About 7 ms of
-  the 10 is JavaScript that V8 has not optimized yet (the checks of every vector, quaternion and option of
-  `createBody` and `createJoint`): a three-shape body costs 0.62 ms on average over the first eight calls and 0.018 ms
-  after a few thousand.
-- **First step** is V8 compiling the solver on its first call, the same in every build.
+  argument checks in its interpreter. A profile of the build shows no single cost: `createBody` and `createJoint`
+  themselves (the checks of every vector, quaternion and option), the first call of each WebAssembly function, and the
+  JS-to-WebAssembly transitions. A three-shape body costs 0.62 ms on average over the first eight calls and 0.018 ms after
+  a few thousand.
+- **First step** is V8 compiling the solver on its first call; it is the same as in the thin build or faster.
 
 `packages/box3d-kit/test/v24-first-step.test.mjs` (kit gate) measures 21 fresh processes and fails when the median
-import exceeds 16 ms or the median total 64 ms, and checks exactly that the main entry loads those 5 files and at most
-230,000 bytes.
+import exceeds 13 ms or the median total 56 ms, and checks exactly that the main entry loads those 3 files and at most
+180,000 bytes.

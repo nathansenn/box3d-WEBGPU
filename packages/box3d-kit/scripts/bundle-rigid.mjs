@@ -1,12 +1,14 @@
-// Packs the modules that `import 'box3d-webgpu-kit'` loads into one file, dist/rigid.js.
+// Packs the modules that `import 'box3d-webgpu-kit'` loads into two files, dist/rigid.js and dist/shared.js.
 //
 // tsc emits one file per source module, and the main entry reached 18 of them (302,742 bytes). In a fresh Node process
-// that import took 15 to 20 ms: each file costs a resolve, a read and a compile, and the comments are read with the code.
-// After this step the main entry loads dist/index.js (a list of re-exports), dist/rigid.js and the three modules below
-// that other entries share. Every module that went into rigid.js keeps its file, now a list of re-exports of rigid.js, so
-// `box3d-webgpu-kit/gameplay`, a deep import and the main entry all get the same PhysicsWorld, the same EngineError and the
-// same module state. Only comments and indentation are removed (one statement per line): names, and so stack traces
-// and `constructor.name`, stay.
+// that import took 15 to 20 ms: each file costs a resolve, a read and a compile, and V8 reads every byte, comments
+// included. After this step the main entry loads three files: dist/index.js (a list of re-exports), dist/rigid.js (the
+// modules only the rigid world needs) and dist/shared.js (the modules below that other entries share). Every module that
+// went into a chunk keeps its file, now a list of re-exports of that chunk, so `box3d-webgpu-kit/gameplay`, a deep import,
+// a solver entry and the main entry all get the same PhysicsWorld, the same EngineError and the same module state.
+// Comments and indentation are removed (one statement per line), and parameters and local variables get short names.
+// The names of functions, classes, methods and exports stay, and so do stack traces and `constructor.name`; the script
+// checks that every exported function and class keeps its `name`.
 //
 // Run by `npm run build` after tsc and before build-single.mjs. The .d.ts files are tsc's and are not touched.
 import {readFileSync, readdirSync, writeFileSync, mkdirSync} from 'node:fs';
@@ -23,11 +25,12 @@ const {parseAst} = require('rolldown/parseAst');
 /** The file the bundled modules become. Not an entry of package.json: nothing imports it by name. */
 const CHUNK = 'rigid.js';
 /**
- * Modules of the main entry that stay files of their own, because entries that must not load the rigid world import them:
- * the solvers (./heat, ./solid, ...) import the error table and the checkpoint codec, and the page side of ./worker
- * imports the shared frames while the engine runs in the worker.
+ * Modules of the main entry that entries which must not load the rigid world import too: the solvers (./heat, ./solid,
+ * ...) import the error table and the checkpoint codec, and the page side of ./worker imports the shared frames while the
+ * engine runs in the worker. They go into a chunk of their own, which never imports rigid.js.
  */
 const SHARED = ['core/contracts.js', 'core/checkpoint.js', 'shared-frames.js'];
+const SHARED_CHUNK = 'shared.js';
 
 const posix = file => file.replace(/\\/g, '/');
 const staticImports = file => [...readFileSync(join(dist, file), 'utf8').matchAll(/(?:^|[\n;])\s*(?:import|export)\b[^'"`;]*?\bfrom\s*['"](\.{1,2}\/[^'"]+)['"]/g)]
@@ -41,7 +44,10 @@ function closureOf(entry) {
 const closure = closureOf('index.js');
 for (const file of SHARED) if (!closure.has(file)) throw new Error(`bundle-rigid: ${file} is listed as shared but the main entry no longer loads it`);
 const bundled = [...closure].filter(file => !SHARED.includes(file)).sort();
-if (bundled.includes(CHUNK)) throw new Error(`bundle-rigid: dist/${CHUNK} already exists as a module`);
+for (const chunk of [CHUNK, SHARED_CHUNK]) if (closure.has(chunk)) throw new Error(`bundle-rigid: dist/${chunk} already exists as a module`);
+for (const file of SHARED) for (const target of staticImports(file)) {
+  if (!SHARED.includes(target)) throw new Error(`bundle-rigid: the shared module dist/${file} imports dist/${target}, which is not shared`);
+}
 
 // A module outside the main entry that imports a bundled module now loads all of rigid.js. That is only acceptable when it
 // loaded the rigid world before; anything else belongs in SHARED.
@@ -55,23 +61,26 @@ for (const file of all) {
 }
 
 // What every module exports before the bundle, to compare with what its replacement exports.
-const exportsBefore = new Map(), sharedWithIndex = [];
+const chunked = [...bundled, ...SHARED];
+const exportsBefore = new Map(), namesBefore = new Map(), sharedWithIndex = [];
 const indexBefore = await import(pathToFileURL(join(dist, 'index.js')).href);
-for (const file of bundled) {
+const functionNames = module => Object.entries(module).filter(([, value]) => typeof value === 'function').map(([key, value]) => `${key}:${value.name}`).sort().join(' ');
+for (const file of chunked) {
   const before = await import(pathToFileURL(join(dist, file)).href);
   exportsBefore.set(file, Object.keys(before).sort());
+  namesBefore.set(file, functionNames(before));
   for (const name of Object.keys(before)) if (name in indexBefore && before[name] === indexBefore[name]) sharedWithIndex.push([file, name]);
 }
 const sourceText = bundled.map(file => readFileSync(join(dist, file), 'utf8')).join('\n');
 const bytesBefore = [...closure].reduce((sum, file) => sum + readFileSync(join(dist, file)).length, 0);
 
 const bundle = await rolldown({
-  input: Object.fromEntries(bundled.map(file => [file.replace(/\.js$/, ''), join(dist, file)])),
+  input: Object.fromEntries(chunked.map(file => [file.replace(/\.js$/, ''), join(dist, file)])),
   platform: 'neutral',
   logLevel: 'warn',
   // Every re-export file exports exactly what its module exported.
   preserveEntrySignatures: 'strict',
-  external: (id, importer) => /^node:/.test(id) || (importer !== undefined && /^\.{1,2}\//.test(id) && SHARED.includes(posix(relative(dist, resolve(dirname(importer), id))))),
+  external: id => /^node:/.test(id),
   // loader.ts imports node:fs/promises through a variable so that browser bundlers do not try to resolve it. Inlining the
   // constant would put the literal back.
   optimization: {inlineConst: false},
@@ -81,15 +90,20 @@ const {output} = await bundle.generate({
   dir: dist,
   entryFileNames: '[name].js',
   chunkFileNames: '[name].js',
-  codeSplitting: {groups: [{name: CHUNK.replace(/\.js$/, ''), test: /./}]},
-  minify: {compress: false, mangle: false, codegen: {removeWhitespace: true}},
+  codeSplitting: {groups: [
+    {name: SHARED_CHUNK.replace(/\.js$/, ''), test: id => SHARED.includes(posix(relative(dist, id))), priority: 2},
+    {name: CHUNK.replace(/\.js$/, ''), test: /./, priority: 1},
+  ]},
+  // Short names for parameters and locals; `keepNames` leaves the names of functions and classes (and so stack traces).
+  // No `compress`: it would fold the node:fs indirection of loader.ts and rewrite statements.
+  minify: {compress: false, mangle: {keepNames: true}, codegen: {removeWhitespace: true}},
 });
 await bundle.close();
 
 const chunks = output.filter(item => item.type === 'chunk');
 const stray = output.filter(item => item.type !== 'chunk').map(item => item.fileName);
 if (stray.length) throw new Error(`bundle-rigid: unexpected assets ${stray.join(', ')}`);
-const expected = [...bundled, CHUNK].sort().join(' '), written = chunks.map(chunk => posix(chunk.fileName)).sort().join(' ');
+const expected = [...chunked, CHUNK, SHARED_CHUNK].sort().join(' '), written = chunks.map(chunk => posix(chunk.fileName)).sort().join(' ');
 if (expected !== written) throw new Error(`bundle-rigid: expected ${expected}\n  got ${written}`);
 
 /**
@@ -122,7 +136,11 @@ function breakLines(code) {
 
 for (const chunk of chunks) {
   let code = chunk.code;
-  if (posix(chunk.fileName) === CHUNK) {
+  if (posix(chunk.fileName) === SHARED_CHUNK) {
+    code = breakLines(code);
+    if (/\bfrom\s*["']\.\/rigid\.js["']/.test(code)) throw new Error(`bundle-rigid: dist/${SHARED_CHUNK} imports dist/${CHUNK}`);
+    code = `/*! box3d-webgpu-kit: the error table, the checkpoint codec and the shared frames in one module, for every entry. Built by scripts/bundle-rigid.mjs from the modules that now re-export it. */\n${code}`;
+  } else if (posix(chunk.fileName) === CHUNK) {
     code = breakLines(code);
     // Bundlers find `new URL('<literal>', import.meta.url)` to copy and hash the WebAssembly; keep the plain string literal.
     code = code.replace(/new URL\(`([^`$\\]+)`,\s*import\.meta\.url\)/g, 'new URL("$1",import.meta.url)');
@@ -137,7 +155,8 @@ for (const chunk of chunks) {
     if (/import\(\s*(?:\/\*[^*]*\*\/\s*)?[`'"]node:/.test(code)) throw new Error('bundle-rigid: the node:fs import lost its indirection');
     code = `/*! box3d-webgpu-kit: the rigid world (loader, PhysicsWorld, native bridge, helpers) in one module. Built by scripts/bundle-rigid.mjs from the modules that now re-export it. */\n${code}`;
   } else {
-    code = `// Re-exports dist/${CHUNK}, which holds this module's code (scripts/bundle-rigid.mjs).\n${code}`;
+    const target = /from\s*["']\.(?:\.)?\/(?:\.\.\/)*shared\.js["']/.test(code) && !/rigid\.js["']/.test(code) ? SHARED_CHUNK : CHUNK;
+    code = `// Re-exports dist/${target}, which holds this module's code (scripts/bundle-rigid.mjs).\n${code}`;
   }
   mkdirSync(dirname(join(dist, chunk.fileName)), {recursive: true});
   writeFileSync(join(dist, chunk.fileName), code);
@@ -146,14 +165,17 @@ for (const chunk of chunks) {
 // Same exports as before, and the same objects whichever file is imported.
 const indexAfter = await import(`${pathToFileURL(join(dist, 'index.js')).href}?bundled`);
 const after = new Map();
-for (const file of bundled) {
+for (const file of chunked) {
   after.set(file, await import(`${pathToFileURL(join(dist, file)).href}?bundled`));
   const names = Object.keys(after.get(file)).sort();
   if (names.join(' ') !== exportsBefore.get(file).join(' ')) throw new Error(`bundle-rigid: dist/${file} exported ${exportsBefore.get(file).join(' ')}\n  and now exports ${names.join(' ')}`);
+  if (functionNames(after.get(file)) !== namesBefore.get(file)) throw new Error(`bundle-rigid: a function or class exported by dist/${file} lost its name:\n  ${namesBefore.get(file)}\n  ${functionNames(after.get(file))}`);
 }
+// The solver entries load the shared chunk and never the rigid world.
+for (const file of SHARED) if (closureOf(file).has(CHUNK)) throw new Error(`bundle-rigid: dist/${file} now loads dist/${CHUNK}`);
 for (const [file, name] of sharedWithIndex) {
   if (after.get(file)[name] !== indexAfter[name]) throw new Error(`bundle-rigid: ${name} from dist/${file} is no longer the object the main entry exports`);
 }
 const closureAfter = closureOf('index.js');
 const bytesAfter = [...closureAfter].reduce((sum, file) => sum + readFileSync(join(dist, file)).length, 0);
-console.log(`bundled ${bundled.length} modules into dist/${CHUNK}: the main entry loads ${closureAfter.size} files (${bytesAfter} bytes) instead of ${closure.size} (${bytesBefore} bytes)`);
+console.log(`bundled ${bundled.length} modules into dist/${CHUNK} and ${SHARED.length} into dist/${SHARED_CHUNK}: the main entry loads ${closureAfter.size} files (${bytesAfter} bytes) instead of ${closure.size} (${bytesBefore} bytes)`);

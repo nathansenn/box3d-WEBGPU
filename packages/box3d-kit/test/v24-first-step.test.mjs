@@ -2,14 +2,15 @@
 // jointed assembly, step once (test/first-step-child.mjs). An application pays this on every cold start, and it doubled
 // unnoticed once: 18 unbundled modules made the import alone 15 to 20 ms.
 //
-// Measured 2026-11-23 on the 4-vCPU build container (Node 22.23), 25 fresh processes each, other jobs running (load 3 to 4):
+// Measured 2026-11-24 on the 4-vCPU build container (Node 22.23), 25 fresh processes each, the builds alternating, other
+// jobs running (load 2.8 to 2.9):
 //
-//                       import   instantiate   build   first step   total     (median ms; total min .. max)
-//   0.9.0 as published    21.4      10.1        12.9      7.5        53.1      43.4 .. 83.8
-//   this build            10.0       9.0        11.4      7.8        39.8      31.4 .. 59.0
+//                                      import   instantiate   build   first step   total   (median ms; total min .. max)
+//   0.9.0 as published (18 files)        15.6       7.2        10.5      6.4        39.8    36.9 .. 55.8
+//   5 files, names kept (2026-11-23)      9.2       6.9         8.7      6.6        31.6    29.4 .. 41.8
+//   this build (3 files, short locals)    7.6       6.3         9.5      6.4        30.1    28.7 .. 48.4
 //
-// and the import alone over 41 processes at load 3: 18.2 ms (13.7 .. 31.0) before, 8.2 ms (7.5 .. 16.6) now.
-// The budgets below are on the median of 21 processes and sit about 1.6 times above the medians measured under load, so
+// The budgets below are on the median of 21 processes and sit about 1.7 times above the medians measured under load, so
 // a busy CI machine passes; a second batch is measured before a failure counts. What they cannot catch on a fast machine
 // the two exact checks do: the number of files and bytes the main entry loads, which is what the import time follows.
 import test from 'node:test';
@@ -22,14 +23,14 @@ import {fileURLToPath} from 'node:url';
 const pkg = fileURLToPath(new URL('..', import.meta.url));
 const dist = join(pkg, 'dist');
 const BUDGET = {
-  /** Median ms of the import of dist/index.js. Measured 8.2 to 10.0 (11.4 at load 4); 0.9.0 took 18.2 to 21.4. */
-  importMs: 16,
-  /** Median ms from the import to the end of the first step. Measured 36 to 43. */
-  totalMs: 64,
-  /** Modules the main entry loads: index.js, rigid.js and the three shared ones (scripts/bundle-rigid.mjs). It was 18. */
-  files: 5,
-  /** Bytes of those modules. Measured 210,693; it was 302,742. */
-  bytes: 230_000,
+  /** Median ms of the import of dist/index.js. Measured 7.6 to 7.9; 0.9.0 took 13.4 to 21.4. */
+  importMs: 13,
+  /** Median ms from the import to the end of the first step. Measured 30 to 33 (37 at load 4). */
+  totalMs: 56,
+  /** Modules the main entry loads: index.js, rigid.js and shared.js (scripts/bundle-rigid.mjs). It was 18, then 5. */
+  files: 3,
+  /** Bytes of those modules. Measured 163,700; it was 302,742, then 210,693. */
+  bytes: 180_000,
 };
 const PROCESSES = 21;
 const median = values => { const sorted = [...values].sort((a, b) => a - b); return sorted[(sorted.length - 1) / 2]; };
@@ -46,7 +47,7 @@ function measure() {
     totalMs: median(runs.map(run => run.totalMs)), minMs: Math.min(...runs.map(run => run.totalMs)), maxMs: Math.max(...runs.map(run => run.totalMs))};
 }
 
-test('the main entry loads at most five modules and 230,000 bytes', () => {
+test('the main entry loads at most three modules and 180,000 bytes', () => {
   const seen = new Set(), queue = ['index.js'];
   while (queue.length) {
     const file = queue.pop();
@@ -57,7 +58,7 @@ test('the main entry loads at most five modules and 230,000 bytes', () => {
     }
   }
   const files = [...seen].sort(), bytes = files.reduce((sum, file) => sum + readFileSync(join(dist, file)).length, 0);
-  assert.deepEqual(files, ['core/checkpoint.js', 'core/contracts.js', 'index.js', 'rigid.js', 'shared-frames.js']);
+  assert.deepEqual(files, ['index.js', 'rigid.js', 'shared.js']);
   assert.ok(files.length <= BUDGET.files);
   assert.ok(bytes <= BUDGET.bytes, `the main entry loads ${bytes} bytes; the budget is ${BUDGET.bytes}`);
 });
