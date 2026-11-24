@@ -40,6 +40,7 @@ const steady = re => run(`cylinder/${re}`, (S, K) => S.cylinderSteady(K, {re}));
 const shedding = re => run(`shedding/${re}`, (S, K) => S.cylinderShedding(K, {re}));
 const sphere = () => run('sphere/100', (S, K) => S.sphere(K, {re: 100}));
 const sharp = shape => run(`sharp/${shape}`, (S, K) => S.sharpBody(K, {shape}));
+const stagnation = shape => run(`stagnation/${shape}`, (S, K) => S.stagnation(K, {shape}));
 const building = () => run('building', (S, K) => S.building(K));
 const step = () => run('step', (S, K) => S.backwardStep(K, {re: 100}));
 const expansion = () => run('expansion', (S, K) => S.suddenExpansion(K));
@@ -124,6 +125,12 @@ export default defineCases('flow', FILE, [
     reference: {formula: 'the band of the apex building studies: 1.0 to 1.7 (sharp-edged rectangular buildings)', value: 1.35}, tolerance: absolute(0.35), measure: async () => (await building()).cd},
   {id: 'flow.building.cp-max', title: 'Building on fixed ground: largest surface Cp', quantity: 'largest pressure coefficient over the surface, pressure gauge to the free stream (the mean on the inlet)', unit: '1', test: T.building,
     reference: {formula: 'stagnation: Cp = 1', value: 1}, tolerance: absolute(0.2), measure: async () => (await building()).cpMax},
+  {id: 'flow.building.cp-max-resolved', title: 'Building on fixed ground: largest resolved surface Cp', quantity: 'largest pressure coefficient over the surface samples not flagged as on a sharp edge or in a gap under three cells', unit: '1', test: T.building,
+    reference: {formula: 'stagnation: Cp = 1', value: 1}, tolerance: absolute(0.2), measure: async () => (await building()).cpMaxResolved},
+  {id: 'flow.stagnation.cube', title: 'Cube in a free stream: stagnation Cp', quantity: 'largest resolved surface pressure coefficient of a cube face-on, Re 1e4, about 6.7 cells across, study runner (free-stream inlet, reference the mean inlet pressure)', unit: '1', test: T.stagnation,
+    reference: {formula: 'incompressible stagnation point: Cp = 1', value: 1}, tolerance: absolute(0.1), measure: async () => (await stagnation('cube')).cpMaxResolved},
+  {id: 'flow.stagnation.sphere', title: 'Sphere in a free stream: stagnation Cp', quantity: 'largest resolved surface pressure coefficient of a sphere, Re 1e4, about 6.7 cells across, study runner', unit: '1', test: T.stagnation,
+    reference: {formula: 'incompressible stagnation point: Cp = 1', value: 1}, tolerance: absolute(0.1), measure: async () => (await stagnation('sphere')).cpMaxResolved},
   // ---- internal flows ----
   {id: 'flow.step.reattachment', title: 'Backward-facing step, Re 100: reattachment', quantity: 'reattachment length over the step height S, expansion ratio 1.94, Re = U_mean 2 h / nu, 16 cells over the inlet channel', unit: '1', test: T.step,
     reference: {formula: 'Armaly et al. (1983): about 3.0, from memory (two-dimensional computations agree with the experiment to Re 400)', value: 3.0}, tolerance: relative(0.12), measure: async () => (await step()).reattachment},

@@ -119,7 +119,16 @@ test('a rectangular building on fixed ground through the study runner: drag coef
   const r = S.building(K);
   near(r.cd, 1.35, 0.35, 'Cd in the band 1.0 to 1.7');
   near(r.cpMax, 1, 0.2, 'stagnation Cp');
-  console.log(`  building: Cd ${r.cd.toFixed(3)}, Cp max ${r.cpMax.toFixed(3)}, ${r.bodyCells.toFixed(1)} cells across, blockage ${r.blockage.toFixed(3)}`);
+  near(r.cpMaxResolved, 1, 0.2, 'stagnation Cp, resolved samples');
+  console.log(`  building: Cd ${r.cd.toFixed(3)}, Cp max ${r.cpMax.toFixed(3)} (resolved ${r.cpMaxResolved.toFixed(3)}), ${r.bodyCells.toFixed(1)} cells across, blockage ${r.blockage.toFixed(3)}`);
+});
+
+test('the stagnation pressure coefficient of a cube and a sphere in a free stream through the study runner is 1 within 0.1', () => {
+  for (const shape of ['cube', 'sphere']) {
+    const r = S.stagnation(K, {shape});
+    near(r.cpMaxResolved, 1, 0.1, `${shape}: largest resolved surface Cp`);
+    console.log(`  ${shape}: Cp max ${r.cpMax.toFixed(3)} (resolved ${r.cpMaxResolved.toFixed(3)}, ${r.flagged} of ${r.vertices} samples flagged), largest cell Cp ${r.cellCpMax.toFixed(3)} (resolved ${r.cellCpMaxResolved.toFixed(3)}), ${r.cellsAcross.toFixed(1)} cells across`);
+  }
 });
 
 test('the backward-facing step at Re 100: reattachment length against Armaly et al. (1983)', () => {

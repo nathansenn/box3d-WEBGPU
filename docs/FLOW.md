@@ -101,7 +101,15 @@ Lattice units below: cell 1, step 1, reference density 1. `src/engine/flow-latti
 - **Walls.** Interpolated bounce-back (Bouzidi, Firdaouss & Lallemand 2001) with the link fraction `q` taken from the
   signed distance to the geometry, so a wall sits where the geometry puts it, to second order, not on the staircase.
   What the interpolation would create or destroy in mass is taken from the rest population of the same cell, so walls
-  conserve mass. `model.walls: 'halfway'` uses the plain half-way bounce-back.
+  conserve mass. `model.walls: 'halfway'` uses the plain half-way bounce-back. A fluid cell with 10 or more of its 18
+  links on a wall (`FLOW_SQUEEZED_LINKS`: a sliver in a corner, or in a gap the grid does not resolve) keeps half-way
+  walls, with a warning: there the interpolated links take most of the cell's mass through the leak correction. That
+  is what diverged in the apex pipe-rack header study (`pipe-rack-header-branches`, step 1,875 at a lattice speed of
+  0.06 and 5,620 at 0.04): its box of 72 M cells had been coarsened to 2²⁵ cells, 7.6 cells across a branch, and a
+  fluid cell 0.01 cells from the wall of a branch, with 10 links on walls, blew up (density -0.08, speed five times
+  the lattice speed) at the Smagorinsky relaxation time of 0.500006. With half-way walls there the same coarsened run
+  passes 4,000 steps; with sparse storage the study gets its own cell size (10 cells across a branch) and ran 6,000
+  steps at 0.04 without the change. No outlet backflow was involved.
 - **Wall function.** With a sub-grid model on, boundary layers are not resolved and a no-slip wall then takes a shear
   set by the lattice (measured: a skin-friction coefficient of 0.056 on a tunnel floor, ten times a turbulent boundary
   layer's). A fluid cell next to a **smooth** wall therefore treats its wall as slipping with the cell's own tangential
@@ -115,7 +123,13 @@ Lattice units below: cell 1, step 1, reference density 1. `src/engine/flow-latti
 - **Inlets** are walls that "move" with the inlet velocity (velocity bounce-back): the mass that enters per link is
   exactly `rho c . u`. An inlet also gives way to sound: its velocity is lowered by `(rho - <rho>) / sqrt(3)` with `rho`
   the mean density on the inlet and `<rho>` its slow average, so start-up pressure waves leave through the inlet and a
-  steady flow has exactly the velocity given.
+  steady flow has exactly the velocity given. The inlet of an external study (the free stream, `freeStream: true` on a
+  velocity side) also gives way across its face: where its cell's density stays above the inlet's mean, its normal
+  velocity is lowered by `c_s² (rho - <rho_inlet>) / U` (low-passed over the same time), so that the total pressure
+  `p + rho u² / 2` is the same on the whole inlet, as in a free stream, while its flow rate is kept. Without it the
+  stagnation streamline entered with the extra static pressure the body's own pressure field puts on the inlet (about
+  0.07 of the dynamic pressure for the building case), and the stagnation pressure coefficient read 1.07 + its
+  near-wall error. Note: a checkpoint written before this version does not restore (`inletDeviation` is new state).
 - **Outlets** are anti-bounce-back pressure boundaries (gauge pressure 0 unless given), or velocity boundaries when an
   outlet is given by a flow rate.
 - **Tunnel sides** are specular (free slip); a ground is a no-slip wall (with the wall function), a moving belt, or a
@@ -127,6 +141,17 @@ Lattice units below: cell 1, step 1, reference density 1. `src/engine/flow-latti
   the inlet over the averaged steps (`setup.external.referencePressure`): every pressure, pressure coefficient and force
   of an external result is gauge to it. For a body standing on the ground the footprint matters: the force a uniform
   1 Pa puts on each part (`Flow.pressureArea()`, zero for a body surrounded by fluid) times the reference is taken off.
+- **Surface pressure** is read 1.5 cells out from the wall along the normal (the first layer of cells, cut by the wall,
+  carries a pressure error of 0.1 to 0.3 of the dynamic pressure at a stagnation point; it is left out of the
+  interpolation) and carried to the wall by Bernoulli on the normal velocity there, `p + rho (u . n)² / 2`: exact on
+  the stagnation streamline of an inviscid flow, small where the flow runs along the wall. Each sample is flagged
+  (`surface[].flags`) when it sits on a sharp convex edge or corner (the Laplacian of the wall distance one cell out
+  above 0.6 per cell: the pressure of an edge cell is singular, Cp up to 2.4 measured) or when there are under three
+  cells of fluid in front of it (a gap to another wall or the ground, a contact line with a moving belt).
+  `surface[].cpMaxResolved` and `extremes.pressureMaxResolved` leave the flagged samples, and the first layer of
+  cells, out; the plain `cpMax` keeps every sample. Measured (stagnation pressure coefficient, which is 1 in
+  incompressible flow): a cube face-on, 6.7 cells across, 1.04; a sphere, 6.7 cells, 0.96; the building, 8.2 cells,
+  1.16, and 11.5 cells, 1.01.
 - **Flow rates** are the mass that crosses each inlet and outlet link: what enters minus what leaves is the change of
   the mass in the box.
 - **Units.** `dt = latticeSpeed h / referenceSpeed`; `nu_lattice = nu dt / h²`; pressure `rho (h/dt)² (rho_lattice - 1) / 3`.
@@ -289,12 +314,18 @@ reference speed (`setup.transitTime`).
 | `transits` | 8 external, 12 internal | the longest the run may be |
 | `startupTransits` | 1 | discarded before averaging starts |
 | `windowTransits` | 1.5 | length of an averaging window |
-| `tolerance` | 0.02 | the run stops when two consecutive windows agree: external, the mean drag, lift and side force within `tolerance` of the drag; internal, every flow rate, every opening's pressure and the mean speed within `tolerance` of the largest of their kind |
+| `tolerance` | 0.02 | the run stops when two consecutive windows agree: external, the mean drag, lift and side force within `tolerance` of the drag; internal, every flow rate, every opening's pressure and the mean speed within `tolerance` of the largest of their kind. A monitor whose two means differ by more also agrees when the difference is under twice their combined standard error and that error is under twice the allowed change: an unsteady wake (`run.criterion: 'stationary'`, `run.standardErrors`) |
 | `maxSteps` | | a cap on the steps, below `transits` |
 | `monitorEvery` | window / 60 | steps between two entries of the history |
 | `sampleEvery` | `monitorEvery` / 5 | steps between two samples of the time-averaged fields |
 
 All reported means (forces, flow rates, fields, streamlines of the mean field) are over the **last completed window**.
+
+The standard error of each window mean is estimated by batch means (the window split into eight batches). A bluff body
+sheds vortices, so its drag oscillates; with windows of 0.75 to 1.5 transits holding one to a few shedding periods, the
+window means of drag differ by a few percent however long the run is, and a tolerance of 1% was never met: the
+skyscraper, cooling-tower, Titanic and locomotive studies of the apex app all stopped at their transit limit. The
+stationary criterion stops such a run once two windows agree to within their noise, and reports the noise.
 
 A **laminar internal flow** (no sub-grid model) settles on the viscous time of its bore, `(D/2)² / (5.78 nu)`, which
 at a high Reynolds number is many transits: the windows would agree while the profile still creeps. When that time is

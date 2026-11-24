@@ -33,7 +33,7 @@ export interface FlowThreeLike {
 export interface FlowResultLike {
   readonly setup: {readonly lattice: {readonly cell: number}; readonly referenceSpeed: number};
   readonly streamlines?: {readonly speedRange: readonly number[]; readonly lines: readonly {readonly points: ArrayLike<number>; readonly speed: ArrayLike<number>; readonly pressure: ArrayLike<number>}[]};
-  readonly surface?: readonly {readonly part: string; readonly positions: ArrayLike<number>; readonly indices: ArrayLike<number>; readonly pressure: ArrayLike<number>; readonly cp: ArrayLike<number>}[];
+  readonly surface?: readonly {readonly part: string; readonly positions: ArrayLike<number>; readonly indices: ArrayLike<number>; readonly pressure: ArrayLike<number>; readonly cp: ArrayLike<number>; readonly flags?: ArrayLike<number>}[];
   readonly slices?: readonly {readonly axis: string; readonly position: number; readonly axes: readonly string[]; readonly nu: number; readonly nv: number; readonly origin: readonly number[]; readonly cell: number;
     readonly speed: ArrayLike<number>; readonly pressure: ArrayLike<number>; readonly fluid: ArrayLike<number>}[];
 }
@@ -73,6 +73,9 @@ export interface FlowViewOptions {
   readonly colormap?: FlowColormap;
   /** 'plain' (default), 'cp' (coloured by the pressure coefficient, coolwarm over `cpRange`), or false. */
   readonly surface?: 'plain' | 'cp' | false;
+  /** With surface 'cp': the colour of vertices whose sample is flagged as not resolved (`surface[].flags`: a sharp
+   * edge, a gap under three cells), or null to colour them like the rest. Default 0x9a9a9a (grey). */
+  readonly flaggedColor?: number | null;
   readonly surfaceColor?: number;
   /** Opacity of the surfaces, 0 to 1. Default 1 (internal walls are usually drawn at 0.2 to 0.35). */
   readonly surfaceOpacity?: number;
@@ -188,7 +191,12 @@ export function createFlowView(THREE: FlowThreeLike, result: FlowResultLike, opt
       let colors: Float32Array | null = null;
       if (byCp) {
         colors = new Float32Array(positions.length);
-        for (let v = 0; v < part.cp.length; v++) { const c = cpMap((part.cp[v] - cpRange[0]) / (cpRange[1] - cpRange[0])); colors[3 * v] = c[0]; colors[3 * v + 1] = c[1]; colors[3 * v + 2] = c[2]; }
+        const flags = part.flags, grey = options.flaggedColor === undefined ? 0x9a9a9a : options.flaggedColor;
+        const gc: [number, number, number] | null = grey === null ? null : [((grey >> 16) & 255) / 255, ((grey >> 8) & 255) / 255, (grey & 255) / 255];
+        for (let v = 0; v < part.cp.length; v++) {
+          const c = gc && flags && flags[v] ? gc : cpMap((part.cp[v] - cpRange[0]) / (cpRange[1] - cpRange[0]));
+          colors[3 * v] = c[0]; colors[3 * v + 1] = c[1]; colors[3 * v + 2] = c[2];
+        }
       }
       const geometry = make(positions, colors, Uint32Array.from(part.indices as ArrayLike<number>));
       geometry.computeVertexNormals();

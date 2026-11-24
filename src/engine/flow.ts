@@ -23,7 +23,7 @@
  */
 import {EngineError} from './contracts.ts';
 import {captureFields,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
-import {FlowLattice,FlowTiles,flowEachCell,FLOW_MAX_SPARSE_CELLS,FLOW_FLUID,FLOW_WALL,FLOW_VELOCITY,FLOW_PRESSURE,FLOW_SLIP,FLOW_CX,FLOW_CY,FLOW_CZ,FLOW_WEIGHT,FLOW_LATTICE_ID,FLOW_MAX_CELLS,type FlowLatticePart,type FlowLatticePatch} from './flow-lattice.ts';
+import {FlowLattice,FlowTiles,flowEachCell,FLOW_MAX_SPARSE_CELLS,FLOW_SQUEEZED_LINKS,FLOW_FLUID,FLOW_WALL,FLOW_VELOCITY,FLOW_PRESSURE,FLOW_SLIP,FLOW_CX,FLOW_CY,FLOW_CZ,FLOW_WEIGHT,FLOW_LATTICE_ID,FLOW_MAX_CELLS,type FlowLatticePart,type FlowLatticePatch} from './flow-lattice.ts';
 import {flowVoxelize,type FlowGrid,type FlowItem,type FlowItemReport,type FlowSurface,type FlowVec3} from './flow-geometry.ts';
 
 /** The solver id written to results (`solver.id`). */
@@ -60,8 +60,10 @@ export type FlowSide=
   |'wall'|'slip'|'periodic'
   /** A no-slip wall, which may slide in its own plane (a moving ground). `part` names it in the force report. */
   |{readonly kind:'wall';readonly velocity?:FlowVec3;readonly part?:string}
-  /** A given velocity on the whole side (an inflow, or a far field). */
-  |{readonly kind:'velocity';readonly velocity:FlowVec3|((x:number,y:number,z:number)=>FlowVec3);readonly name?:string}
+  /** A given velocity on the whole side (an inflow, or a far field). `freeStream`: the inflow gives way to the pressure
+   * across the side so that the total pressure is even on it, as in a free stream (FlowLatticePatch.totalPressure);
+   * for a constant velocity only. Default false. */
+  |{readonly kind:'velocity';readonly velocity:FlowVec3|((x:number,y:number,z:number)=>FlowVec3);readonly name?:string;readonly freeStream?:boolean}
   /** A given gauge pressure on the whole side (an outflow). */
   |{readonly kind:'pressure';readonly pressure?:number;readonly name?:string};
 /** The shape of an opening: a disc or a rectangle in a plane, with the outward normal of the fluid. */
@@ -321,11 +323,11 @@ export class Flow {
         else if(v)fail(`${name}: the part "${partName}" already exists; a sliding wall needs its own part name.`);
         sideOwner[index]=p;
       }else if(k==='velocity'){
-        const spec=s as {kind:'velocity';velocity:FlowVec3|((x:number,y:number,z:number)=>FlowVec3);name?:string};
+        const spec=s as {kind:'velocity';velocity:FlowVec3|((x:number,y:number,z:number)=>FlowVec3);name?:string;freeStream?:boolean};
         sideOwner[index]=lpatches.length;patchNames.push(spec.name??name);
         if(typeof spec.velocity==='function'){sideProfile[index]=spec.velocity;lpatches.push({velocity:[0,0,0]});patchKinds.push('inlet');}
         else{
-          const v=vec(spec.velocity,`${name}.velocity`);lpatches.push({velocity:[v[0]/vScale,v[1]/vScale,v[2]/vScale]});
+          const v=vec(spec.velocity,`${name}.velocity`);lpatches.push({velocity:[v[0]/vScale,v[1]/vScale,v[2]/vScale],...(spec.freeStream===true?{totalPressure:true}:{})});
           const inward=(index&1)===0?v[index>>1]:-v[index>>1];patchKinds.push(inward>=0?'inlet':'outlet');
         }
       }else if(k==='pressure'){
@@ -553,6 +555,7 @@ export class Flow {
     // laminar pipe, and a square duct aligned with the grid, grow a steady secondary flow in the section that takes 15 to
     // 45% of the flow rate; the relaxation time, the wall rule and the collision variants tried do not change it.
     if(this.turbulence==='none'&&this.cellReynolds>FLOW_LAMINAR_CELL_REYNOLDS&&cells>this.lattice.fluidCells)warnings.push(`laminar run at a cell Reynolds number of ${this.cellReynolds.toFixed(0)} (referenceSpeed x cell / viscosity, the peak speed): above about ${FLOW_LAMINAR_CELL_REYNOLDS} a duct or pipe develops a spurious secondary flow that can take 15 to 45% of the flow rate (a laminar pipe at Re 1107 was not held within 10% for long runs at any resolution tried, up to 48 cells across). Cells of at most ${(FLOW_LAMINAR_CELL_REYNOLDS*this.fluid.viscosity/options.referenceSpeed).toPrecision(3)} m keep the cell Reynolds number under the limit.`);
+    if(this.lattice.squeezedCells>0&&(options.walls??'interpolated')==='interpolated')warnings.push(`${this.lattice.squeezedCells} fluid cell(s) have ${FLOW_SQUEEZED_LINKS} or more of their 18 links on a wall (slivers in corners and gaps the grid does not resolve); their walls are half-way, not interpolated, which keeps them stable but places those walls to half a cell.`);
     if(this.relaxationTime>2)warnings.push(`the relaxation time ${this.relaxationTime.toFixed(2)} is above 2 (a very viscous flow on this grid): the time step is large for the viscosity; lower latticeSpeed.`);
     if(this.fluidCells===0)fail('there is no fluid cell.');
     this.warnings=warnings;

@@ -286,8 +286,8 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
         const groundSide=up[a]>0?loName:hiName,skySide=up[a]>0?hiName:loName;
         sides[skySide]='slip';
         sides[groundSide]=!ground||ground.type==='slip'?'slip':{kind:'wall',part:'ground',velocity:ground.type==='moving'?velocity:undefined};
-      }else if(dir[a]>0.2){sides[loName]={kind:'velocity',velocity,name:'inlet'+(Math.abs(dir[a])<0.999?'-'+loName:'')};sides[hiName]={kind:'pressure',name:'outlet'+(Math.abs(dir[a])<0.999?'-'+hiName:'')};}
-      else if(dir[a]<-0.2){sides[hiName]={kind:'velocity',velocity,name:'inlet'+(Math.abs(dir[a])<0.999?'-'+hiName:'')};sides[loName]={kind:'pressure',name:'outlet'+(Math.abs(dir[a])<0.999?'-'+loName:'')};}
+      }else if(dir[a]>0.2){sides[loName]={kind:'velocity',velocity,name:'inlet'+(Math.abs(dir[a])<0.999?'-'+loName:''),freeStream:true};sides[hiName]={kind:'pressure',name:'outlet'+(Math.abs(dir[a])<0.999?'-'+hiName:'')};}
+      else if(dir[a]<-0.2){sides[hiName]={kind:'velocity',velocity,name:'inlet'+(Math.abs(dir[a])<0.999?'-'+hiName:''),freeStream:true};sides[loName]={kind:'pressure',name:'outlet'+(Math.abs(dir[a])<0.999?'-'+loName:'')};}
       else{sides[loName]='slip';sides[hiName]='slip';}
     }
     if(geometry.some(g=>g.part==='ground')&&ground&&ground.type!=='slip')fail('the part name "ground" is taken by the ground plane; rename the item.');
@@ -480,28 +480,47 @@ export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowS
   let done=false,converged=false,reason='max-steps',windowIndex=0,windowStart=run.startupSteps,lastMean:FlowField|null=null,meanSteps=0,meanFrom=0;
   let lastWindowMeans:number[]|null=null,windowsDone=0;
   // means of the history over the current window, to compare consecutive windows
-  const monitors=():number[]=>{
-    const from=H.step.findIndex(sx=>sx>windowStart),out:number[]=[];
-    const mean=(a:number[]):number=>{let total=0,n=0;for(let i=Math.max(0,from);i<a.length;i++){total+=a[i];n++;}return n?total/n:0;};
-    if(ext)out.push(mean(H.drag),mean(H.lift),mean(H.side));
-    else{for(const q of H.flowRates)out.push(mean(q));for(const p of H.patchPressure)out.push(mean(p));out.push(mean(H.bulkSpeed));}
-    return out;
+  // and the standard error of each mean by batch means (eight batches of the window): an unsteady wake's window means
+  // differ by about that much however long the run, so two windows that differ by less than twice the combined error
+  // also count as agreeing (statistically stationary)
+  const BATCHES=8;
+  const monitors=():{means:number[];errors:number[]}=>{
+    const from=Math.max(0,H.step.findIndex(sx=>sx>windowStart)),means:number[]=[],errors:number[]=[];
+    const add=(a:number[]):void=>{
+      const n=a.length-from;let total=0;for(let i=from;i<a.length;i++)total+=a[i];const m=n>0?total/n:0;means.push(m);
+      if(n<2*BATCHES){errors.push(Infinity);return;}
+      const size=Math.floor(n/BATCHES);let v=0;
+      for(let b=0;b<BATCHES;b++){let t=0;for(let i=0;i<size;i++)t+=a[from+b*size+i];const d=t/size-m;v+=d*d;}
+      errors.push(Math.sqrt(v/(BATCHES-1)/BATCHES));
+    };
+    if(ext){add(H.drag);add(H.lift);add(H.side);}
+    else{for(const q of H.flowRates)add(q);for(const p of H.patchPressure)add(p);add(H.bulkSpeed);}
+    return {means,errors};
   };
+  let lastWindowErrors:number[]|null=null,stationary=false;
   const closeWindow=():void=>{
     if(flow.meanSamples>0){lastMean=flow.field(true);meanSteps=L.stepCount-windowStart;meanFrom=windowStart;}
-    const means=monitors();
-    if(lastWindowMeans){
-      let ok=true;
-      if(ext){const scale=Math.max(Math.abs(means[0]),1e-30);for(let i=0;i<3;i++)if(Math.abs(means[i]-lastWindowMeans[i])>run.tolerance*scale)ok=false;}
+    const {means,errors}=monitors();
+    if(lastWindowMeans&&lastWindowErrors){
+      // per monitor: the allowed change (tolerance times its scale), and whether the change is within the noise of the
+      // two means instead; the noise is accepted only while it is under twice the allowed change
+      let ok=true,noise=false;const prevErr=lastWindowErrors;
+      const check=(i:number,scale:number):void=>{
+        const d=Math.abs(means[i]-lastWindowMeans![i]),allowed=run.tolerance*Math.max(scale,1e-30),se=Math.hypot(errors[i],prevErr[i]);
+        if(d<=allowed)return;
+        if(d<=2*se&&se<=2*allowed){noise=true;return;}
+        ok=false;
+      };
+      if(ext){const scale=Math.abs(means[0]);for(let i=0;i<3;i++)check(i,scale);}
       else{
         const nq=flow.patches.length;let qScale=0,pScale=0;
         for(let i=0;i<nq;i++){qScale=Math.max(qScale,Math.abs(means[i]));pScale=Math.max(pScale,Math.abs(means[nq+i]));}
-        for(let i=0;i<nq;i++){if(Math.abs(means[i]-lastWindowMeans[i])>run.tolerance*Math.max(qScale,1e-30))ok=false;if(Math.abs(means[nq+i]-lastWindowMeans[nq+i])>run.tolerance*Math.max(pScale,1e-30))ok=false;}
-        const bs=Math.max(Math.abs(means[2*nq]),1e-30);if(Math.abs(means[2*nq]-lastWindowMeans[2*nq])>run.tolerance*bs)ok=false;
+        for(let i=0;i<nq;i++){check(i,qScale);check(nq+i,pScale);}
+        check(2*nq,Math.abs(means[2*nq]));
       }
-      if(ok){converged=true;reason='tolerance';done=true;}
+      if(ok){converged=true;reason='tolerance';stationary=noise;done=true;}
     }
-    lastWindowMeans=means;windowsDone++;windowIndex++;windowStart=L.stepCount;
+    lastWindowMeans=means;lastWindowErrors=errors;windowsDone++;windowIndex++;windowStart=L.stepCount;
     if(!done)flow.resetMean();
   };
   const advance=():FlowProgress|null=>{
@@ -591,6 +610,7 @@ export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowS
         report:worth.slice(0,200).map(i=>({...i})),reportTruncated:worth.length>200},
       controls:{...run}};
     out.run={steps:L.stepCount,time:flow.time,wallTime:wall,cellUpdatesPerSecond:wall>0?flow.fluidCells*L.stepCount/wall:0,converged,reason,windows:windowsDone,
+      criterion:converged?(stationary?'stationary':'tolerance'):null,standardErrors:lastWindowErrors?lastWindowErrors.map(e=>Number.isFinite(e)?e:null):null,
       averaged:meanUsed?{fromStep:meanFrom,steps:meanSteps,time:meanSteps*flow.dt,samples:Math.floor(meanSteps/run.sampleEvery)}:null,maxSpeed:H.maxSpeed.length?Math.max(...H.maxSpeed):0};
     const peak=(out.run as Json).maxSpeed as number;
     if(peak>3*setup.referenceSpeed)notes.push(`the largest speed ${peak.toPrecision(3)} m/s is ${(peak/setup.referenceSpeed).toFixed(1)} times the reference speed: the lattice Mach number reached ${(peak/vScale*Math.sqrt(3)).toFixed(2)}; compressibility errors are large. Lower resolution.latticeSpeed or set internal.referenceSpeed.`);
@@ -700,10 +720,19 @@ export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowS
     }
     // surface pressure, per part, with its extremes
     if(setup.outputs.surface===true){
-      out.surface=flowSurfacePressure(field,flow.surfaces).map(sf=>{
-        let lo=Infinity,hi=-Infinity;for(let v=0;v<sf.pressure.length;v++){if(sf.pressure[v]<lo)lo=sf.pressure[v];if(sf.pressure[v]>hi)hi=sf.pressure[v];}
+      out.surface=flowSurfacePressure(field,flow.surfaces,rho).map(sf=>{
+        let lo=Infinity,hi=-Infinity,rlo=Infinity,rhi=-Infinity,flagged=0;
+        for(let v=0;v<sf.pressure.length;v++){
+          const p=sf.pressure[v];if(p<lo)lo=p;if(p>hi)hi=p;
+          if(sf.flags[v]!==0){flagged++;continue;}
+          if(p<rlo)rlo=p;if(p>rhi)rhi=p;
+        }
         if(!(lo<=hi)){lo=0;hi=0;}
-        return {part:sf.part,positions:list(sf.positions),indices:Array.from(sf.indices),pressure:list(sf.pressure),cp:list(sf.pressure.map(p=>p/dynamicPressure)),pressureMin:lo,pressureMax:hi,cpMin:lo/dynamicPressure,cpMax:hi/dynamicPressure};
+        const resolved=rlo<=rhi;
+        // extremes over the samples that are not flagged (a sharp edge, a gap under FLOW_GAP_CELLS cells): the
+        // singular corner and contact-line values are left out of them
+        return {part:sf.part,positions:list(sf.positions),indices:Array.from(sf.indices),pressure:list(sf.pressure),cp:list(sf.pressure.map(p=>p/dynamicPressure)),pressureMin:lo,pressureMax:hi,cpMin:lo/dynamicPressure,cpMax:hi/dynamicPressure,
+          flags:Array.from(sf.flags),flagged,cpMinResolved:resolved?rlo/dynamicPressure:null,cpMaxResolved:resolved?rhi/dynamicPressure:null};
       });
     }
     if(setup.outputs.lines!==undefined){

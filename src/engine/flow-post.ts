@@ -146,28 +146,58 @@ export function flowSlice(field:FlowField,axis:'x'|'y'|'z',position:number):Flow
 /** Pressure at the vertices of the surface of one part. */
 export interface FlowSurfaceField {
   readonly part:string;readonly positions:Float32Array;readonly indices:Uint32Array;
-  /** Gauge pressure at each vertex, Pa, read one cell out from the wall along the gradient of the wall distance. */
+  /** Gauge pressure at each vertex, Pa, read 1.5 cells out from the wall along the gradient of the wall distance (so
+   * that the first layer of cells, cut by the wall, is not in the interpolation), carried to the wall when the density
+   * is given (flowSurfacePressure). */
   readonly pressure:Float32Array;
+  /** Per vertex, why its pressure is not a resolved value (0: it is): FLOW_SAMPLE_EDGE, the vertex is on a sharp convex
+   * edge or corner (the pressure of the cell there is singular); FLOW_SAMPLE_GAP, the fluid in front of it is less than
+   * FLOW_GAP_CELLS cells deep (a gap to another wall or the ground, a contact line), too thin to resolve. */
+  readonly flags:Uint8Array;
 }
-/** Pressure on the surfaces of the parts. */
-export function flowSurfacePressure(field:FlowField,surfaces:readonly FlowSurface[]):FlowSurfaceField[]{
+/** Surface sample flags (FlowSurfaceField.flags). */
+export const FLOW_SAMPLE_EDGE=1,FLOW_SAMPLE_GAP=2;
+/** Fluid depth in front of a surface sample below which it is flagged FLOW_SAMPLE_GAP, cells. */
+export const FLOW_GAP_CELLS=3;
+/** Laplacian of the wall distance times the cell size, one cell out, above which a sample is FLOW_SAMPLE_EDGE: 0 on a
+ * plane, about 1 next to a sharp edge, 2 at a corner, 0.4 on a sphere 8 cells across. */
+export const FLOW_EDGE_CURVATURE=0.6;
+/** Pressure on the surfaces of the parts. With `density` (kg/m^3) the read is carried to the wall along the normal by
+ * Bernoulli: p + rho (u . n)^2 / 2, the pressure the normal component of the velocity there would give stagnating at the
+ * wall (exact on the stagnation streamline of an inviscid flow; small where the flow runs along the wall). */
+export function flowSurfacePressure(field:FlowField,surfaces:readonly FlowSurface[],density?:number):FlowSurfaceField[]{
   const h=field.grid.cell,s=new Float64Array(5),g=[0,0,0];
   const distanceAt=(x:number,y:number,z:number):number=>flowSample(field,x,y,z,s)?s[4]:0;
+  // the cell that holds a point is fluid (walls of the box and other bodies are not)
+  const {origin:o,nx:gx,ny:gy,nz:gz}=field.grid;
+  const fluidAt=(x:number,y:number,z:number):boolean=>{const i=Math.floor((x-o[0])/h),j=Math.floor((y-o[1])/h),k=Math.floor((z-o[2])/h);return i>=0&&j>=0&&k>=0&&i<gx&&j<gy&&k<gz&&field.fluid[slotAt(field,i,j,k)]===1;};
   return surfaces.map(surface=>{
-    const P=surface.positions,count=P.length/3,pressure=new Float32Array(count);
+    const P=surface.positions,count=P.length/3,pressure=new Float32Array(count),flags=new Uint8Array(count);
     for(let v=0;v<count;v++){
       const x=P[3*v],y=P[3*v+1],z=P[3*v+2];
       // outward direction: the gradient of the distance (it points into the fluid)
       g[0]=distanceAt(x+h,y,z)-distanceAt(x-h,y,z);g[1]=distanceAt(x,y+h,z)-distanceAt(x,y-h,z);g[2]=distanceAt(x,y,z+h)-distanceAt(x,y,z-h);
       const gl=Math.hypot(g[0],g[1],g[2]);
       let value=0,found=false;
-      if(gl>0)for(const reach of [1,1.75,2.5,0.5]){
-        if(flowSample(field,x+reach*h*g[0]/gl,y+reach*h*g[1]/gl,z+reach*h*g[2]/gl,s)&&s[4]>0){value=s[3];found=true;break;}
+      if(gl>0)for(const reach of [1.5,2,2.5,1,0.5]){
+        if(flowSample(field,x+reach*h*g[0]/gl,y+reach*h*g[1]/gl,z+reach*h*g[2]/gl,s)&&s[4]>0){
+          const un=(s[0]*g[0]+s[1]*g[1]+s[2]*g[2])/gl;value=s[3]+(density!==undefined?0.5*density*un*un:0);found=true;break;
+        }
       }
       if(!found&&flowSample(field,x,y,z,s))value=s[3];
       pressure[v]=value;
+      if(!(gl>0)){flags[v]=FLOW_SAMPLE_EDGE;continue;}
+      // one cell out: the Laplacian of the distance (curvature of the wall); and the depth of fluid along the normal
+      const nx=g[0]/gl,ny=g[1]/gl,nz=g[2]/gl,cx=x+h*nx,cy=y+h*ny,cz=z+h*nz,d0=distanceAt(cx,cy,cz);
+      const lap=(distanceAt(cx+h,cy,cz)+distanceAt(cx-h,cy,cz)+distanceAt(cx,cy+h,cz)+distanceAt(cx,cy-h,cz)+distanceAt(cx,cy,cz+h)+distanceAt(cx,cy,cz-h)-6*d0)/h;
+      let flag=lap>FLOW_EDGE_CURVATURE?FLOW_SAMPLE_EDGE:0;
+      for(let t=3;t<=FLOW_GAP_CELLS*2&&flag===0;t++){
+        const r=0.5*t*h;
+        if(!flowSample(field,x+r*nx,y+r*ny,z+r*nz,s)||!fluidAt(x+r*nx,y+r*ny,z+r*nz))flag=FLOW_SAMPLE_GAP;
+      }
+      flags[v]=flag;
     }
-    return {part:surface.part,positions:surface.positions,indices:surface.indices,pressure};
+    return {part:surface.part,positions:surface.positions,indices:surface.indices,pressure,flags};
   });
 }
 
