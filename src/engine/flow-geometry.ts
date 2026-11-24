@@ -23,6 +23,7 @@
  * added to it, and the fraction of its surface with no cell of its own within 1.25 cells.
  */
 import {EngineError} from './contracts.ts';
+import {FlowTiles,FLOW_TILE} from './flow-lattice.ts';
 
 /** A point or vector [x, y, z], metres in SI frames. */
 export type FlowVec3=readonly [number,number,number];
@@ -149,6 +150,8 @@ export interface FlowVoxels {
   readonly items:readonly FlowItemReport[];
   readonly warnings:readonly string[];
   readonly solidCells:number;
+  /** Sparse storage (FlowVoxelizeOptions.sparse): `distance` and `part` are per slot of these tiles; null when dense. */
+  readonly tiles?:FlowTiles|null;
 }
 /** Triangles of the surface of one part, for sampling and drawing. */
 export interface FlowSurface {readonly part:string;readonly positions:Float32Array;readonly indices:Uint32Array}
@@ -379,7 +382,7 @@ const LINK_X=[1,0,0,1,1,1,1,0,0],LINK_Y=[0,1,0,1,-1,0,0,1,1],LINK_Z=[0,0,1,0,0,1
 
 /** Signed distance of one mesh, merged into `field` (metres) with `owner` set to `part` where the mesh is nearest. Each
  * connected component is worked in the box of cells around it. Returns the number of cells made solid to close leaks. */
-function voxelizeMesh(mesh:PreparedMesh,thickness:number|undefined,grid:FlowGrid,band:number,field:Float32Array,owner:Int16Array,part:number,warnings:string[],label:string):{parityFaces:number[];shellAdded:number}{
+function voxelizeMesh(mesh:PreparedMesh,thickness:number|undefined,grid:FlowGrid,band:number,field:Float32Array,owner:Int16Array,part:number,warnings:string[],label:string,tiles:FlowTiles|null):{parityFaces:number[];shellAdded:number}{
   const {nx,ny,cell:h,origin}=grid,reach=band*h,full=[grid.nx,grid.ny,grid.nz],thin=FLOW_THIN_CELLS/2*h;
   const P=mesh.positions,I=mesh.indices,triangles=I.length/3;
   // The rays pass a hair off the cell centres so that vertices and edges on round coordinates are not hit exactly.
@@ -443,7 +446,10 @@ function voxelizeMesh(mesh:PreparedMesh,thickness:number|undefined,grid:FlowGrid
     const half=byParity?0:Math.max(thickness!/2,thin);
     if(!byParity&&thickness!/2<thin)shellAdded=Math.max(shellAdded,2*thin-thickness!);
     for(let k=0,c=0;k<n[2];k++)for(let j=0;j<n[1];j++)for(let i=0;i<n[0];i++,c++){
-      const d=byParity?(votes[c]>=2?-unsigned[c]:unsigned[c]):unsigned[c]-half,idx=b0[0]+i+nx*(b0[1]+j+ny*(b0[2]+k));
+      let idx:number;
+      if(tiles){const a=b0[0]+i,b=b0[1]+j,e=b0[2]+k;if(!tiles.stored(a,b,e))continue;idx=tiles.slot(a,b,e);}
+      else idx=b0[0]+i+nx*(b0[1]+j+ny*(b0[2]+k));
+      const d=byParity?(votes[c]>=2?-unsigned[c]:unsigned[c]):unsigned[c]-half;
       if(d<field[idx]){field[idx]=d;owner[idx]=part;}
     }
   }
@@ -460,7 +466,9 @@ function voxelizeMesh(mesh:PreparedMesh,thickness:number|undefined,grid:FlowGrid
  * nearer to the wall is made solid. Links are followed a hair off the cell centres, so that none passes exactly through
  * an edge of the mesh. Returns the cells made solid, per mesh.
  */
-function closeLeaks(meshes:readonly {mesh:PreparedMesh;faces:number[];part:number}[],grid:FlowGrid,field:Float32Array,owner:Int16Array):number[]{
+function closeLeaks(meshes:readonly {mesh:PreparedMesh;faces:number[];part:number}[],grid:FlowGrid,field:Float32Array,owner:Int16Array,tiles:FlowTiles|null):number[]{
+  // the field at cell index c (dense or tiled; a tile with no storage reads as solid)
+  const F=tiles?(c:number):number=>field[tiles.slotOf(c)]:(c:number):number=>field[c];
   const {cell:h,origin:o}=grid,n=[grid.nx,grid.ny,grid.nz],stride=[1,n[0],n[0]*n[1]],thin=FLOW_THIN_CELLS/2*h,jitter=[1.3e-7*h,2.1e-7*h,1.7e-7*h];
   // per crossing link (key: cell * 9 + link): first and last crossing along the link, their number, and the mesh
   const hits=new Map<number,[number,number,number,number]>();
@@ -474,12 +482,12 @@ function closeLeaks(meshes:readonly {mesh:PreparedMesh;faces:number[];part:numbe
       const j0=Math.max(0,Math.floor((Math.min(ay,by,cy)-o[1])/h-1.5)),j1=Math.min(n[1]-1,Math.floor((Math.max(ay,by,cy)-o[1])/h+0.5));
       const k0=Math.max(0,Math.floor((Math.min(az,bz,cz)-o[2])/h-1.5)),k1=Math.min(n[2]-1,Math.floor((Math.max(az,bz,cz)-o[2])/h+0.5));
       for(let k=k0;k<=k1;k++)for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){
-        const idx=i+n[0]*(j+n[1]*k);if(field[idx]<0)continue;
+        const idx=i+n[0]*(j+n[1]*k);if(F(idx)<0)continue;
         const px=o[0]+(i+0.5)*h+jitter[0],py=o[1]+(j+0.5)*h+jitter[1],pz=o[2]+(k+0.5)*h+jitter[2];
         for(let l=0;l<9;l++){
           const i2=i+LINK_X[l],j2=j+LINK_Y[l],k2=k+LINK_Z[l];
           if(i2>=n[0]||j2<0||j2>=n[1]||k2<0||k2>=n[2])continue;
-          if(field[i2+n[0]*(j2+n[1]*k2)]<0)continue;
+          if(F(i2+n[0]*(j2+n[1]*k2))<0)continue;
           const t=segmentTriangle(px,py,pz,LINK_X[l]*h,LINK_Y[l]*h,LINK_Z[l]*h,ax,ay,az,bx,by,bz,cx,cy,cz);
           if(t<0)continue;
           const key=idx*9+l,hit=hits.get(key);
@@ -495,13 +503,13 @@ function closeLeaks(meshes:readonly {mesh:PreparedMesh;faces:number[];part:numbe
   const crosses=(key:number):boolean=>{const hit=hits.get(key);return hit!==undefined&&!(hit[2]>1&&hit[1]-hit[0]<1e-4);};
   // the axis link between two neighbouring cells, keyed from the one with the smaller index
   const axisCrosses=(p:number,q:number,axis:number):boolean=>crosses((p<q?p:q)*9+axis);
-  const open=(c:number):boolean=>field[c]>=0&&!shut.has(c);
+  const open=(c:number):boolean=>F(c)>=0&&!shut.has(c);
   const inBox=(c:number,a:number,step:number):boolean=>{const pos=a===0?c%n[0]:a===1?Math.floor(c/n[0])%n[1]:Math.floor(c/stride[2]);return pos+step>=0&&pos+step<n[a];};
   const close=(hit:[number,number,number,number],idx:number,idx2:number):void=>{
     const c=hit[0]+hit[1]<=1?idx:idx2,t=hit[0]+hit[1]<=1?(hit[0]+hit[1])/2:1-(hit[0]+hit[1])/2;
     shut.add(c);closed[hit[3]]++;
     // inside a wall of the thinnest kind the lattice sees, at its distance from the mid-surface
-    field[c]=-Math.max(thin-Math.min(t*h,thin),1e-3*h);owner[c]=meshes[hit[3]].part;
+    const sc=tiles?tiles.slotOf(c):c;field[sc]=-Math.max(thin-Math.min(t*h,thin),1e-3*h);owner[sc]=meshes[hit[3]].part;
   };
   for(const [key,hit] of hits){
     const l=key%9;if(l>2||!crosses(key))continue;
@@ -603,6 +611,10 @@ export interface FlowVoxelizeOptions {
   readonly surfaces?:boolean;
   /** Grow thin walls so that they do not leak (see the header). Default true. */
   readonly thicken?:boolean;
+  /** Store only the tiles of FLOW_TILE^3 cells near the cavities (the fluid of a pipe network), the rest of the box
+   * being solid: for networks whose box is mostly solid. Needs at least one cavity item. A primitive cavity keeps the
+   * tiles within the band of its surface or inside it; a mesh cavity keeps every tile of its bounding box. Default false. */
+  readonly sparse?:boolean;
 }
 /** The voxelisation with the surfaces of the parts and the thickening counts. */
 export interface FlowVoxelization extends FlowVoxels {
@@ -633,6 +645,40 @@ export function flowVoxelize(items:readonly FlowItem[],grid:FlowGrid,options:Flo
   for(const n of [nx,ny,nz])if(!Number.isInteger(n)||n<1)fail('grid sizes must be positive integers.');
   const cells=nx*ny*nz,band=options.band??4,reach=band*h,size=options.surfaceSize??1.5*h,keep=options.surfaces!==false,thicken=options.thicken!==false,thin=FLOW_THIN_CELLS*h;
   if(!(band>=2))fail('band must be at least 2 cells.');
+  // sparse storage: the tiles near the cavities (within the band of a primitive's surface or inside it, or in a mesh's
+  // bounding box), found before anything is voxelised; every other tile reads as solid
+  let tiles:FlowTiles|null=null;
+  if(options.sparse){
+    const T=FLOW_TILE,tx=Math.ceil(nx/T),ty=Math.ceil(ny/T),tz=Math.ceil(nz/T),marked=new Uint8Array(tx*ty*tz),half=Math.sqrt(3)*T*h/2;
+    const markBox=(lo:readonly number[],hi:readonly number[],test?:(x:number,y:number,z:number)=>boolean):void=>{
+      const t0=[0,0,0],t1=[0,0,0],nt=[tx,ty,tz];
+      for(let a=0;a<3;a++){t0[a]=Math.max(0,Math.floor((lo[a]-origin[a])/h/T));t1[a]=Math.min(nt[a]-1,Math.floor((hi[a]-origin[a])/h/T));if(t1[a]<t0[a])return;}
+      for(let k=t0[2];k<=t1[2];k++)for(let j=t0[1];j<=t1[1];j++)for(let i=t0[0];i<=t1[0];i++){
+        if(test&&!test(origin[0]+(i+0.5)*T*h,origin[1]+(j+0.5)*T*h,origin[2]+(k+0.5)*T*h))continue;
+        marked[i+tx*(j+ty*k)]=1;
+      }
+    };
+    let cavities=0;
+    for(const item of items){
+      if(!item||typeof item!=='object'||(item.role??'solid')!=='cavity')continue;
+      cavities++;
+      if(item.kind==='mesh'){
+        for(const sub of splitElements(item)){
+          const P=prepareMesh(sub,false).positions,lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];
+          for(let v=0;v<P.length;v+=3)for(let a=0;a<3;a++){if(P[v+a]<lo[a])lo[a]=P[v+a];if(P[v+a]>hi[a])hi[a]=P[v+a];}
+          markBox(lo.map(v=>v-reach-h),hi.map(v=>v+reach+h));
+        }
+      }else for(const piece of piecesOf(item).pieces){
+        // the distance is 1-Lipschitz: a tile whose centre is farther than its half diagonal plus the band holds no
+        // cell within the band
+        const m=piece.m,c0=piece.c,r=piece.reach+reach+h;
+        markBox([c0[0]-r,c0[1]-r,c0[2]-r],[c0[0]+r,c0[1]+r,c0[2]+r],(x,y,z)=>{const X=x-c0[0],Y=y-c0[1],Z=z-c0[2];return piece.d(m[0]*X+m[3]*Y+m[6]*Z,m[1]*X+m[4]*Y+m[7]*Z,m[2]*X+m[5]*Y+m[8]*Z)<=reach+half+h;});
+      }
+    }
+    if(cavities===0)fail('sparse storage needs cavity items (the fluid of a network): everything else is taken as solid.');
+    tiles=new FlowTiles(nx,ny,nz,marked);
+  }
+  const slots=tiles?tiles.slots:cells,blockCells=FLOW_TILE*FLOW_TILE*FLOW_TILE;
   // one distance field per role, made when the first item of the role arrives
   let solid:Float32Array|null=null,cavity:Float32Array|null=null,solidPart:Int16Array|null=null,cavityPart:Int16Array|null=null;
   const parts:string[]=[],partIndex=new Map<string,number>();
@@ -648,7 +694,8 @@ export function flowVoxelize(items:readonly FlowItem[],grid:FlowGrid,options:Flo
     if(role!=='solid'&&role!=='cavity')fail(`item ${index}: role must be 'solid' or 'cavity'.`);
     if(typeof name!=='string'||name.length===0)fail(`item ${index}: part must be a non-empty string.`);
     const part=partOf(name);
-    if(role==='cavity'){cavity??=new Float32Array(cells).fill(reach);cavityPart??=new Int16Array(cells).fill(-1);}else{solid??=new Float32Array(cells).fill(reach);solidPart??=new Int16Array(cells).fill(-1);}
+    if(role==='cavity'){cavity??=new Float32Array(slots).fill(reach);cavityPart??=new Int16Array(slots).fill(-1);}
+    else if(!solid){solid=new Float32Array(slots).fill(reach);solidPart=new Int16Array(slots).fill(-1);if(tiles)solid.fill(-reach,0,blockCells);}
     const field=role==='cavity'?cavity!:solid!,owner=role==='cavity'?cavityPart!:solidPart!;
     const base={index,...(item.id!==undefined?{id:item.id}:{}),part:name,role};
     if(item.kind==='mesh'){
@@ -659,7 +706,7 @@ export function flowVoxelize(items:readonly FlowItem[],grid:FlowGrid,options:Flo
         const mesh=prepareMesh(sub,true);
         if(sub.thickness!==undefined&&(!(sub.thickness>=0)||!Number.isFinite(sub.thickness)))fail(`item ${index}: thickness must not be negative.`);
         // a cavity is not grown: its walls are everything else
-        const done=voxelizeMesh(mesh,sub.thickness,grid,band,field,owner,part,warnings,`item ${index} (${name})`);
+        const done=voxelizeMesh(mesh,sub.thickness,grid,band,field,owner,part,warnings,`item ${index} (${name})`,tiles);
         const cc=mesh.closed.filter(Boolean).length,open=cc<mesh.componentCount;
         shellAdded=Math.max(shellAdded,done.shellAdded);triangles+=mesh.indices.length/3;components+=mesh.componentCount;closedCount+=cc;
         if(sub.thickness!==undefined&&open)smallest=smallest===null?sub.thickness:Math.min(smallest,sub.thickness);
@@ -683,11 +730,19 @@ export function flowVoxelize(items:readonly FlowItem[],grid:FlowGrid,options:Flo
         const i0=Math.max(0,Math.floor((c0[0]-r-origin[0])/h)),i1=Math.min(nx-1,Math.floor((c0[0]+r-origin[0])/h));
         const j0=Math.max(0,Math.floor((c0[1]-r-origin[1])/h)),j1=Math.min(ny-1,Math.floor((c0[1]+r-origin[1])/h));
         const k0=Math.max(0,Math.floor((c0[2]-r-origin[2])/h)),k1=Math.min(nz-1,Math.floor((c0[2]+r-origin[2])/h));
-        for(let k=k0;k<=k1;k++)for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){
+        const put=(i:number,j:number,k:number,idx:number):void=>{
           const x=origin[0]+(i+0.5)*h-c0[0],y=origin[1]+(j+0.5)*h-c0[1],z=origin[2]+(k+0.5)*h-c0[2];
           // world to local: the transpose of the rotation
-          const d=piece.d(m[0]*x+m[3]*y+m[6]*z,m[1]*x+m[4]*y+m[7]*z,m[2]*x+m[5]*y+m[8]*z)-grow,idx=i+nx*(j+ny*k);
+          const d=piece.d(m[0]*x+m[3]*y+m[6]*z,m[1]*x+m[4]*y+m[7]*z,m[2]*x+m[5]*y+m[8]*z)-grow;
           if(d<field[idx]){field[idx]=d;owner[idx]=part;}
+        };
+        if(!tiles){for(let k=k0;k<=k1;k++)for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++)put(i,j,k,i+nx*(j+ny*k));}
+        else{
+          const T=FLOW_TILE;
+          for(let tk=k0>>3;tk<=k1>>3;tk++)for(let tj=j0>>3;tj<=j1>>3;tj++)for(let ti=i0>>3;ti<=i1>>3;ti++){
+            if(tiles.block[ti+tiles.tx*(tj+tiles.ty*tk)]===0)continue;
+            for(let k=Math.max(k0,tk*T);k<=Math.min(k1,tk*T+T-1);k++)for(let j=Math.max(j0,tj*T);j<=Math.min(j1,tj*T+T-1);j++)for(let i=Math.max(i0,ti*T);i<=Math.min(i1,ti*T+T-1);i++)put(i,j,k,tiles.slot(i,j,k));
+          }
         }
       }
       if(added>0){thickenedItems++;largestThickening=Math.max(largestThickening,added);}
@@ -708,7 +763,7 @@ export function flowVoxelize(items:readonly FlowItem[],grid:FlowGrid,options:Flo
       for(let dk=-2;dk<=2&&!found;dk++)for(let dj=-2;dj<=2&&!found;dj++)for(let di=-2;di<=2&&!found;di++){
         const i=ci+di,j=cj+dj,k=ck+dk;if(i<0||j<0||k<0||i>=nx||j>=ny||k>=nz)continue;
         const dx=fi-(i+0.5),dy=fj-(j+0.5),dz=fk-(k+0.5);if(dx*dx+dy*dy+dz*dz>1.5625)continue;
-        if(field2[i+nx*(j+ny*k)]<0)found=true;
+        if(field2[tiles?tiles.slot(i,j,k):i+nx*(j+ny*k)]<0)found=true;
       }
       if(!found)lost+=ar;
     }
@@ -726,19 +781,24 @@ export function flowVoxelize(items:readonly FlowItem[],grid:FlowGrid,options:Flo
   // close what leaks through the meshes filled by parity (walls thinner than the grid resolves), all meshes at once so
   // that a seam between two of them is seen
   if(leakMeshes.length>0&&solid&&solidPart){
-    const closed=closeLeaks(leakMeshes,grid,solid,solidPart);
+    const closed=closeLeaks(leakMeshes,grid,solid,solidPart,tiles);
     closed.forEach((count,m)=>{if(count>0){closedCells+=count;const r=itemReports[leakMeshes[m].item];itemReports[leakMeshes[m].item]={...r,thickenedCells:(r.thickenedCells??0)+count};}});
   }
   // combine: solid outside the cavities, plus the solids
-  const distance=solid??cavity??new Float32Array(cells).fill(reach),part=solidPart??cavityPart??new Int16Array(cells).fill(-1);let solidCells=0;
+  const distance=solid??cavity??new Float32Array(slots).fill(reach),part=solidPart??cavityPart??new Int16Array(slots).fill(-1);let solidCells=0;
   if(cavity&&cavityPart){
-    for(let c=0;c<cells;c++){
+    for(let c=0;c<slots;c++){
       let d=solid?solid[c]:reach,p=solidPart?solidPart[c]:-1;const w=-cavity[c];
       if(w<d){d=w;p=cavityPart[c];}
       distance[c]=d;part[c]=p;
     }
   }
-  for(let c=0;c<cells;c++){const d=distance[c];if(d>reach)distance[c]=reach;else if(d<-reach)distance[c]=-reach;if(d<0)solidCells++;}
+  if(!tiles){for(let c=0;c<cells;c++){const d=distance[c];if(d>reach)distance[c]=reach;else if(d<-reach)distance[c]=-reach;if(d<0)solidCells++;}}
+  else{
+    for(let c=0;c<slots;c++){const d=distance[c];if(d>reach)distance[c]=reach;else if(d<-reach)distance[c]=-reach;}
+    // the cells of the box with no storage are solid
+    let stored=0;tiles.forEach((_i,_j,_k,_c,sl)=>{stored++;if(distance[sl]<0)solidCells++;});solidCells+=cells-stored;
+  }
   // warnings: one line per kind of trouble, with the first items named
   const some=(pick:(r:FlowItemReport)=>boolean):string=>{const hit=itemReports.filter(pick),head=hit.slice(0,4).map(r=>`item ${r.index} (${r.part}, ${r.kind})`).join(', ');return hit.length>4?`${head} and ${hit.length-4} more`:head;};
   if(thickenedItems>0)warnings.push(`${thickenedItems} plate-like item(s) thinner than ${FLOW_THIN_CELLS} cells (${thin.toPrecision(3)} m) were grown to that thickness so that they do not leak; the largest growth is ${largestThickening.toPrecision(3)} m: ${some(r=>r.thickened>0)}.`);
@@ -746,7 +806,7 @@ export function flowVoxelize(items:readonly FlowItem[],grid:FlowGrid,options:Flo
   if(slenderItems>0)warnings.push(`${slenderItems} item(s) are thinner than a cell (${h.toPrecision(3)} m) in two directions (rods, cables); they are not resolved and take force only where they happen to hold a cell centre.`);
   if(coarseItems>0)warnings.push(`${coarseItems} item(s) have a smallest dimension under two cells (${(2*h).toPrecision(3)} m); their shape is coarse: ${some(r=>r.smallestDimension!==null&&r.smallestDimension<2*h&&r.thickened===0)}.`);
   if(unresolvedItems>0)warnings.push(`${unresolvedItems} item(s) have more than 5% of their surface with no cell of their own within 1.25 cells: features thinner than the cell size ${h.toPrecision(3)} m are lost: ${some(r=>r.unresolvedFraction>0.05)}.`);
-  return {grid,distance,part,parts,band,items:itemReports,warnings,solidCells,thickenedItems,largestThickening,closedCells,slenderItems,
+  return {grid,distance,part,parts,band,items:itemReports,warnings,solidCells,tiles,thickenedItems,largestThickening,closedCells,slenderItems,
     surfaces:[...surfaces].map(([name,sf])=>({part:name,positions:Float32Array.from(sf.positions),indices:Uint32Array.from(sf.indices)}))};
 }
 

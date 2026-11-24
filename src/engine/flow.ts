@@ -23,7 +23,7 @@
  */
 import {EngineError} from './contracts.ts';
 import {captureFields,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
-import {FlowLattice,FLOW_FLUID,FLOW_WALL,FLOW_VELOCITY,FLOW_PRESSURE,FLOW_SLIP,FLOW_CX,FLOW_CY,FLOW_CZ,FLOW_WEIGHT,FLOW_LATTICE_ID,FLOW_MAX_CELLS,type FlowLatticePart,type FlowLatticePatch} from './flow-lattice.ts';
+import {FlowLattice,FlowTiles,flowEachCell,FLOW_MAX_SPARSE_CELLS,FLOW_FLUID,FLOW_WALL,FLOW_VELOCITY,FLOW_PRESSURE,FLOW_SLIP,FLOW_CX,FLOW_CY,FLOW_CZ,FLOW_WEIGHT,FLOW_LATTICE_ID,FLOW_MAX_CELLS,type FlowLatticePart,type FlowLatticePatch} from './flow-lattice.ts';
 import {flowVoxelize,type FlowGrid,type FlowItem,type FlowItemReport,type FlowSurface,type FlowVec3} from './flow-geometry.ts';
 
 /** The solver id written to results (`solver.id`). */
@@ -32,7 +32,11 @@ export const FLOW_SOLVER_ID=FLOW_LATTICE_ID;
 export const FLOW_SOLVER_VERSION='1.0.0';
 /** The sub-grid model `turbulence: 'auto'` picks above its thresholds. */
 export const FLOW_AUTO_MODEL:'smagorinsky'|'wale'='smagorinsky';
-export {FLOW_MAX_CELLS};
+/** Cell Reynolds number (peak speed x cell / viscosity) above which a laminar Flow with walls warns: above it a laminar
+ * pipe or duct loses its developed profile within three viscous times (docs/FLOW.md, laminar pipe). Below it the loss
+ * is slower, not absent: at 46 a pipe held within 0.3% for three viscous times and lost 15% by eight. */
+export const FLOW_LAMINAR_CELL_REYNOLDS=50;
+export {FLOW_MAX_CELLS,FLOW_MAX_SPARSE_CELLS};
 
 /** A Newtonian fluid of constant properties. */
 export interface FlowFluid {
@@ -123,9 +127,8 @@ export interface FlowOptions {
   /** Steps over which a velocity inlet's mean density is low-passed to give way to sound (FlowLattice); 0 makes inlets
    * hard (the GPU kernel has no absorbing inlets). Default: the time sound takes through the box and back. */
   readonly absorbSteps?:number;
-  /** 'auto' (default) is 'regularized'. 'trt' (two relaxation times, laminar flow only) keeps bounce-back walls on
-   * curved boundaries where they are at small viscosity, but diverged next to inlets, outlets and no-slip walls at
-   * relaxation times of 0.501 to 0.51: use it for closed or periodic laminar flows. */
+  /** 'auto' (default) is 'regularized'. 'trt' (two relaxation times, laminar flow only) diverged next to inlets, outlets
+   * and no-slip walls at relaxation times of 0.501 to 0.51: use it for closed or periodic laminar flows. */
   readonly collision?:'auto'|'regularized'|'trt';
   /** WALE constant Cw. Default 0.5. */
   readonly wale?:number;
@@ -157,6 +160,11 @@ export interface FlowOptions {
   readonly surfaces?:boolean;
   /** Grow walls thinner than 1.44 cells so that they do not leak. Default true. */
   readonly thicken?:boolean;
+  /** 'dense' stores every cell of the box (at most FLOW_MAX_CELLS); 'sparse' stores tiles of FLOW_TILE^3 cells near the
+   * cavities only (a pipe network: everything outside the cavities is solid; needs cavity items), so that the box may
+   * span up to FLOW_MAX_SPARSE_CELLS cells while at most FLOW_MAX_CELLS are stored. Both give the same bits. 'auto'
+   * (default): 'sparse' when the box exceeds FLOW_MAX_CELLS and the geometry has a cavity, else 'dense'. */
+  readonly storage?:'auto'|'dense'|'sparse';
 }
 /** An opening as set up on the lattice: its area, outward normal and what is imposed. */
 export interface FlowPatchInfo {
@@ -182,12 +190,15 @@ export interface FlowField {
   /** Per cell: the index of the opening (in `Flow.patches`) the cell belongs to, or -1. Openings include the velocity
    * and pressure sides of the box. Streamlines end where they enter an opening. */
   readonly opening?:Int16Array;
+  /** Sparse storage: the arrays above have one entry per slot of these tiles (FlowTiles.slot), tiles with no storage
+   * reading as block 0 (not fluid). Absent or null: one entry per cell, index i + nx (j + ny k). */
+  readonly tiles?:FlowTiles|null;
 }
 
 const fail=(message:string):never=>{throw new EngineError('INVALID_PAYLOAD',`Flow: ${message}`);};
 const isVec=(v:unknown):v is FlowVec3=>Array.isArray(v)&&v.length===3&&v.every(x=>typeof x==='number'&&Number.isFinite(x));
 const vec=(v:unknown,name:string):FlowVec3=>isVec(v)?v:fail(`${name} must be three finite numbers.`);
-const FLOW_FIELDS:FieldOptions={label:'Flow',skip:['grid','lattice','fluid','dt','cell','latticeSpeed','referenceSpeed','turbulence','smagorinsky','wale','cellReynolds','relaxationTime','parts','patches','voxels','warnings','surfaces','items','solidCells','fluidCells','enclosedCells','forceScale','momentScale','flowScale','pressureScale','velocityScale','rampSteps','kinds','inletVelocity','actuators','actuatorCells','geometryParts','thickening'],
+const FLOW_FIELDS:FieldOptions={label:'Flow',skip:['grid','lattice','tiles','fluid','dt','cell','latticeSpeed','referenceSpeed','turbulence','smagorinsky','wale','cellReynolds','relaxationTime','parts','patches','voxels','warnings','surfaces','items','solidCells','fluidCells','enclosedCells','forceScale','momentScale','flowScale','pressureScale','velocityScale','rampSteps','kinds','inletVelocity','actuators','actuatorCells','geometryParts','thickening'],
   nested:{}};
 
 /** The flow solver in SI units: a lattice-Boltzmann flow around and through voxelised geometry, with forces per part, flow rates through openings, time averages, fields and exact checkpoints. */
@@ -195,6 +206,8 @@ export class Flow {
   /** The lattice: the fluid box plus one layer of boundary cells on every side that is not periodic. */
   readonly grid:FlowGrid;
   readonly lattice:FlowLattice;
+  /** Sparse storage of the box (FlowOptions.storage), or null when dense. */
+  readonly tiles:FlowTiles|null;
   readonly fluid:FlowFluid;
   readonly dt:number;readonly cell:number;readonly latticeSpeed:number;readonly referenceSpeed:number;
   readonly turbulence:'none'|'smagorinsky'|'wale';readonly smagorinsky:number;readonly wale:number;
@@ -247,7 +260,11 @@ export class Flow {
     }
     const pad=[periodic[0]?0:1,periodic[1]?0:1,periodic[2]?0:1];
     const nx=g.nx+2*pad[0],ny=g.ny+2*pad[1],nz=g.nz+2*pad[2],cells=nx*ny*nz;
-    if(cells>FLOW_MAX_CELLS)fail(`${cells} cells exceed the limit ${FLOW_MAX_CELLS}.`);
+    const storage=options.storage??'auto',hasCavity=(options.geometry??[]).some(it=>it&&typeof it==='object'&&it.role==='cavity');
+    if(storage!=='auto'&&storage!=='dense'&&storage!=='sparse')fail(`storage must be 'auto', 'dense' or 'sparse'.`);
+    const sparse=storage==='sparse'||(storage==='auto'&&cells>FLOW_MAX_CELLS&&hasCavity);
+    if(!sparse&&cells>FLOW_MAX_CELLS)fail(`${cells} cells exceed the limit ${FLOW_MAX_CELLS}${hasCavity?'':' (a box of cavities may be stored sparse, up to '+FLOW_MAX_SPARSE_CELLS+')'}.`);
+    if(cells>FLOW_MAX_SPARSE_CELLS)fail(`${cells} cells exceed the limit ${FLOW_MAX_SPARSE_CELLS} of a sparse box.`);
     const origin:FlowVec3=[g.origin[0]-pad[0]*h,g.origin[1]-pad[1]*h,g.origin[2]-pad[2]*h];
     this.grid={origin,cell:h,nx,ny,nz};this.cell=h;this.fluid={density:options.fluid.density,viscosity:options.fluid.viscosity};
     this.latticeSpeed=uLat;this.referenceSpeed=options.referenceSpeed;
@@ -267,7 +284,11 @@ export class Flow {
     const warnings:string[]=[];
 
     // ---- geometry ----
-    const vox=flowVoxelize(options.geometry??[],this.grid,{band:options.band,surfaces:options.surfaces,thicken:options.thicken});
+    const vox=flowVoxelize(options.geometry??[],this.grid,{band:options.band,surfaces:options.surfaces,thicken:options.thicken,sparse});
+    // storage: dense (the slot of a cell is its index i + nx (j + ny k)) or tiles; `each` visits the stored cells
+    const tiles=vox.tiles??null,slots=tiles?tiles.slots:cells,S=tiles?(c:number):number=>tiles.slotOf(c):(c:number):number=>c;
+    const each=(f:(i:number,j:number,k:number,c:number,s:number)=>void):void=>flowEachCell(nx,ny,nz,tiles,f);
+    this.tiles=tiles;
     warnings.push(...vox.warnings);
     this.surfaces=vox.surfaces;this.items=vox.items;this.geometryParts=Math.max(1,vox.parts.length);
     this.thickening={items:vox.thickenedItems,largest:vox.largestThickening,closedCells:vox.closedCells,slender:vox.slenderItems};
@@ -279,10 +300,10 @@ export class Flow {
       return {velocity:v?[v[0]/vScale,v[1]/vScale,v[2]/vScale]:undefined,angularVelocity:om?[om[0]*dt,om[1]*dt,om[2]*dt]:undefined,centre:[(ce[0]-origin[0])/h,(ce[1]-origin[1])/h,(ce[2]-origin[2])/h]};
     });
     const lpatches:FlowLatticePatch[]=[],patchNames:string[]=[],patchKinds:('inlet'|'outlet')[]=[];
-    const kind=new Uint8Array(cells),owner=new Int16Array(cells),distance=vox.distance;
+    const kind=new Uint8Array(slots),owner=new Int16Array(slots),distance=vox.distance;
     const hasGeometry=(options.geometry?.length??0)>0;
-    // geometry and the cells of the fluid box
-    for(let c=0;c<cells;c++)if(distance[c]<0){kind[c]=FLOW_WALL;owner[c]=vox.part[c]<0?0:vox.part[c];}
+    // geometry and the cells of the fluid box (tiles with no storage read as the solid block 0)
+    for(let c=0;c<slots;c++)if(distance[c]<0){kind[c]=FLOW_WALL;owner[c]=vox.part[c]<0?0:vox.part[c];}
     if(hasGeometry&&parts.length===0)parts.push('body'),lparts.push({});
     // sides: the boundary layer where the geometry is not solid. Order of precedence at edges: velocity, wall, pressure, slip.
     const sideOwner=new Int32Array(6).fill(-1),sideProfile:(((x:number,y:number,z:number)=>FlowVec3)|null)[]=[null,null,null,null,null,null];
@@ -313,17 +334,17 @@ export class Flow {
         sideOwner[index]=lpatches.length;lpatches.push({density:1+p/this.pressureScale});patchNames.push(spec.name??name);patchKinds.push('outlet');
       }
     });
-    for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
+    each((i,j,k,c,sc)=>{
       let best=-1;
       const consider=(index:number):void=>{if(best<0||rank(sideKind[index])>rank(sideKind[best]))best=index;};
       if(pad[0]){if(i===0)consider(0);else if(i===nx-1)consider(1);}
       if(pad[1]){if(j===0)consider(2);else if(j===ny-1)consider(3);}
       if(pad[2]){if(k===0)consider(4);else if(k===nz-1)consider(5);}
-      if(best<0)continue;
-      if(kind[c]===FLOW_WALL)continue; // the geometry reaches through the side
+      if(best<0)return;
+      if(kind[sc]===FLOW_WALL)return; // the geometry reaches through the side
       const sk=sideKind[best];
-      kind[c]=sk==='wall'?FLOW_WALL:sk==='slip'?FLOW_SLIP:sk==='velocity'?FLOW_VELOCITY:FLOW_PRESSURE;
-      owner[c]=sk==='slip'?0:sideOwner[best];
+      kind[sc]=sk==='wall'?FLOW_WALL:sk==='slip'?FLOW_SLIP:sk==='velocity'?FLOW_VELOCITY:FLOW_PRESSURE;
+      owner[sc]=sk==='slip'?0:sideOwner[best];
       const profile=sideProfile[best];
       if(sk==='velocity'&&profile){
         // the velocity on the side of the box, in front of this boundary cell
@@ -331,7 +352,7 @@ export class Flow {
         const v=vec(profile(pos[0],pos[1],pos[2]),`${FLOW_SIDES[best]}.velocity()`);
         (cellVelocity??=new Map()).set(c,[v[0]/vScale,v[1]/vScale,v[2]/vScale]);
       }
-    }
+    });
     // patches: the cells behind the plane of each opening
     const backCells:number[]=[];
     const patchNormals:FlowVec3[]=lpatches.map((_,i)=>{const side=sideOwner.indexOf(i),a=side>>1,n:[number,number,number]=[0,0,0];n[a]=(side&1)===0?1:-1;return n;});
@@ -364,13 +385,13 @@ export class Flow {
         inside=(x,y,z)=>{const a=(x*w[0]+y*w[1]+z*w[2])/hw,b=(x*up[0]+y*up[1]+z*up[2])/hh;return Math.abs(a)<=1&&Math.abs(b)<=1?(parabolic?Math.max((1-a*a)*(1-b*b),1e-3):1):0;};
       }
       const index=lpatches.length;let marked=0;
-      for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
+      each((i,j,k,c,sc)=>{
         const x=origin[0]+(i+0.5)*h-ce[0],y=origin[1]+(j+0.5)*h-ce[1],z=origin[2]+(k+0.5)*h-ce[2],s=x*n[0]+y*n[1]+z*n[2];
-        if(s>1e-9*h||s<-2.5*h)continue;
-        const wt=inside(x,y,z);if(wt===0)continue;
-        kind[c]=patch.kind==='inlet'||patch.flowRate!==undefined||patch.speed!==undefined||patch.velocity!==undefined?FLOW_VELOCITY:FLOW_PRESSURE;owner[c]=index;marked++;
-        if(parabolic&&kind[c]===FLOW_VELOCITY)(cellWeight??=new Map()).set(c,wt);
-      }
+        if(s>1e-9*h||s<-2.5*h)return;
+        const wt=inside(x,y,z);if(wt===0)return;
+        kind[sc]=patch.kind==='inlet'||patch.flowRate!==undefined||patch.speed!==undefined||patch.velocity!==undefined?FLOW_VELOCITY:FLOW_PRESSURE;owner[sc]=index;marked++;
+        if(parabolic&&kind[sc]===FLOW_VELOCITY)(cellWeight??=new Map()).set(c,wt);
+      });
       if(marked===0)fail(`patch "${patch.name}" covers no cell: its plane must lie in the box or on one of its sides, with the normal pointing out of the fluid.`);
       patchNames.push(patch.name);patchKinds.push(patch.kind);patchNormals.push(n);patchCentres.push(ce);
       const given=[patch.flowRate,patch.speed,patch.velocity].filter(v=>v!==undefined).length;
@@ -387,33 +408,33 @@ export class Flow {
     }
     // an opening is open to the fluid in front of it only: cells of its slab that touch no fluid cell in front of the
     // plane are wall, so that fluid behind the opening (outside a pipe that ends in the box) is not fed by its back
-    for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
-      if(kind[c]!==FLOW_VELOCITY&&kind[c]!==FLOW_PRESSURE)continue;
-      const ce=patchCentres[owner[c]];if(!ce)continue;
-      const n=patchNormals[owner[c]];let front=false;
+    each((i,j,k,c,sc)=>{
+      if(kind[sc]!==FLOW_VELOCITY&&kind[sc]!==FLOW_PRESSURE)return;
+      const ce=patchCentres[owner[sc]];if(!ce)return;
+      const n=patchNormals[owner[sc]];let front=false;
       for(let d=1;d<19&&!front;d++){
         const a=i+FLOW_CX[d],b=j+FLOW_CY[d],e=k+FLOW_CZ[d];if(a<0||b<0||e<0||a>=nx||b>=ny||e>=nz)continue;
-        if(kind[a+nx*(b+ny*e)]!==FLOW_FLUID)continue;
+        if(kind[S(a+nx*(b+ny*e))]!==FLOW_FLUID)continue;
         if((origin[0]+(a+0.5)*h-ce[0])*n[0]+(origin[1]+(b+0.5)*h-ce[1])*n[1]+(origin[2]+(e+0.5)*h-ce[2])*n[2]>0)front=true;
       }
-      if(!front)backCells.push(c);
-    }
+      if(!front)backCells.push(sc);
+    });
     for(const c of backCells){kind[c]=FLOW_WALL;owner[c]=vox.part[c]<0?0:vox.part[c];}
     // cells no opening reaches become solid
     let enclosed=0;
     if(lpatches.length>0){
-      const reached=new Uint8Array(cells),stack:number[]=[];
+      const reached=new Uint8Array(slots),stack:number[]=[];
       const wrap=(v:number,n:number,p:boolean):number=>v<0||v>=n?(p?(v+n)%n:-1):v;
       const visit=(i:number,j:number,k:number):void=>{
         const a=wrap(i,nx,periodic[0]),b=wrap(j,ny,periodic[1]),c=wrap(k,nz,periodic[2]);if(a<0||b<0||c<0)return;
-        const idx=a+nx*(b+ny*c);if(kind[idx]!==FLOW_FLUID||reached[idx])return;reached[idx]=1;stack.push(idx);
+        const idx=a+nx*(b+ny*c),si=S(idx);if(kind[si]!==FLOW_FLUID||reached[si])return;reached[si]=1;stack.push(idx);
       };
-      for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
-        if(kind[c]!==FLOW_VELOCITY&&kind[c]!==FLOW_PRESSURE)continue;
+      each((i,j,k,_c,sc)=>{
+        if(kind[sc]!==FLOW_VELOCITY&&kind[sc]!==FLOW_PRESSURE)return;
         for(let d=1;d<19;d++)visit(i+FLOW_CX[d],j+FLOW_CY[d],k+FLOW_CZ[d]);
-      }
+      });
       while(stack.length>0){const idx=stack.pop()!,i=idx%nx,j=Math.floor(idx/nx)%ny,k=Math.floor(idx/(nx*ny));for(let d=1;d<19;d++)visit(i+FLOW_CX[d],j+FLOW_CY[d],k+FLOW_CZ[d]);}
-      for(let c=0;c<cells;c++)if(kind[c]===FLOW_FLUID&&!reached[c]){
+      for(let c=0;c<slots;c++)if(kind[c]===FLOW_FLUID&&!reached[c]){
         if(parts.length===0){parts.push('body');lparts.push({});}
         kind[c]=FLOW_WALL;owner[c]=vox.part[c]<0?0:vox.part[c];enclosed++;
       }
@@ -422,15 +443,18 @@ export class Flow {
     if(parts.length===0){parts.push('body');lparts.push({});}
     // areas of the patches on the lattice, and the speeds of the inlets given by flow rate
     const areaVec=new Float64Array(3*lpatches.length),weighted=new Float64Array(3*lpatches.length),touch=new Int32Array(lpatches.length);
-    for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
-      if(kind[c]!==FLOW_VELOCITY&&kind[c]!==FLOW_PRESSURE)continue;
-      const p=owner[c];
+    // the opening cells in the order of their cell index, so that the sums are the same dense or tiled
+    const openings:number[]=[];
+    each((_i,_j,_k,c,sc)=>{if(kind[sc]===FLOW_VELOCITY||kind[sc]===FLOW_PRESSURE)openings.push(c);});
+    if(tiles)openings.sort((x,y)=>x-y);
+    for(const c of openings){
+      const i=c%nx,j=Math.floor(c/nx)%ny,k=Math.floor(c/(nx*ny)),p=owner[S(c)];
       for(let d=1;d<19;d++){
         let a=i+FLOW_CX[d],b=j+FLOW_CY[d],e=k+FLOW_CZ[d];
         if(a<0||a>=nx){if(!periodic[0])continue;a=(a+nx)%nx;}
         if(b<0||b>=ny){if(!periodic[1])continue;b=(b+ny)%ny;}
         if(e<0||e>=nz){if(!periodic[2])continue;e=(e+nz)%nz;}
-        if(kind[a+nx*(b+ny*e)]!==FLOW_FLUID)continue;
+        if(kind[S(a+nx*(b+ny*e))]!==FLOW_FLUID)continue;
         const w=6*FLOW_WEIGHT[d];areaVec[3*p]+=w*FLOW_CX[d];areaVec[3*p+1]+=w*FLOW_CY[d];areaVec[3*p+2]+=w*FLOW_CZ[d];
         if(cellWeight){const ww=w*(cellWeight.get(c)??0);weighted[3*p]+=ww*FLOW_CX[d];weighted[3*p+1]+=ww*FLOW_CY[d];weighted[3*p+2]+=ww*FLOW_CZ[d];}
         if(d<=6)touch[p]++;
@@ -450,7 +474,7 @@ export class Flow {
           // every cell of the patch takes its weight times the factor that keeps the flow rate
           const wArea=(weighted[3*p]*n[0]+weighted[3*p+1]*n[1]+weighted[3*p+2]*n[2])*h*h,factor=speed*area/wArea/vScale;
           cellVelocity??=new Map();
-          for(const [c,wt] of cellWeight)if(kind[c]===FLOW_VELOCITY&&owner[c]===p){const f=factor*wt;cellVelocity.set(c,[f*n[0],f*n[1],f*n[2]]);}
+          for(const [c,wt] of cellWeight)if(kind[S(c)]===FLOW_VELOCITY&&owner[S(c)]===p){const f=factor*wt;cellVelocity.set(c,[f*n[0],f*n[1],f*n[2]]);}
         }
       }
       if(touch[p]===0)warnings.push(`patch "${patchNames[p]}" touches no fluid cell: nothing flows through it.`);
@@ -464,16 +488,17 @@ export class Flow {
     let extra:Float32Array|undefined;
     const sponge=options.spongeCells??0;
     if(sponge>0){
-      extra=new Float32Array(cells);
-      for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
+      extra=new Float32Array(slots);
+      const ex=extra;
+      each((i,j,k,_c,c)=>{
         let s=0;const idx=[i,j,k],n=[nx,ny,nz];
         for(let side=0;side<6;side++){
           if(sideKind[side]!=='pressure')continue;
           const a=side>>1,depth=(side&1)===0?idx[a]:n[a]-1-idx[a],t=1-depth/sponge;
           if(t>s)s=t;
         }
-        if(s>0)extra[c]=0.1*s*s; // up to tau = 0.8 at the side
-      }
+        if(s>0)ex[c]=0.1*s*s; // up to tau = 0.8 at the side
+      });
     }
     // actuator discs
     const actuators:FlowActuatorInfo[]=[],actuatorCells:Int32Array[]=[],fCells:number[]=[],fValues:number[]=[];
@@ -486,14 +511,15 @@ export class Flow {
       const n:FlowVec3=[ax[0]/al,ax[1]/al,ax[2]/al],half=Math.max(act.thickness??0,2*h)/2,area=Math.PI*act.radius*act.radius,total=act.force!==undefined?act.force:act.pressureJump!*area;
       if(!Number.isFinite(total))fail(`actuator "${act.name}": force or pressureJump must be finite.`);
       const list:number[]=[];
-      for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
-        if(kind[c]!==FLOW_FLUID)continue;
+      each((i,j,k,c,sc)=>{
+        if(kind[sc]!==FLOW_FLUID)return;
         const x=origin[0]+(i+0.5)*h-ce[0],y=origin[1]+(j+0.5)*h-ce[1],z=origin[2]+(k+0.5)*h-ce[2],sa=x*n[0]+y*n[1]+z*n[2];
-        if(Math.abs(sa)>half)continue;
-        const px=x-sa*n[0],py=y-sa*n[1],pz=z-sa*n[2];if(px*px+py*py+pz*pz>act.radius*act.radius)continue;
+        if(Math.abs(sa)>half)return;
+        const px=x-sa*n[0],py=y-sa*n[1],pz=z-sa*n[2];if(px*px+py*py+pz*pz>act.radius*act.radius)return;
         list.push(c);
-      }
+      });
       if(list.length===0)fail(`actuator "${act.name}" holds no fluid cell.`);
+      list.sort((a,b)=>a-b);
       const per=total/this.forceScale/list.length;
       for(const c of list){fCells.push(c);fValues.push(per*n[0],per*n[1],per*n[2]);}
       actuators.push({name:act.name,cells:list.length,force:total,axis:n,area});actuatorCells.push(Int32Array.from(list));
@@ -504,18 +530,18 @@ export class Flow {
     // where the wall function may be used: next to walls whose convex curvature is under wallFunctionCurvature / h
     let wfMask:Uint8Array|undefined;
     if(hasGeometry&&this.turbulence!=='none'&&options.wallFunction!==false){
-      const limit=options.wallFunctionCurvature??0.05;wfMask=new Uint8Array(cells).fill(1);
-      for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
-        if(kind[c]!==FLOW_FLUID)continue;
-        const d=distance[c];if(!(d<2*h))continue;
+      const limit=options.wallFunctionCurvature??0.05,mask=new Uint8Array(slots).fill(1);wfMask=mask;
+      each((i,j,k,c,sc)=>{
+        if(kind[sc]!==FLOW_FLUID)return;
+        const d=distance[sc];if(!(d<2*h))return;
         let lap=0;
-        if(i>0)lap+=distance[c-1]-d;if(i<nx-1)lap+=distance[c+1]-d;
-        if(j>0)lap+=distance[c-nx]-d;if(j<ny-1)lap+=distance[c+nx]-d;
-        if(k>0)lap+=distance[c-nx*ny]-d;if(k<nz-1)lap+=distance[c+nx*ny]-d;
-        if(lap/h>limit)wfMask[c]=0;
-      }
+        if(i>0)lap+=distance[S(c-1)]-d;if(i<nx-1)lap+=distance[S(c+1)]-d;
+        if(j>0)lap+=distance[S(c-nx)]-d;if(j<ny-1)lap+=distance[S(c+nx)]-d;
+        if(k>0)lap+=distance[S(c-nx*ny)]-d;if(k<nz-1)lap+=distance[S(c+nx*ny)]-d;
+        if(lap/h>limit)mask[sc]=0;
+      });
     }
-    this.lattice=new FlowLattice({wallFunctionMask:wfMask,nx,ny,nz,periodic,kind,owner,distance,walls:options.walls??'interpolated',parts:lparts,patches:lpatches,viscosity:nuLat,
+    this.lattice=new FlowLattice({wallFunctionMask:wfMask,nx,ny,nz,tiles,periodic,kind,owner,distance,walls:options.walls??'interpolated',parts:lparts,patches:lpatches,viscosity:nuLat,
       smagorinsky:this.turbulence==='smagorinsky'?this.smagorinsky:0,absorbSteps:options.absorbSteps,wale:this.turbulence==='wale'?this.wale:0,collision:(options.collision??'auto')==='auto'?'regularized':options.collision as 'trt',wallFunction:options.wallFunction,force:[acc[0]*aScale,acc[1]*aScale,acc[2]*aScale],initialVelocity:[u0[0]/vScale,u0[1]/vScale,u0[2]/vScale],extraViscosity:extra,cellVelocity,
       forceCells:fCells.length?Int32Array.from(fCells):undefined,forceValues:fCells.length?Float64Array.from(fValues):undefined});
     this.kinds=kind;this.voxels={distance:vox.distance};
@@ -523,6 +549,10 @@ export class Flow {
     this.rampSteps=Math.max(0,Math.floor(options.rampSteps??0));
     if(this.rampSteps>0)this.lattice.ramp=0;
     if(this.relaxationTime<0.5005&&this.turbulence==='none')warnings.push(`the relaxation time ${this.relaxationTime.toFixed(5)} is within 0.0005 of 1/2 and the sub-grid model is off: the run is likely to be unstable.`);
+    // Measured (packages/box3d-kit/test/flow-scenarios.mjs laminarPipe, docs/FLOW.md): at high cell Reynolds numbers a
+    // laminar pipe, and a square duct aligned with the grid, grow a steady secondary flow in the section that takes 15 to
+    // 45% of the flow rate; the relaxation time, the wall rule and the collision variants tried do not change it.
+    if(this.turbulence==='none'&&this.cellReynolds>FLOW_LAMINAR_CELL_REYNOLDS&&cells>this.lattice.fluidCells)warnings.push(`laminar run at a cell Reynolds number of ${this.cellReynolds.toFixed(0)} (referenceSpeed x cell / viscosity, the peak speed): above about ${FLOW_LAMINAR_CELL_REYNOLDS} a duct or pipe develops a spurious secondary flow that can take 15 to 45% of the flow rate (a laminar pipe at Re 1107 was not held within 10% for long runs at any resolution tried, up to 48 cells across). Cells of at most ${(FLOW_LAMINAR_CELL_REYNOLDS*this.fluid.viscosity/options.referenceSpeed).toPrecision(3)} m keep the cell Reynolds number under the limit.`);
     if(this.relaxationTime>2)warnings.push(`the relaxation time ${this.relaxationTime.toFixed(2)} is above 2 (a very viscous flow on this grid): the time step is large for the viscosity; lower latticeSpeed.`);
     if(this.fluidCells===0)fail('there is no fluid cell.');
     this.warnings=warnings;
@@ -609,34 +639,34 @@ export class Flow {
     const w=mean?1/this.meanSamples:1,sd=mean?this.meanDensity!:L.density,sx=mean?this.meanUx!:L.ux,sy=mean?this.meanUy!:L.uy,sz=mean?this.meanUz!:L.uz;
     const vs=this.velocityScale*w,ps=this.pressureScale*w;
     const fluid=new Uint8Array(n),ux=new Float32Array(n),uy=new Float32Array(n),uz=new Float32Array(n),pressure=new Float32Array(n);
-    const cellOf=L.cellOf;
-    for(let a=0;a<L.fluidCells;a++){const c=cellOf[a];fluid[c]=1;ux[c]=sx[a]*vs;uy[c]=sy[a]*vs;uz[c]=sz[a]*vs;pressure[c]=sd[a]*ps;}
+    const cellOf=L.cellOf,tiles=this.tiles,S=tiles?(c:number):number=>tiles.slotOf(c):(c:number):number=>c;
+    for(let a=0;a<L.fluidCells;a++){const c=S(cellOf[a]);fluid[c]=1;ux[c]=sx[a]*vs;uy[c]=sy[a]*vs;uz[c]=sz[a]*vs;pressure[c]=sd[a]*ps;}
     // cells that are not fluid: pressure from the fluid around; velocity zero in walls, imposed in inlets, copied elsewhere
     const per=L.periodic;
-    for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
-      if(fluid[c])continue;
+    flowEachCell(nx,ny,nz,tiles,(i,j,k,g,c)=>{
+      if(fluid[c])return;
       let count=0,p=0,vx=0,vy=0,vz=0;
       for(let d=1;d<19;d++){
         let a=i+FLOW_CX[d],b=j+FLOW_CY[d],e=k+FLOW_CZ[d];
         if(a<0||a>=nx){if(!per[0])continue;a=(a+nx)%nx;}
         if(b<0||b>=ny){if(!per[1])continue;b=(b+ny)%ny;}
         if(e<0||e>=nz){if(!per[2])continue;e=(e+nz)%nz;}
-        const q=a+nx*(b+ny*e);if(!fluid[q])continue;
+        const q=S(a+nx*(b+ny*e));if(!fluid[q])continue;
         count++;p+=pressure[q];vx+=ux[q];vy+=uy[q];vz+=uz[q];
       }
-      if(count===0)continue;
+      if(count===0)return;
       pressure[c]=p/count;
       const kc=kind[c];
       if(kc===FLOW_VELOCITY){
         const iv=this.inletVelocity,sc=this.velocityScale;
-        const pv=iv?.get(c);
+        const pv=iv?.get(g);
         if(pv){ux[c]=pv[0]*sc;uy[c]=pv[1]*sc;uz[c]=pv[2]*sc;}else{const v=this.patches[L.owner[c]].velocity!;ux[c]=v[0];uy[c]=v[1];uz[c]=v[2];}
       }
       else if(kc!==FLOW_WALL){ux[c]=vx/count;uy[c]=vy/count;uz[c]=vz/count;}
-    }
+    });
     const opening=new Int16Array(n).fill(-1);
     for(let c=0;c<n;c++)if(kind[c]===FLOW_VELOCITY||kind[c]===FLOW_PRESSURE)opening[c]=L.owner[c];
-    return {grid:this.grid,fluid,ux,uy,uz,pressure,distance:this.voxels.distance,opening};
+    return {grid:this.grid,fluid,ux,uy,uz,pressure,distance:this.voxels.distance,opening,...(tiles?{tiles}:{})};
   }
 
   /** The state of the run (populations, sums, averages, time). Restore it into a Flow built with the same options. */
@@ -662,16 +692,18 @@ export function flowSample(field:FlowField,x:number,y:number,z:number,out:Float6
   if(fz<0)fz=0;else if(fz>nz-1)fz=nz-1;
   let i=Math.floor(fx),j=Math.floor(fy),k=Math.floor(fz);
   if(i>nx-2)i=Math.max(0,nx-2);if(j>ny-2)j=Math.max(0,ny-2);if(k>nz-2)k=Math.max(0,nz-2);
-  const tx=nx>1?fx-i:0,ty=ny>1?fy-j:0,tz=nz>1?fz-k:0,sx=nx>1?1:0,sy=ny>1?nx:0,sz=nz>1?nx*ny:0,c=i+nx*(j+ny*k);
+  const tx=nx>1?fx-i:0,ty=ny>1?fy-j:0,tz=nz>1?fz-k:0,sx=nx>1?1:0,sy=ny>1?nx:0,sz=nz>1?nx*ny:0,c=i+nx*(j+ny*k),tiles=field.tiles;
+  // the storage slot of corner n of the cube of cells around the point
+  const corner=(n:number):number=>{const a=n&1,b=(n>>1)&1,e=(n>>2)&1;return tiles?tiles.slot(i+(nx>1?a:0),j+(ny>1?b:0),k+(nz>1?e:0)):c+a*sx+b*sy+e*sz;};
   let u=0,v=0,w=0,p=0,pw=0,d=0;
   for(let n=0;n<8;n++){
     const a=n&1,b=(n>>1)&1,e=(n>>2)&1,wt=(a?tx:1-tx)*(b?ty:1-ty)*(e?tz:1-tz);
     if(wt===0)continue;
-    const q=c+a*sx+b*sy+e*sz;
+    const q=corner(n);
     u+=wt*field.ux[q];v+=wt*field.uy[q];w+=wt*field.uz[q];d+=wt*field.distance[q];
     if(field.fluid[q]){p+=wt*field.pressure[q];pw+=wt;}
   }
-  if(pw===0){for(let n=0;n<8;n++){const a=n&1,b=(n>>1)&1,e=(n>>2)&1,wt=(a?tx:1-tx)*(b?ty:1-ty)*(e?tz:1-tz);p+=wt*field.pressure[c+a*sx+b*sy+e*sz];}pw=1;}
+  if(pw===0){for(let n=0;n<8;n++){const a=n&1,b=(n>>1)&1,e=(n>>2)&1,wt=(a?tx:1-tx)*(b?ty:1-ty)*(e?tz:1-tz);p+=wt*field.pressure[corner(n)];}pw=1;}
   out[0]=u;out[1]=v;out[2]=w;out[3]=p/pw;out[4]=d;
   return true;
 }

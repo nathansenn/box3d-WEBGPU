@@ -5,15 +5,18 @@
 // asserts on: packages/box3d-kit/test/flow-scenarios.mjs, run here through the built kit. SI units.
 import {pathToFileURL} from 'node:url';
 import path from 'node:path';
-import {kit, memo, defineCases, relative, absolute, upper, ROOT} from '../lib.mjs';
+import {kit, memo, defineCases, relative, absolute, upper, lower, ROOT} from '../lib.mjs';
 
 const FILE = 'packages/box3d-kit/test/v24-flow.test.mjs';
 const T = {
   ducts: 'ducts and pipes driven by a pressure gradient: plane Poiseuille, a square duct and a round pipe drawn as meshes and primitives, a finer pipe, the force on the walls',
   pipe: 'a pipe drawn as a fluid cylinder, through its openings: Hagen-Poiseuille pressure drop, the developed profile, the mass balance',
+  sparse: 'sparse storage: the same bits as dense storage on an L of pipes, and a long L whose box is three times the dense limit',
+  laminar: 'a laminar round pipe at Re 500 to 1500, periodic, started from the exact parabola: the flow rate against Hagen-Poiseuille, and the warning below the resolution that holds it',
   cylinder: 'the circular cylinder: drag and recirculation at Re 20 and 40, drag and Strouhal number at Re 100 and 200',
   bodies: 'bluff bodies: a sphere at Re 100, a cube and a square plate at Re 1e5',
   building: 'a rectangular building on fixed ground through the study runner: drag coefficient and the largest surface pressure coefficient',
+  stagnation: 'the stagnation pressure coefficient of a cube and a sphere in a free stream through the study runner is 1 within 0.1',
   step: 'the backward-facing step at Re 100: reattachment length against Armaly et al. (1983)',
   internal: 'internal flows through the study runner: the sudden expansion against Borda-Carnot, a symmetric tee, a tank with three inlets',
   stokes: 'Stokes drag on a sphere in a periodic cube against Hasimoto (1959), and the force on the sphere against the body force on the fluid',
@@ -30,6 +33,8 @@ const modules = () => memo('flow/modules', async () => {
 /** Runs one scenario once, whatever number of rows read it. */
 const run = (key, call) => memo(`flow/${key}`, async () => { const {S, K} = await modules(); return call(S, K); });
 const pipe = (n, source = 'cylinder') => run(`pipe/${n}/${source}`, (S, K) => S.pipe(K, {n, source}));
+const laminar = (re, n, viscousTimes = 3) => run(`laminar/${re}/${n}/${viscousTimes}`, (S, K) => S.laminarPipe(K, {re, n, viscousTimes}));
+const sparse = () => run('sparse', (S, K) => S.sparseStorage(K));
 const pipeStudy = () => run('pipe-study', (S, K) => S.pipeStudy(K, {re: 100}));
 const steady = re => run(`cylinder/${re}`, (S, K) => S.cylinderSteady(K, {re}));
 const shedding = re => run(`shedding/${re}`, (S, K) => S.cylinderShedding(K, {re}));
@@ -66,6 +71,22 @@ export default defineCases('flow', FILE, [
     measure: async () => { const r = await run('pipe/24/fine', (S, K) => S.pipe(K, {n: 24, tau: 0.6})); return {value: r.flowRate, reference: r.exact}; }},
   {id: 'flow.pipe.force-balance', title: 'Round pipe: force on the wall', quantity: 'force the wall takes, over the body force on the fluid, minus one', unit: '1', test: T.ducts,
     reference: {formula: 'a steady duct: the wall takes all the driving force', value: 0}, tolerance: absolute(1e-6), measure: async () => (await pipe(12)).forceBalance},
+  {id: 'flow.laminar-pipe.re500', title: 'Laminar round pipe, Re 500, 20 cells across', quantity: 'flow rate through a periodic pipe 20 cells across (cell Reynolds number 50, peak speed) after 8 viscous times R^2 / (5.78 nu), started from the exact parabola', unit: 'm^3/s', test: T.laminar,
+    reference: {formula: 'Q = pi R^4 G / (8 mu) (Hagen-Poiseuille)', value: null}, tolerance: relative(0.03), measure: async () => { const r = await laminar(500, 20, 8); return {value: r.flowRate, reference: r.exact}; }},
+  {id: 'flow.laminar-pipe.re1000', title: 'Laminar round pipe, Re 1000, 48 cells across', quantity: 'flow rate through a periodic pipe 48 cells across (cell Reynolds number 41.7, peak speed) after 3 viscous times R^2 / (5.78 nu), started from the exact parabola', unit: 'm^3/s', test: T.laminar,
+    reference: {formula: 'Q = pi R^4 G / (8 mu) (Hagen-Poiseuille)', value: null}, tolerance: relative(0.03), measure: async () => { const r = await laminar(1000, 48, 3); return {value: r.flowRate, reference: r.exact}; }},
+  {id: 'flow.laminar-pipe.re1500', title: 'Laminar round pipe, Re 1500, 64 cells across', quantity: 'flow rate through a periodic pipe 64 cells across (cell Reynolds number 46.9, peak speed) after 2 viscous times R^2 / (5.78 nu), started from the exact parabola', unit: 'm^3/s', test: T.laminar,
+    reference: {formula: 'Q = pi R^4 G / (8 mu) (Hagen-Poiseuille)', value: null}, tolerance: relative(0.03), measure: async () => { const r = await laminar(1500, 64, 2); return {value: r.flowRate, reference: r.exact}; }},
+  {id: 'flow.laminar-pipe.coarse-warning', title: 'Laminar round pipe, Re 1000, 16 cells across: the warning', quantity: 'whether the Flow warns about the cell Reynolds number (125) at which the pipe loses a quarter of its flow rate', unit: '1', test: T.laminar,
+    reference: {formula: 'the warning is given above FLOW_LAMINAR_CELL_REYNOLDS = 50', value: 1}, tolerance: absolute(0), measure: async () => ((await laminar(1000, 16, 3)).warned ? 1 : 0)},
+  {id: 'flow.sparse.populations', title: 'Sparse storage against dense: populations', quantity: 'populations that differ in bits after 300 steps of an L of two pipes (a sphere at the corner, a baffle, a parabolic inlet, a pressure outlet, Smagorinsky), stored as 8^3 tiles and as a dense box', unit: 'values', test: T.sparse,
+    reference: {formula: 'the same lattice, numbered in the order of the cell index', value: 0}, tolerance: absolute(0), measure: async () => (await sparse()).small.populations},
+  {id: 'flow.sparse.fields', title: 'Sparse storage against dense: fields', quantity: 'cells of the box whose fluid flag, velocity, pressure or distance differ in bits', unit: 'cells', test: T.sparse,
+    reference: {formula: 'identical fields', value: 0}, tolerance: absolute(0), measure: async () => (await sparse()).small.fields},
+  {id: 'flow.sparse.large-box', title: 'Sparse storage: a box three times the dense limit', quantity: 'box cells of a long thin L of pipes (legs 3000 cells, radius 2.6 cells) over the dense limit 2^25', unit: '1', test: T.sparse,
+    reference: {formula: 'more than the dense limit', value: 1}, tolerance: lower(0), measure: async () => (await sparse()).big.overDenseLimit},
+  {id: 'flow.sparse.large-box-mass', title: 'Sparse storage, long L: mass ledger', quantity: 'volume the box gained over 400 steps minus the volume through the openings and walls', unit: 'm^3', test: T.sparse,
+    reference: {formula: 'conservation of mass', value: 0}, tolerance: absolute(1e-6), measure: async () => (await sparse()).big.massError},
   {id: 'flow.pipe-study.pressure-drop', title: 'Pipe through its openings, Re 100: pressure drop', quantity: 'pressure drop between sections 2 D and 4 D from the inlet of a pipe 6 D long drawn as a fluid cylinder, inlet by flow rate with the developed profile, outlet by pressure, about 12.6 cells across', unit: 'Pa', test: T.pipe,
     reference: {formula: 'dp = 128 mu L Q / (pi D^4)', value: null}, tolerance: relative(0.05),
     note: 'At Re 1107 with the same cells the drop is 63% high and the peak over the mean speed 1.90 (docs/FLOW.md): the relaxation time is 0.501, where the regularised collision moves a bounce-back wall on a staircase.',

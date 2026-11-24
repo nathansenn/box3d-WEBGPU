@@ -35,6 +35,8 @@ export interface FlowStreamline {
    * field's `opening` marks them), met a wall, left the box, stalled, or reached maxPoints. */
   readonly termination:'opening'|'wall'|'outside'|'stagnation'|'length';
 }
+/** Storage slot of cell (i, j, k) of a field (dense or tiled). */
+const slotAt=(field:FlowField,i:number,j:number,k:number):number=>field.tiles?field.tiles.slot(i,j,k):i+field.grid.nx*(j+field.grid.ny*k);
 /** Streamlines by classical Runge-Kutta (RK4) with a fixed arc-length step through the trilinear field. */
 export function flowStreamlines(field:FlowField,seeds:readonly FlowVec3[],options:FlowStreamlineOptions={}):FlowStreamline[]{
   const h=field.grid.cell,ds=(options.step??0.5)*h,stride=Math.max(1,Math.floor(options.stride??2)),maxPoints=Math.max(2,Math.floor(options.maxPoints??400));
@@ -48,10 +50,10 @@ export function flowStreamlines(field:FlowField,seeds:readonly FlowVec3[],option
     if(opening){
       // in an opening: the cell that holds the point is one, or the point is in no fluid and a cell around it is one
       const fx=(x-g.origin[0])/g.cell,fy=(y-g.origin[1])/g.cell,fz=(z-g.origin[2])/g.cell,i=Math.floor(fx),j=Math.floor(fy),k=Math.floor(fz);
-      if(i>=0&&j>=0&&k>=0&&i<g.nx&&j<g.ny&&k<g.nz&&opening[i+g.nx*(j+g.ny*k)]>=0)return 4;
+      if(i>=0&&j>=0&&k>=0&&i<g.nx&&j<g.ny&&k<g.nz&&opening[slotAt(field,i,j,k)]>=0)return 4;
       if(s[4]<0){
         const i0=Math.floor(fx-0.5),j0=Math.floor(fy-0.5),k0=Math.floor(fz-0.5);
-        for(let n=0;n<8;n++){const a=i0+(n&1),b=j0+((n>>1)&1),e=k0+((n>>2)&1);if(a>=0&&b>=0&&e>=0&&a<g.nx&&b<g.ny&&e<g.nz&&opening[a+g.nx*(b+g.ny*e)]>=0)return 4;}
+        for(let n=0;n<8;n++){const a=i0+(n&1),b=j0+((n>>1)&1),e=k0+((n>>2)&1);if(a>=0&&b>=0&&e>=0&&a<g.nx&&b<g.ny&&e<g.nz&&opening[slotAt(field,a,b,e)]>=0)return 4;}
       }
     }
     if(s[4]<0)return 2;
@@ -133,7 +135,7 @@ export function flowSlice(field:FlowField,axis:'x'|'y'|'z',position:number):Flow
   }
   // the nearest cell layer says what is fluid (walls of the box included)
   const layer=Math.min(n[a]-1,Math.max(0,Math.floor((position-g.origin[a])/h))),idx3=[0,0,0];idx3[a]=layer;
-  for(let j=0;j<nv;j++)for(let i=0;i<nu;i++){idx3[ua]=i;idx3[va]=j;if(!field.fluid[idx3[0]+g.nx*(idx3[1]+g.ny*idx3[2])])fluid[i+nu*j]=0;}
+  for(let j=0;j<nv;j++)for(let i=0;i<nu;i++){idx3[ua]=i;idx3[va]=j;if(!field.fluid[slotAt(field,idx3[0],idx3[1],idx3[2])])fluid[i+nu*j]=0;}
   const names=['x','y','z'] as const;
   return {axis,position,axes:[names[ua],names[va]],nu,nv,origin:[g.origin[ua]+0.5*h,g.origin[va]+0.5*h],cell:h,speed,pressure,u,v,fluid};
 }
@@ -217,7 +219,7 @@ export function flowSection(field:FlowField,density:number,axis:'x'|'y'|'z',posi
   const vel=[field.ux,field.uy,field.uz][a],idx=[0,0,0];idx[a]=layer;
   let area=0,q=0,p=0,pt=0,m2=0,vmax=0,nmax=0;
   for(let j=0;j<n[va];j++)for(let i=0;i<n[ua];i++){
-    idx[ua]=i;idx[va]=j;const c=idx[0]+g.nx*(idx[1]+g.ny*idx[2]);
+    idx[ua]=i;idx[va]=j;const c=slotAt(field,idx[0],idx[1],idx[2]);
     if(!field.fluid[c])continue;
     if(bounds){const x=g.origin[ua]+(i+0.5)*h,y=g.origin[va]+(j+0.5)*h;if(x<bounds.min[ua]||x>bounds.max[ua]||y<bounds.min[va]||y>bounds.max[va])continue;}
     const un=vel[c],sq=field.ux[c]*field.ux[c]+field.uy[c]*field.uy[c]+field.uz[c]*field.uz[c];

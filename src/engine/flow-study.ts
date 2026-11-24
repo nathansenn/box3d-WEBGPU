@@ -8,7 +8,8 @@
  * cavity with named inlets and outlets. docs/FLOW.md is the reference of both formats and of what is validated.
  */
 import {EngineError} from './contracts.ts';
-import {Flow,FLOW_AUTO_MODEL,FLOW_FLUIDS,FLOW_SOLVER_ID,FLOW_SOLVER_VERSION,FLOW_SIDES,FLOW_MAX_CELLS,type FlowField,type FlowFluid,type FlowOptions,type FlowPatch,type FlowPatchShape,type FlowSide,type FlowSideName} from './flow.ts';
+import {flowEachCell} from './flow-lattice.ts';
+import {Flow,FLOW_AUTO_MODEL,FLOW_FLUIDS,FLOW_SOLVER_ID,FLOW_SOLVER_VERSION,FLOW_SIDES,FLOW_MAX_CELLS,FLOW_MAX_SPARSE_CELLS,type FlowField,type FlowFluid,type FlowOptions,type FlowPatch,type FlowPatchShape,type FlowSide,type FlowSideName} from './flow.ts';
 import {flowGeometryBounds,flowItemsFromApexGeometry,flowVoxelize,FLOW_THIN_CELLS,type FlowItem,type FlowMesh,type FlowVec3,type FlowGrid} from './flow-geometry.ts';
 import {flowFrequency,flowLine,flowProjectedArea,flowRake,flowSection,flowSeedPlane,flowSlice,flowStreamlines,flowSurfacePressure} from './flow-post.ts';
 
@@ -25,7 +26,7 @@ export const FLOW_LIMITS:readonly string[]=Object.freeze([
   'Boundary layers are not resolved: friction comes from a wall function, and the separation from smooth curved surfaces (spheres, cylinders, streamlined bodies, wings, hulls) is an estimate; the drag crisis is not predicted. Sharp-edged bodies, whose separation the geometry fixes, are predicted better.',
   'Incompressible flow only. The lattice Mach number of the reference speed is sqrt(3) * latticeSpeed (0.10 by default); the physical flow should be below Mach 0.3. No shocks, no heating by compression.',
   'One fluid, no free surface (use the free-surface or shallow-water solvers), no heat transfer, no buoyancy, no cavitation, no rotating or moving geometry: a rotor is a frozen solid with a surface velocity, or an actuator disc.',
-  'The geometry is voxelised on a uniform grid of at most 2^25 cells: shapes under about two cells are coarse; plates and shells thinner than 1.44 cells are grown to that thickness so that they do not leak; rods thinner than a cell are not resolved (see the warnings and setup.geometry).',
+  'The geometry is voxelised on a uniform grid of at most 2^25 stored cells (a network of cavities stored as tiles may span a box of up to 2^31 - 1 cells): shapes under about two cells are coarse; plates and shells thinner than 1.44 cells are grown to that thickness so that they do not leak; rods thinner than a cell are not resolved (see the warnings and setup.geometry).',
   'Walls of the tunnel are slip planes; the blockage they cause is reported and not corrected. External pressures and forces are gauge to the mean pressure on the inlet.',
   'Not certified: no result replaces a code check, a wind-tunnel test or a validated commercial solver. docs/FLOW.md lists what was measured against what reference.',
 ]);
@@ -162,7 +163,12 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
   if(mode!=='external'&&mode!=='internal')fail(`mode must be 'external' or 'internal'.`);
   const geometry=readGeometry(s.geometry??[],options),fluid=readFluid(s.fluid),warnings:string[]=[];
   const res=s.resolution===undefined?{}:isObject(s.resolution)?s.resolution as Json:fail('resolution must be an object.');
-  known(res,'resolution',['cells','cellSize','latticeSpeed']);
+  known(res,'resolution',['cells','cellSize','latticeSpeed','storage']);
+  const storage=res.storage??'auto';
+  if(storage!=='auto'&&storage!=='dense'&&storage!=='sparse')fail(`resolution.storage must be 'auto', 'dense' or 'sparse'.`);
+  // a network of cavities may be stored as tiles (FlowOptions.storage), and its box then span more than FLOW_MAX_CELLS
+  const sparseOk=mode==='internal'&&storage!=='dense'&&geometry.some(it=>it.role==='cavity'),boxCap=sparseOk?FLOW_MAX_SPARSE_CELLS:FLOW_MAX_CELLS;
+  if(storage==='sparse'&&!sparseOk)fail(`resolution.storage 'sparse' needs an internal study whose geometry has cavity items.`);
   const budget=res.cells===undefined?400000:num(res.cells,'resolution.cells',1000);
   const model=s.model===undefined?{}:isObject(s.model)?s.model as Json:fail('model must be an object.');
   known(model,'model',['turbulence','smagorinsky','wale','wallFunction','walls','spongeCells','thicken','collision']);
@@ -185,9 +191,9 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
     const n=[0,0,0];
     // the layers of boundary cells count too
     const box=():number=>{for(let a=0;a<3;a++)n[a]=Math.max(1,Math.ceil(size[a]/h-1e-9));return (n[0]+2)*(n[1]+2)*(n[2]+2);};
-    for(let it=0;it<2000&&(box()*fluidFraction>budget*1.02||box()>FLOW_MAX_CELLS);it++)h*=1.01;
-    if(asked>0&&h>asked*1.001)warnings.push(`resolution.cellSize ${asked.toPrecision(4)} m needs more than the ${box()*fluidFraction>budget?`budget of ${budget} fluid cells`:`${FLOW_MAX_CELLS} cells a box may hold`}; the cells are ${h.toPrecision(4)} m.`);
-    else if(asked===0&&box()>=FLOW_MAX_CELLS*0.97)warnings.push(`the box holds ${box()} cells, the most a box may hold (${FLOW_MAX_CELLS}); the fluid budget of ${budget} cells is not reached. A smaller box (a cropped domain) would allow smaller cells.`);
+    for(let it=0;it<2000&&(box()*fluidFraction>budget*1.02||box()>boxCap);it++)h*=1.01;
+    if(asked>0&&h>asked*1.001)warnings.push(`resolution.cellSize ${asked.toPrecision(4)} m needs more than the ${box()*fluidFraction>budget?`budget of ${budget} fluid cells`:`${boxCap} cells a box may hold`}; the cells are ${h.toPrecision(4)} m.`);
+    else if(asked===0&&box()>=boxCap*0.97)warnings.push(`the box holds ${box()} cells, the most a box may hold (${boxCap}); the fluid budget of ${budget} cells is not reached. A smaller box (a cropped domain) would allow smaller cells.`);
     // the box grows to whole cells away from the anchored end of each axis
     const origin:[number,number,number]=[0,0,0];
     for(let a=0;a<3;a++)origin[a]=anchor[a]===0?lo[a]:hi[a]-n[a]*h;
@@ -215,7 +221,7 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
     return {name:o.name as string,center:vec3(o.center,`actuators[${i}].center`),axis:vec3(o.axis,`actuators[${i}].axis`),radius:num(o.radius,`actuators[${i}].radius`,0,true),
       thickness:o.thickness===undefined?undefined:num(o.thickness,`actuators[${i}].thickness`,0,true),force:o.force===undefined?undefined:num(o.force,`actuators[${i}].force`),pressureJump:o.pressureJump===undefined?undefined:num(o.pressureJump,`actuators[${i}].pressureJump`)};
   });
-  const common={fluid,motion,actuators,collision:model.collision as 'auto'|undefined,turbulence:turbulence as 'auto',walls:walls as 'interpolated',surfaces:outputs.surface===true,thicken:model.thicken as boolean|undefined,wallFunction:model.wallFunction as boolean|undefined,
+  const common={fluid,motion,actuators,storage:storage as 'auto',collision:model.collision as 'auto'|undefined,turbulence:turbulence as 'auto',walls:walls as 'interpolated',surfaces:outputs.surface===true,thicken:model.thicken as boolean|undefined,wallFunction:model.wallFunction as boolean|undefined,
     smagorinsky:model.smagorinsky===undefined?undefined:num(model.smagorinsky,'model.smagorinsky',0,true),wale:model.wale===undefined?undefined:num(model.wale,'model.wale',0,true),
     latticeSpeed:res.latticeSpeed===undefined?undefined:num(res.latticeSpeed,'resolution.latticeSpeed',0,true),
     spongeCells:model.spongeCells===undefined?undefined:num(model.spongeCells,'model.spongeCells',0)};
@@ -444,14 +450,18 @@ export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowS
   // fluid cells that touch each opening, for its pressure
   const patchCells:number[][]=flow.patches.map(()=>[]),patchActive:number[][]=flow.patches.map(()=>[]);
   {
-    const {nx,ny,nz}=g;
-    for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
-      if(L.kind[c]!==2&&L.kind[c]!==3)continue;
+    // in the order of the cell index of the opening cell (dense and tiled storage give the same lists); patchCells holds
+    // storage slots
+    const {nx,ny,nz}=g,tiles=flow.tiles,S=tiles?(c:number):number=>tiles.slotOf(c):(c:number):number=>c,found:number[][]=[];
+    flowEachCell(nx,ny,nz,tiles,(i,j,k,cg,c)=>{
+      if(L.kind[c]!==2&&L.kind[c]!==3)return;
       for(const [di,dj,dk] of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]){
         const a=i+di,b=j+dj,e=k+dk;if(a<0||b<0||e<0||a>=nx||b>=ny||e>=nz)continue;
-        const q=a+nx*(b+ny*e);if(L.kind[q]===0){patchCells[L.owner[c]].push(q);patchActive[L.owner[c]].push(L.activeOf[q]);}
+        const sq=S(a+nx*(b+ny*e));if(L.kind[sq]===0)found.push([cg,L.owner[c],sq,L.activeOf[sq]]);
       }
-    }
+    });
+    if(tiles)found.sort((x,y)=>x[0]-y[0]);
+    for(const [,o,sq,act] of found){patchCells[o].push(sq);patchActive[o].push(act);}
   }
   // per-part forces of every monitor interval, to average over the same steps as the coefficients
   const partRows:{name:string;force:[number,number,number];moment:[number,number,number]}[][]=[];
@@ -598,12 +608,16 @@ export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowS
     // extremes of the averaged field over the fluid cells
     {
       let pMax=-Infinity,pMin=Infinity,vMax=0;const at=(c:number):number[]=>[r6(g.origin[0]+(c%g.nx+0.5)*h),r6(g.origin[1]+(Math.floor(c/g.nx)%g.ny+0.5)*h),r6(g.origin[2]+(Math.floor(c/(g.nx*g.ny))+0.5)*h)];
-      let cMax=0,cMin=0,cV=0;
+      let cMax=0,cMin=0,cV=0,rMax=-Infinity,rMin=Infinity,crMax=-1,crMin=-1;
       for(let a=0;a<L.fluidCells;a++){
-        const c=L.cellOf[a],p=field.pressure[c],sq=field.ux[c]*field.ux[c]+field.uy[c]*field.uy[c]+field.uz[c]*field.uz[c];
+        const c=L.cellOf[a],sc=flow.tiles?flow.tiles.slotOf(c):c,p=field.pressure[sc],sq=field.ux[sc]*field.ux[sc]+field.uy[sc]*field.uy[sc]+field.uz[sc]*field.uz[sc];
         if(p>pMax){pMax=p;cMax=c;}if(p<pMin){pMin=p;cMin=c;}if(sq>vMax){vMax=sq;cV=c;}
+        // the same over the cells a cell or more from the geometry (the first layer, cut by the wall, is singular at
+        // sharp edges and in gaps)
+        if(field.distance[sc]>=h){if(p>rMax){rMax=p;crMax=c;}if(p<rMin){rMin=p;crMin=c;}}
       }
-      out.extremes={pressureMax:{value:pMax,cp:pMax/dynamicPressure,at:at(cMax)},pressureMin:{value:pMin,cp:pMin/dynamicPressure,at:at(cMin)},speedMax:{value:Math.sqrt(vMax),at:at(cV)},dynamicPressure};
+      out.extremes={pressureMax:{value:pMax,cp:pMax/dynamicPressure,at:at(cMax)},pressureMin:{value:pMin,cp:pMin/dynamicPressure,at:at(cMin)},speedMax:{value:Math.sqrt(vMax),at:at(cV)},dynamicPressure,
+        pressureMaxResolved:crMax<0?null:{value:rMax,cp:rMax/dynamicPressure,at:at(crMax)},pressureMinResolved:crMin<0?null:{value:rMin,cp:rMin/dynamicPressure,at:at(crMin)}};
     }
     // flow rates and pressures at the openings
     {

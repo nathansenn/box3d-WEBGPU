@@ -69,6 +69,32 @@ test('a pipe drawn as a fluid cylinder, through its openings: Hagen-Poiseuille p
   console.log(`  pipe at Re 100: drop ${r.error.toFixed(4)}, peak / mean ${r.peakOverMean.toFixed(4)}, ${r.cellsAcross.toFixed(1)} cells across`);
 });
 
+test('a laminar round pipe at Re 500 to 1500, periodic, started from the exact parabola: the flow rate against Hagen-Poiseuille, and the warning below the resolution that holds it', () => {
+  for (const [re, n, viscousTimes] of [[500, 20, 8], [1000, 48, 3], [1500, 64, 2]]) {
+    const r = S.laminarPipe(K, {re, n, viscousTimes});
+    within(r.flowRate, r.exact, 0.03, `flow rate at Re ${re}, ${n} cells across`);
+    assert.ok(r.secondary < 0.01, `secondary flow at Re ${re}: ${r.secondary}`);
+    assert.equal(r.warned, false);
+    console.log(`  laminar pipe at Re ${re}, ${n} cells (cell Re ${r.cellReynolds.toFixed(1)}): flow rate ${r.error.toFixed(4)}, secondary ${r.secondary.toExponential(2)}`);
+  }
+  const coarse = S.laminarPipe(K, {re: 1000, n: 16});
+  assert.ok(coarse.error < -0.1, `the coarse pipe is expected to miss: ${coarse.error}`);
+  assert.equal(coarse.warned, true);
+  console.log(`  laminar pipe at Re 1000, 16 cells (cell Re ${coarse.cellReynolds.toFixed(1)}): flow rate ${coarse.error.toFixed(4)}, warned`);
+});
+
+test('sparse storage: the same bits as dense storage on an L of pipes, and a long L whose box is three times the dense limit', () => {
+  const r = S.sparseStorage(K);
+  assert.equal(r.small.populations, 0, 'populations that differ between dense and sparse storage');
+  assert.equal(r.small.fields, 0, 'field cells that differ');
+  assert.equal(r.small.sums, true, 'forces and flow rates');
+  assert.ok(r.big.overDenseLimit > 2.5, `box over the dense limit: ${r.big.overDenseLimit}`);
+  assert.ok(r.big.healthy);
+  near(r.big.massError, 0, 1e-6, 'mass gained against mass through the openings');
+  assert.ok(r.big.inflow > 0);
+  console.log(`  sparse: small box ${r.small.box} cells, ${r.small.stored} stored, identical; long L: box ${r.big.box} cells (${r.big.overDenseLimit.toFixed(2)} x the dense limit), ${r.big.stored} stored, ${r.big.fluidCells} fluid, set-up ${r.big.setupSeconds.toFixed(1)} s, ${(r.big.cellUpdatesPerSecond / 1e6).toFixed(2)} M cell updates/s, box arrays ${(r.big.sparseBytes / 1e6).toFixed(0)} MB against ${(r.big.denseBytes / 1e9).toFixed(2)} GB dense`);
+});
+
 test('the circular cylinder: drag and recirculation at Re 20 and 40, drag and Strouhal number at Re 100 and 200', () => {
   const r20 = S.cylinderSteady(K, {re: 20}), r40 = S.cylinderSteady(K, {re: 40});
   within(r20.cd, 2.091, 0.08, 'Cd at Re 20'); within(r20.recirculation, 0.93, 0.08, 'recirculation at Re 20');

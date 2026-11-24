@@ -287,16 +287,16 @@ export function cylinderShedding(K, {re = 100, n = 10, height = 16, length = 25,
 /** Hagen-Poiseuille through a pipe of diameter D = 1 m and length 6 D drawn as a fluid cylinder, inlet by flow rate with
  * the developed profile, outlet by pressure: the pressure drop between sections 2 D and 4 D from the inlet against
  * 128 mu L Q / (pi D^4), the peak over the mean speed on the middle section against 2, and the mass balance. */
-export function pipeStudy(K, {re = 1107, cells = 15000, transits = 30, tolerance = 0.001, profile = 'developed', model, latticeSpeed} = {}) {
-  const D = 1, L = 6, U = 1, nu = U * D / re, Q = Math.PI / 4 * D * D * U;
+export function pipeStudy(K, {re = 1107, cells = 15000, transits = 30, tolerance = 0.001, profile = 'developed', model, latticeSpeed, length = 6} = {}) {
+  const D = 1, L = length, U = 1, nu = U * D / re, Q = Math.PI / 4 * D * D * U;
   const study = {format: 'box3d-flow-study/1', name: 'Hagen-Poiseuille', fluid: {density: 1, viscosity: nu}, mode: 'internal',
     geometry: [{kind: 'cylinder', center: [L / 2, 0, 0], length: L, rotation: [0, 0, -Math.SQRT1_2, Math.SQRT1_2], radius: D / 2, role: 'cavity', part: 'pipe'}],
     internal: {inlets: [{name: 'in', shape: {kind: 'disc', center: [0, 0, 0], normal: [-1, 0, 0], radius: D / 2}, flowRate: Q, profile}],
       outlets: [{name: 'out', shape: {kind: 'disc', center: [L, 0, 0], normal: [1, 0, 0], radius: D / 2}, pressure: 0}]},
     resolution: {cells, ...(latticeSpeed ? {latticeSpeed} : {})}, ...(model ? {model} : {}), run: {transits, windowTransits: 1, startupTransits: 1, tolerance},
-    outputs: {sections: [{name: 'a', axis: 'x', position: 2}, {name: 'mid', axis: 'x', position: 3}, {name: 'b', axis: 'x', position: 4}], history: false}};
+    outputs: {sections: [{name: 'a', axis: 'x', position: L / 3}, {name: 'mid', axis: 'x', position: L / 2}, {name: 'b', axis: 'x', position: 2 * L / 3}], history: false}};
   const r = K.runFlowStudy(study);
-  const [a, mid, b] = r.flow.sections, drop = a.meanPressure - b.meanPressure, exact = 128 * nu * 1 * 2 * Q / (Math.PI * D ** 4);
+  const [a, mid, b] = r.flow.sections, drop = a.meanPressure - b.meanPressure, exact = 128 * nu * (L / 3) * Q / (Math.PI * D ** 4);
   return {re, cells: r.setup.lattice.fluidCells, cellsAcross: D / r.setup.grid.cell, drop, exact, error: drop / exact - 1, peakOverMean: mid.maxNormalSpeed / mid.meanSpeed, flowRate: mid.flowRate / Q - 1,
     massBalance: r.flow.massBalance, steps: r.run.steps, converged: r.run.converged, turbulence: r.setup.turbulence.model};
 }
@@ -405,8 +405,67 @@ export function building(K, {cells = 120000, transits = 3} = {}) {
     external: {speed: 20, direction: [1, 0, 0], ground: {height: 0, type: 'fixed'}, referenceArea: 20 * 30},
     resolution: {cells}, run: {transits, windowTransits: 0.75, startupTransits: 1}, outputs: {surface: true, history: false}};
   const r = K.runFlowStudy(study), c = r.forces.coefficients;
-  return {cells: r.setup.lattice.fluidCells, bodyCells: r.setup.external.bodyCells, blockage: r.setup.external.blockage, cd: c.cd, cl: c.cl, cpMax: r.surface[0].cpMax,
+  return {cells: r.setup.lattice.fluidCells, bodyCells: r.setup.external.bodyCells, blockage: r.setup.external.blockage, cd: c.cd, cl: c.cl, cpMax: r.surface[0].cpMax, cpMaxResolved: r.surface[0].cpMaxResolved,
     referencePressure: r.setup.external.referencePressure.value / c.dynamicPressure, steps: r.run.steps, turbulence: r.setup.turbulence.model, reynolds: r.setup.reynolds};
+}
+
+/** The largest resolved surface pressure coefficient (samples on sharp edges and in gaps left out) of a body in a free
+ * stream through the study runner: a cube face-on, a sphere, both at Re 1e4 (D = 1 m, U = 10 m/s, air-like fluid);
+ * for the building see building(). In incompressible flow it is 1 at the stagnation point. */
+export function stagnation(K, {shape = 'cube', cells = 120000, transits = 4} = {}) {
+  const geometry = [shape === 'sphere' ? {kind: 'sphere', center: [0, 0, 0], radius: 0.5, part: shape} : {kind: 'box', center: [0, 0, 0], size: [1, 1, 1], part: shape}];
+  const study = {format: 'box3d-flow-study/1', name: shape, fluid: {density: 1.2, viscosity: 1e-3}, mode: 'external', geometry,
+    external: {speed: 10, direction: [1, 0, 0], referenceLength: 1}, resolution: {cells}, run: {transits, windowTransits: 0.75, startupTransits: 1},
+    outputs: {surface: true, history: false}};
+  const r = K.runFlowStudy(study), sf = r.surface[0];
+  return {shape, cells: r.setup.lattice.fluidCells, cellsAcross: 1 / r.setup.grid.cell, cpMax: sf.cpMax, cpMaxResolved: sf.cpMaxResolved, flagged: sf.flagged, vertices: sf.flags.length,
+    cellCpMax: r.extremes.pressureMax.cp, cellCpMaxResolved: r.extremes.pressureMaxResolved?.cp ?? null, referencePressure: r.setup.external.referencePressure.value / r.forces.coefficients.dynamicPressure,
+    cd: r.forces.coefficients.cd, blockage: r.setup.external.blockage, converged: r.run.converged};
+}
+
+/** Sparse storage (FlowOptions.storage 'sparse', tiles of 8^3 cells): (1) an L of two pipes with a sphere at the corner, a
+ * baffle, a parabolic inlet and a pressure outlet, in a box that fits dense storage too, run both ways: the populations,
+ * the fields and the sums must be the same bits; (2) a long thin L of pipes whose box is about three times the dense
+ * limit of 2^25 cells, run sparse only: set-up, stored cells, the speed and the mass ledger. Bytes per cell of the box
+ * arrays are counted from the arrays the Flow and its field keep. */
+export function sparseStorage(K, {n = 80, steps = 300, length = 3000, bigSteps = 400} = {}) {
+  const c = 6, R = 3.2, L = n - 4, h = 1;
+  const geometry = [{kind: 'cylinder', from: [2, c, c], to: [L, c, c], radius: R, role: 'cavity', part: 'a'}, {kind: 'cylinder', from: [L, c, c], to: [L, L, c], radius: R, role: 'cavity', part: 'b'},
+    {kind: 'sphere', center: [L, c, c], radius: R, role: 'cavity', part: 'b'}, {kind: 'box', center: [L / 2, c, c], size: [2, 1, 1], part: 'baffle'}];
+  const options = storage => ({grid: {origin: [0, 0, 0], cell: h, nx: n, ny: n, nz: 13}, geometry, fluid: {density: 1, viscosity: 0.05}, referenceSpeed: 1, latticeSpeed: 0.05, turbulence: 'smagorinsky', storage,
+    patches: [{name: 'in', kind: 'inlet', shape: {kind: 'disc', center: [2, c, c], normal: [-1, 0, 0], radius: R}, flowRate: Math.PI * R * R * 0.5, profile: 'parabolic'},
+      {name: 'out', kind: 'outlet', shape: {kind: 'disc', center: [L, L, c], normal: [0, 1, 0], radius: R}, pressure: 0}]});
+  const dense = new K.Flow(options('dense')), sparse = new K.Flow(options('sparse'));
+  dense.step(steps); sparse.step(steps);
+  let populations = 0;
+  for (let i = 0; i < dense.lattice.f.length; i++) if (!Object.is(dense.lattice.f[i], sparse.lattice.f[i])) populations++;
+  const fa = dense.field(), fb = sparse.field(), g = dense.grid;
+  let fields = 0;
+  for (let k = 0, q = 0; k < g.nz; k++) for (let j = 0; j < g.ny; j++) for (let i = 0; i < g.nx; i++, q++) {
+    const s = sparse.tiles.slot(i, j, k);
+    if (fa.fluid[q] !== fb.fluid[s] || !Object.is(fa.ux[q], fb.ux[s]) || !Object.is(fa.uy[q], fb.uy[s]) || !Object.is(fa.uz[q], fb.uz[s]) || !Object.is(fa.pressure[q], fb.pressure[s]) || !Object.is(fa.distance[q], fb.distance[s])) fields++;
+  }
+  const sa = dense.takeSums(), sb = sparse.takeSums(), same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
+  const small = {box: g.nx * g.ny * g.nz, stored: sparse.tiles.slots, fluidCells: dense.fluidCells, populations, fields, sums: same(sa, sb), steps};
+  // the long L: box (length + 2)^2 x 11 cells
+  const r = 2.6, e = 4, nz = 9, t0 = performance.now();
+  const big = new K.Flow({grid: {origin: [0, 0, 0], cell: 1, nx: length, ny: length, nz}, fluid: {density: 1, viscosity: 0.02}, referenceSpeed: 1, latticeSpeed: 0.05, turbulence: 'none',
+    geometry: [{kind: 'cylinder', from: [1, e, e], to: [length - e, e, e], radius: r, role: 'cavity', part: 'leg1'}, {kind: 'cylinder', from: [length - e, e, e], to: [length - e, length - 1, e], radius: r, role: 'cavity', part: 'leg2'},
+      {kind: 'sphere', center: [length - e, e, e], radius: r, role: 'cavity', part: 'leg2'}],
+    patches: [{name: 'in', kind: 'inlet', shape: {kind: 'disc', center: [1, e, e], normal: [-1, 0, 0], radius: r}, speed: 0.5, profile: 'parabolic'},
+      {name: 'out', kind: 'outlet', shape: {kind: 'disc', center: [length - e, length - 1, e], normal: [0, 1, 0], radius: r}, pressure: 0}]});
+  const t1 = performance.now(), mass0 = big.excessVolume();
+  big.step(bigSteps);
+  const t2 = performance.now(), sums = big.takeSums(), mass1 = big.excessVolume();
+  // what came in through the openings and the walls over the run, against what the box gained (m^3, cell = 1 m)
+  const through = (sums.flowRates[0] + sums.flowRates[1] + sums.wallFlowRate) * sums.steps * big.dt;
+  const box = big.grid.nx * big.grid.ny * big.grid.nz;
+  // bytes per cell of the box arrays: kind 1, owner 2, distance 4, part 2, activeOf 4, the cavity field and its parts
+  // 4 + 2, the flood fill 1, and the field's fluid 1, ux uy uz pressure 16 and opening 2
+  const bytesPerCell = 1 + 2 + 4 + 2 + 4 + 6 + 1 + 1 + 16 + 2;
+  return {small, big: {box, overDenseLimit: box / K.FLOW_MAX_CELLS, stored: big.tiles.slots, blocks: big.tiles.blocks - 1, fluidCells: big.fluidCells, setupSeconds: (t1 - t0) / 1000,
+    cellUpdatesPerSecond: big.fluidCells * bigSteps / ((t2 - t1) / 1000), healthy: big.healthy(), inflow: sums.flowRates[0], massError: (mass1 - mass0) - through,
+    denseBytes: box * bytesPerCell, sparseBytes: big.tiles.slots * bytesPerCell, latticeBytes: big.fluidCells * (19 * 16 + 4 * 8)}};
 }
 
 /** Closed boxes whose six walls are 0.02 m thick on a grid of 0.11 m cells (0.18 cells), given five ways: as closed
@@ -444,4 +503,30 @@ export function thinWallLeak(K) {
     out.thickened[name] = v.largestThickening; out.closedCells[name] = v.closedCells;
   }
   return out;
+}
+
+/** A round pipe at Reynolds number `re` (mean speed, diameter), `n` cells across, one cell long and periodic, driven by
+ * the Hagen-Poiseuille pressure gradient and started from the exact parabola: after `viscousTimes` times R^2 / (5.78 nu)
+ * the flow rate over the exact one, and the largest secondary (cross-section) speed over the mean. Above a cell Reynolds
+ * number of about 50 (peak speed) the lattice grows a spurious secondary flow that flattens the profile; below it the
+ * parabola holds. */
+export function laminarPipe(K, {re = 1000, n = 48, viscousTimes = 3, latticeSpeed = 0.06} = {}) {
+  const R = 0.5, h = 2 * R / n, U = 1, nu = U * 2 * R / re, a = 8 * nu * U / (R * R), c = R + 0.5 * h;
+  const flow = new K.Flow({grid: {origin: [0, 0, 0], cell: h, nx: 1, ny: n + 1, nz: n + 1}, geometry: [{kind: 'cylinder', from: [-5, c, c], to: [5, c, c], radius: R, role: 'cavity', part: 'pipe'}],
+    fluid: {density: 1, viscosity: nu}, sides: {xMin: 'periodic', xMax: 'periodic'}, referenceSpeed: 2 * U, latticeSpeed, acceleration: [a, 0, 0], turbulence: 'none'});
+  const L = flow.lattice, g = L, vs = flow.cell / flow.dt, grid = flow.grid;
+  // the exact parabola as the starting state (equilibrium populations, lattice units)
+  for (let q = 0; q < L.fluidCells; q++) {
+    const cell = L.cellOf[q], j = Math.floor(cell / grid.nx) % grid.ny, k = Math.floor(cell / (grid.nx * grid.ny));
+    const y = grid.origin[1] + (j + 0.5) * h - c, z = grid.origin[2] + (k + 0.5) * h - c, u = Math.max(0, 2 * U * (1 - (y * y + z * z) / (R * R))) / vs;
+    for (let d = 0; d < 19; d++) { const cu = K.FLOW_CX[d] * u; L.f[q * 19 + d] = K.FLOW_WEIGHT[d] * (3 * cu + 4.5 * cu * cu - 1.5 * u * u); }
+    L.ux[q] = u;
+  }
+  const nuLattice = nu * flow.dt / (h * h), steps = Math.round(viscousTimes * (R / h) ** 2 / (5.78 * nuLattice));
+  flow.step(steps);
+  let sum = 0, secondary = 0;
+  for (let q = 0; q < L.fluidCells; q++) { sum += g.ux[q]; secondary = Math.max(secondary, Math.hypot(g.uy[q], g.uz[q])); }
+  const flowRate = sum * vs * h * h, exact = Math.PI * R ** 4 * a / (8 * nu);
+  return {re, n, cellReynolds: 2 * U * h / nu, relaxationTime: flow.relaxationTime, steps, flowRate, exact, error: flowRate / exact - 1, secondary: secondary * vs / U, fluidCells: L.fluidCells,
+    warned: flow.warnings.some(w => /secondary flow/.test(w))};
 }

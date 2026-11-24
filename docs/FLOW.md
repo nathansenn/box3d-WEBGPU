@@ -133,6 +133,25 @@ Lattice units below: cell 1, step 1, reference density 1. `src/engine/flow-latti
 - **Determinism.** Fixed loop orders and only `+ - * /` and the square root: repeat runs are bit-identical.
   `Flow.saveState()` / `restoreState()` resume bit-exactly.
 
+### Sparse storage
+
+A pipe network's box is mostly solid. With `storage: 'sparse'` (`resolution.storage` in a study; `'auto'` picks it when
+an internal study of cavities needs a box of more than 2²⁵ cells) the box is cut into tiles of 8³ cells and only the
+tiles near the cavities hold storage: those within the distance band of a primitive cavity's surface or inside it (the
+signed distance at the tile centre against the tile's half diagonal plus the band), and every tile of a mesh cavity's
+bounding box. Every other tile reads as one shared solid tile; a tile index (one integer per tile) maps a cell to its
+slot. The voxeliser, the set-up of the openings, the lattice tables and the fields use the slots; the fluid cells are
+numbered in the order of their cell index either way, so **dense and sparse storage give the same bits** (populations,
+fields, forces and flow rates: `flow.sparse.*` rows). The box may span up to 2³¹ − 1 cells; at most 2²⁵ are stored.
+The step costs the same (it runs on the fluid cells); the set-up visits stored cells only.
+
+Measured on a long thin L of pipes (legs of 3,000 cells, radius 2.6 cells, a box of 99 M cells, 2.95 times the dense
+limit): 1.92 M cells stored in 3,748 tiles, 143,750 fluid cells, set-up 1.6 s, 2.2 M cell updates per second, the mass
+ledger closed to 1e-12 m³ over 400 steps. The box arrays (kinds, owners, distances, parts, fluid numbers, the cavity
+field, the flood fill and a field for output: about 39 bytes per cell) take 75 MB stored against 3.9 GB dense; the
+lattice itself (populations of the fluid cells) is 48 MB either way. Not on the GPU yet: the kernel takes the same
+tables, but no sparse case was run there.
+
 ## Frame and units
 
 Everything is SI: metres, seconds, kilograms, newtons, pascals; flow rates in m³/s. Results are in the frame of the study
@@ -388,12 +407,12 @@ exports `FLOW_SOURCE_COMMIT`. Copy it with its sha256 sum.
 | Force and moment per part and in total | yes | `forces.parts`, `forces.total` |
 | Conservative thin-wall rasterisation, report of the thickening | yes | grown to 1.44 cells; `setup.geometry` and a warning |
 | Fluid-layer domains | yes | `role: 'cavity'` items; named openings are inlets / outlets, the rest closed |
-| Studies of 72 M and 34 M dense cells against budgets of 3 M and 2 M | **partly** | populations are stored for fluid cells only, so a pipe network's cost is its fluid; but the box still holds about 15 to 45 bytes per cell (cell kinds, distances, the fields for slices), so a box is limited to 2²⁵ = 33.5 M cells. A study whose box at the wanted cell size exceeds that gets coarser cells and a warning (a 72 M box: cells 1.29 times larger, 2.15 times fewer fluid cells). The largest network that fits at a given cell size is one whose bounding box holds 33.5 M cells; cropping (`internal.domain`) is the remedy. No multi-block |
+| Studies of 72 M and 34 M dense cells against budgets of 3 M and 2 M | yes | a network of cavities is stored as tiles of 8³ cells near the cavities only (`resolution.storage`, `'auto'` by default: tiles when the box exceeds 2²⁵ cells), so the box may span up to 2³¹ − 1 cells while at most 2²⁵ are stored; the same bits as dense storage ([Sparse storage](#sparse-storage)). The 72 M-cell header study now gets the cell size it asks for |
 | Cavity domains | yes | solid items, `domain` or `padding` |
 | External: inflow in any horizontal direction, ground at a height fixed / moving / slip, geometry below removed, margins in multiples of a reference length | yes | `external` |
 | Internal: round openings with outward normal and radius; inlet by flow rate or mean velocity, uniform or parabolic ("developed"); outlet by gauge pressure or flow rate | yes | `internal.inlets` / `outlets` (one outlet must be by pressure) |
 | Max surface Cp; mean pressure and flow per opening; peak velocity on a section; mass imbalance; streamlines with speed; axis-plane slices; surface pressure per part; convergence history; solver id, version and source commit | yes | `surface[].cpMax`, `extremes`; `flow.patches`; `flow.sections[].maxNormalSpeed`; `flow.massBalance`; `streamlines`; `slices`; `surface`; `convergence`; `solver` |
-| Laminar pipe flow (Hagen–Poiseuille within 10% at Re 1107), a sharp-edged building (Cd 1.0–1.7) | **building yes, pipe at Re 1107 no** | the building: Cd 1.107, largest Cp 1.163 at 8 cells across. The pipe: within 4.8% at Re 100, but 63% (12.6 cells) and 42% (17.9 cells) high at Re 1107 ([Validation](#validation) says why) |
+| Laminar pipe flow (Hagen–Poiseuille within 10% at Re 1107), a sharp-edged building (Cd 1.0–1.7) | **building yes, pipe at Re 1107 no** | the building: Cd and Cp within the bands. The pipe: a periodic pipe at Re 1107 holds within 0.3% for 8 viscous times at 64 cells across, not at 48 (−15%) or fewer; through its openings +23% at 60 cells across, +16% for the app's riser at 16 cells ([Laminar pipes](#laminar-pipes-at-high-cell-reynolds-numbers)) |
 | Node-importable single-file bundle and the CLI | yes | `flow-bundle`, `box3d-flow` |
 
 ## Drawing results with three.js
@@ -475,16 +494,51 @@ The whole domain runs in about 17 minutes on that machine (10 CPU minutes).
 |---|---|---:|---:|---|
 | Pipe through openings, **Re 1107** (the apex gate): pressure drop | Hagen-Poiseuille | +63% (peak / mean 1.90) | +63% | 12.6 cells across, relaxation time 0.501 |
 | Same | | +42% (peak / mean 1.93) | +42% | 17.9 cells across, relaxation time 0.5015 |
+| Same | | +35% (peak / mean 1.95) | +35% | 41 cells across, 3 D long |
+| Same | | +23% (peak / mean 1.97) | +23% | 60 cells across, 3 D long |
+| The app's riser (`hydraulic-press-riser-laminar`, 16 D long, sections 12 D apart), solver of 24 November | | +16% (peak / mean 1.97) | +16% | 16 cells across |
 | Same with the two-relaxation-time collision | | diverged | | 12.6 cells |
+| Periodic laminar pipe, Re 500, 12 / 16 cells: flow rate after 8 viscous times | Hagen-Poiseuille | | −19.6% / −4.8% (3 viscous times) | cell Reynolds number 83 / 63 |
+| Periodic laminar pipe, Re 1000, 12 / 16 / 20 cells | same | | −30% / −25% / −5.4% with a secondary flow of 14% (3 viscous times) | cell Reynolds number 167 / 125 / 100 |
+| Periodic laminar pipe, Re 1500, 12 / 16 / 20 cells | same | | −35% / −28% / −43% (3 viscous times) | cell Reynolds number 250 / 188 / 150 |
+| Periodic laminar pipe, Re 1107, 24 / 36 / 40 / 44 / 48 cells | same | | −29% / −24% / −22.5% / −18.5% / −15% (8 viscous times) | cell Reynolds number 92 to 46; at 48 cells −0.3% after 3 viscous times |
+| Aligned square duct, Re 1108, 24 cells (no staircase) | series solution | | −22% with a secondary flow of 2.8% | the loss is not the staircase wall |
 | Sphere, Re 1e4: Cd | about 0.40 (standard drag curve) | 0.728 | +82% | 8 cells, LES |
 | Cube on fixed ground, 8.5 cells, wall function next to edges allowed (an earlier curvature limit of 0.5) | about 1.0 to 1.2 | 0.81 | | the reason for the limit of 0.05 |
 
-Why the Re 1107 pipe misses: the lattice viscosity of a pipe 12 to 18 cells across at Re 1107 is so small (relaxation
-time 0.501) that the regularised collision, which relaxes the odd non-equilibrium moments at once, moves a bounce-back
-wall on a staircase boundary inward (a plane channel aligned with the grid is unaffected: -1.6% at the same relaxation
-time). The error falls slowly with the cell count (63% at 12.6 cells, 42% at 17.9); the two-relaxation-time collision
-that fixes the wall diverged next to the openings. **The apex gate (Hagen-Poiseuille within 10% at Re 1107) is not met
-at affordable resolution.** At Re 100 the same study is within 4.8%.
+### Laminar pipes at high cell Reynolds numbers
+
+A laminar pipe at Re 1107 (the apex riser gate) needs a relaxation time within 0.001 to 0.005 of 1/2 at 12 to 48 cells
+across. There the regularised collision grows a steady secondary flow in the section (up to 5 to 14% of the mean
+speed) that flattens the profile and takes 15 to 45% of the flow rate (in a pipe driven through its openings: the
+same loss as up to 63% too much pressure drop). It is seeded by the asymmetry of the voxelised section and grows over
+several viscous times R² / (5.78 nu). What was ruled out, each measured on the periodic pipe or an aligned square duct
+started from the exact profile:
+
+- the wall: interpolated and half-way bounce-back give the same loss, and a square duct aligned with the grid (no
+  staircase) loses 22% at the same cell Reynolds number;
+- the relaxation time at a fixed cell Reynolds number: a lattice speed of 0.15 instead of 0.06 (relaxation time
+  0.5049 instead of 0.502) changes the loss by a few percent;
+- the collision: the two-relaxation-time collision (magic product 3/16) diverges at these relaxation times, in the
+  periodic pipe too; a recursive (third-order) regularisation, a bulk relaxation time other than 1 and WALE do not
+  change the loss; a hybrid collision that rebuilds part of the stress from the strain rate by finite differences
+  (after Jacob, Malaspinas and Sagaut 2018) held the periodic pipe within 2% at 12 to 20 cells but diverged in the pipe
+  through its openings, and was not kept.
+
+What holds is resolution: the loss depends on the cell Reynolds number (peak speed × cell / viscosity) and on how long
+the run is. At Re 500, 20 cells (cell Reynolds number 50) hold within 1.5% for 8 viscous times; at Re 1107, 48 cells
+(46) hold for 3 viscous times and lose 15% by 8; 64 cells (35) hold within 0.3% for 8. The registry rows are those
+that hold ([Validation](#validation)); the Flow warns above a cell Reynolds number of 50 (`FLOW_LAMINAR_CELL_REYNOLDS`).
+
+**The smallest resolution at which Re 1107 lands within ±10%, and the riser budget.** None that was measured through
+openings. A periodic pipe (the flow rate under the Hagen-Poiseuille gradient) needs 64 cells across to hold within
+±10% over a long run (48 cells: within 0.3% after 3 viscous times, −15% after 8). A pipe driven through its openings
+(a developed inlet, a pressure outlet) misses sooner, within a few transits: +63% at 12.6 cells (6 D long), +35% at 41
+and +23% at 60 cells (3 D long, sections 1 D apart); the app's own riser (16 D long, sections 12 D apart) +16% at 16
+cells. The error falls with the cell count but had not reached 10% at 60 cells. A straight riser 16 D long at 64 cells
+across would hold 3.3 M fluid cells in a box of 4.5 M cells: it does not fit the app's budget of 2 M cells (64 cells
+fit a riser of about 7 D), and it would cost about 10¹¹ cell updates, ten-odd CPU hours here. The Re 1107 riser gate
+is therefore not met; at Re 500 a periodic pipe of 20 cells holds within 1.5% (the registry row).
 
 ## Cost
 
@@ -519,8 +573,8 @@ holds at most 2²⁵ = 33.5 million cells.
 - **No rotating or moving geometry.** No sliding mesh. A rotor is a frozen solid, optionally with the surface velocity
   of its rotation (`motion`), or an actuator disc (`actuators`): neither gives the torque, efficiency or blade loads.
 - **No heat transfer**, no buoyancy, no cavitation, one fluid. The heat solver is not coupled.
-- **Uniform grid** of at most 2²⁵ cells per box. Features under two cells are coarse, under one cell lost; thin walls
-  are grown to 1.44 cells.
+- **Uniform grid** of at most 2²⁵ stored cells per box (a box of cavities stored as tiles may span up to 2³¹ − 1).
+  Features under two cells are coarse, under one cell lost; thin walls are grown to 1.44 cells.
 - **Tunnel walls are slip planes**; the blockage is reported, not corrected.
 - **A steady state is reached by marching in time**; the convergence monitor compares window means, so a slow drift
   longer than two windows passes as converged.
