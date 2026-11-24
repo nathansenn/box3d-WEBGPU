@@ -81,8 +81,10 @@ const BUDGET = {
   // ordering joined the mortar contact and the GPU scene sections (scene measured 454.05 KiB = 464,948 bytes).
   // Lowered 2026-11-23: main 85 -> 65, worker 92 -> 72 and gameplay 95 -> 87 KiB when the modules of the main entry became
   // one file without comments (scripts/bundle-rigid.mjs; measured 56.3, 62.8 and 75.2 KiB, from 76.7, 82.8 and 85.2).
+  // Lowered 2026-11-24: main 65 -> 55, worker 72 -> 62 and gameplay 87 -> 76 KiB when the shared modules joined one chunk
+  // and the locals got short names (measured 47.4, 54.2 and 66.3 KiB).
   entry: {
-    '.': 65 * KiB, './three': 3 * KiB, './babylon': 2 * KiB, './worker': 72 * KiB, './gameplay': 87 * KiB,
+    '.': 55 * KiB, './three': 3 * KiB, './babylon': 2 * KiB, './worker': 62 * KiB, './gameplay': 76 * KiB,
     './cable': 28 * KiB, './water': 4 * KiB, './coupling': 29 * KiB, './frame': 27 * KiB, './structure': 32 * KiB, './heat': 28 * KiB,
     './solid': 80 * KiB, './fracture': 144 * KiB, './solid-contact': 142 * KiB, './cloth': 72 * KiB, './granular': 65 * KiB, './fluid': 57 * KiB, './shallow-water': 38 * KiB,
     './materials': 40 * KiB, './geometry': 33 * KiB, './scene-format': 92 * KiB, './robot': 74 * KiB, './scene': 460 * KiB, './simulation': 459 * KiB,
