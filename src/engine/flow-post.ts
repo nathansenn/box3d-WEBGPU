@@ -186,6 +186,8 @@ export interface FlowSection {
   readonly axis:'x'|'y'|'z';readonly position:number;
   /** Fluid area of the section, m^2; volume flow rate along +axis, m^3/s; the mean speed |Q| / area. */
   readonly area:number;readonly flowRate:number;readonly meanSpeed:number;
+  /** Largest speed, and largest velocity component along the axis (by magnitude), on the section, m/s. */
+  readonly maxSpeed:number;readonly maxNormalSpeed:number;
   /** Area average of the gauge pressure, Pa; the flux-weighted total pressure p + rho |u|^2 / 2; and the momentum-flux
    * factor beta = area int u_n^2 / Q^2 (1 for a flat profile, 4/3 for a parabola in a pipe). */
   readonly meanPressure:number;readonly meanTotalPressure:number;readonly momentumFactor:number;
@@ -197,16 +199,17 @@ export function flowSection(field:FlowField,density:number,axis:'x'|'y'|'z',posi
   const layer=Math.floor((position-g.origin[a])/h);
   if(layer<0||layer>=n[a])fail(`section: ${axis} = ${position} is outside the box.`);
   const vel=[field.ux,field.uy,field.uz][a],idx=[0,0,0];idx[a]=layer;
-  let area=0,q=0,p=0,pt=0,m2=0;
+  let area=0,q=0,p=0,pt=0,m2=0,vmax=0,nmax=0;
   for(let j=0;j<n[va];j++)for(let i=0;i<n[ua];i++){
     idx[ua]=i;idx[va]=j;const c=idx[0]+g.nx*(idx[1]+g.ny*idx[2]);
     if(!field.fluid[c])continue;
     if(bounds){const x=g.origin[ua]+(i+0.5)*h,y=g.origin[va]+(j+0.5)*h;if(x<bounds.min[ua]||x>bounds.max[ua]||y<bounds.min[va]||y>bounds.max[va])continue;}
     const un=vel[c],sq=field.ux[c]*field.ux[c]+field.uy[c]*field.uy[c]+field.uz[c]*field.uz[c];
     area++;q+=un;p+=field.pressure[c];pt+=(field.pressure[c]+0.5*density*sq)*un;m2+=un*un;
+    if(sq>vmax)vmax=sq;if(Math.abs(un)>nmax)nmax=Math.abs(un);
   }
   const dA=h*h;
-  return {axis,position,area:area*dA,flowRate:q*dA,meanSpeed:area>0?Math.abs(q)/area:0,meanPressure:area>0?p/area:0,meanTotalPressure:q!==0?pt/q:0,momentumFactor:q!==0?area*m2/(q*q):0};
+  return {axis,position,area:area*dA,flowRate:q*dA,meanSpeed:area>0?Math.abs(q)/area:0,maxSpeed:Math.sqrt(vmax),maxNormalSpeed:nmax,meanPressure:area>0?p/area:0,meanTotalPressure:q!==0?pt/q:0,momentumFactor:q!==0?area*m2/(q*q):0};
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

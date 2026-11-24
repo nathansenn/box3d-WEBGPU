@@ -53,19 +53,20 @@ export type FlowSide=
   /** A given gauge pressure on the whole side (an outflow). */
   |{readonly kind:'pressure';readonly pressure?:number;readonly name?:string};
 export type FlowPatchShape=
-  /** `normal` points into the fluid. */
+  /** `normal` points OUT of the fluid, through the opening (the outward normal of the fluid domain). */
   |{readonly kind:'disc';readonly center:FlowVec3;readonly normal:FlowVec3;readonly radius:number}
   |{readonly kind:'rect';readonly center:FlowVec3;readonly normal:FlowVec3;readonly up?:FlowVec3;readonly halfWidth:number;readonly halfHeight:number};
 export interface FlowPatch {
   readonly name:string;
   readonly kind:'inlet'|'outlet';
   readonly shape:FlowPatchShape;
-  /** Inlet: volume flow rate m^3/s, or the speed along the normal m/s, or the velocity vector. One of the three. */
+  /** Inlet: the volume flow rate INTO the fluid, m^3/s, or the mean speed into the fluid, m/s, or the velocity vector.
+   * One of the three. Outlet: `pressure`, or `flowRate` / `speed` OUT of the fluid. */
   readonly flowRate?:number;readonly speed?:number;readonly velocity?:FlowVec3;
   /** Inlet by flow rate or speed: 'uniform' (default), or 'parabolic': 1 - (r/R)^2 on a disc, (1 - (x/a)^2)(1 - (y/b)^2) on
    * a rectangle, scaled so that the flow rate (or the mean speed) is the one given. */
   readonly profile?:'uniform'|'parabolic';
-  /** Outlet: gauge pressure, Pa. Default 0. */
+  /** Outlet: gauge pressure, Pa. Default 0 when neither flowRate nor speed is given. */
   readonly pressure?:number;
 }
 /** A wall velocity for a part of the geometry: the solid stays where it is (a "frozen" rotor, a belt, a rolling wheel)
@@ -104,10 +105,16 @@ export interface FlowOptions {
   readonly referenceSpeed:number;
   /** Default 0.06 (a lattice Mach number of 0.10). */
   readonly latticeSpeed?:number;
-  /** 'auto' (default): Smagorinsky when the cell Reynolds number referenceSpeed h / nu exceeds 10, else none. */
+  /** 'auto' (default): Smagorinsky when the cell Reynolds number referenceSpeed h / nu exceeds 10 and the Reynolds
+   * number of the flow, when `reynolds` gives it, exceeds 2000; else none. */
   readonly turbulence?:'auto'|'none'|'smagorinsky';
+  /** Reynolds number of the flow (reference speed, a length of the body or the duct), for the 'auto' rule. */
+  readonly reynolds?:number;
   /** Smagorinsky constant. Default 0.16. */
   readonly smagorinsky?:number;
+  /** With the sub-grid model on: cells that touch a wall take the viscosity of a power-law wall function (Werner &
+   * Wengle) instead of the Smagorinsky formula. Default true. */
+  readonly wallFunction?:boolean;
   /** 'interpolated' (default): the wall is where the geometry puts it on every link; 'halfway': half-way, mass-exact. */
   readonly walls?:'interpolated'|'halfway';
   /** Body force per unit mass, m/s^2 (a pressure gradient that drives a periodic duct). */
@@ -120,10 +127,14 @@ export interface FlowOptions {
   readonly spongeCells?:number;
   /** Half width, in cells, of the band in which distances to the geometry are exact. Default 4. */
   readonly band?:number;
+  /** Keep the surface triangles of the parts (`surfaces`, for surface pressure and drawing). Default true. */
+  readonly surfaces?:boolean;
+  /** Grow walls thinner than 1.44 cells so that they do not leak. Default true. */
+  readonly thicken?:boolean;
 }
 export interface FlowPatchInfo {
   readonly name:string;readonly kind:'inlet'|'outlet';
-  /** Area the lattice gives the patch along its normal, m^2, and the normal (into the fluid). */
+  /** Area the lattice gives the patch along its normal, m^2, and the outward normal (out of the fluid). */
   readonly area:number;readonly normal:FlowVec3;
   /** Inlet: the velocity imposed, m/s. Outlet: the pressure, Pa. */
   readonly velocity:FlowVec3|null;readonly pressure:number|null;
@@ -146,7 +157,7 @@ export interface FlowField {
 const fail=(message:string):never=>{throw new EngineError('INVALID_ARGUMENT',`Flow: ${message}`);};
 const isVec=(v:unknown):v is FlowVec3=>Array.isArray(v)&&v.length===3&&v.every(x=>typeof x==='number'&&Number.isFinite(x));
 const vec=(v:unknown,name:string):FlowVec3=>isVec(v)?v:fail(`${name} must be three finite numbers.`);
-const FLOW_FIELDS:FieldOptions={label:'Flow',skip:['grid','lattice','fluid','dt','cell','latticeSpeed','referenceSpeed','turbulence','smagorinsky','cellReynolds','relaxationTime','parts','patches','voxels','warnings','surfaces','items','solidCells','fluidCells','enclosedCells','forceScale','momentScale','flowScale','pressureScale','velocityScale','rampSteps','kinds','inletVelocity','actuators','actuatorCells'],
+const FLOW_FIELDS:FieldOptions={label:'Flow',skip:['grid','lattice','fluid','dt','cell','latticeSpeed','referenceSpeed','turbulence','smagorinsky','cellReynolds','relaxationTime','parts','patches','voxels','warnings','surfaces','items','solidCells','fluidCells','enclosedCells','forceScale','momentScale','flowScale','pressureScale','velocityScale','rampSteps','kinds','inletVelocity','actuators','actuatorCells','geometryParts','thickening'],
   nested:{}};
 
 export class Flow {
@@ -160,6 +171,11 @@ export class Flow {
   readonly cellReynolds:number;readonly relaxationTime:number;
   /** Names of the parts that take force: the parts of the geometry, then the wall sides. */
   readonly parts:readonly string[];
+  /** The first `geometryParts` entries of `parts` are the parts of the geometry; the rest are wall sides of the box. */
+  readonly geometryParts:number;
+  /** What the voxeliser grew or could not hold: items grown to 1.44 cells and the largest growth (m), cells made solid
+   * to close thin closed meshes, and items thinner than a cell in two directions. */
+  readonly thickening:{readonly items:number;readonly largest:number;readonly closedCells:number;readonly slender:number};
   readonly patches:readonly FlowPatchInfo[];
   readonly actuators:readonly FlowActuatorInfo[];
   /** Cells of each actuator (indices into the lattice). */
@@ -172,7 +188,7 @@ export class Flow {
   readonly enclosedCells:number;
   private readonly forceScale:number;private readonly momentScale:number;private readonly flowScale:number;
   private readonly pressureScale:number;private readonly velocityScale:number;private readonly rampSteps:number;
-  private readonly kinds:Uint8Array;private readonly voxels:{distance:Float32Array};private readonly inletVelocity:Float64Array|null;
+  private readonly kinds:Uint8Array;private readonly voxels:{distance:Float32Array};private readonly inletVelocity:ReadonlyMap<number,readonly [number,number,number]>|null;
   time=0;
   // Sums since the last takeSums(): force and moment per part (lattice units), mass per patch, steps.
   private sumForce:Float64Array;private sumMoment:Float64Array;private sumMass:Float64Array;private sumWallMass=0;private sumSteps=0;
@@ -212,15 +228,16 @@ export class Flow {
     this.cellReynolds=options.referenceSpeed*h/this.fluid.viscosity;this.relaxationTime=3*nuLat+0.5;
     const mode=options.turbulence??'auto';
     if(mode!=='auto'&&mode!=='none'&&mode!=='smagorinsky')fail(`unknown turbulence "${mode}".`);
-    this.turbulence=mode==='auto'?(this.cellReynolds>10?'smagorinsky':'none'):mode;
+    this.turbulence=mode==='auto'?(this.cellReynolds>10&&(options.reynolds===undefined||options.reynolds>2000)?'smagorinsky':'none'):mode;
     this.smagorinsky=options.smagorinsky??0.16;
     if(!(this.smagorinsky>0&&this.smagorinsky<=0.5))fail('smagorinsky must be in (0, 0.5].');
     const warnings:string[]=[];
 
     // ---- geometry ----
-    const vox=flowVoxelize(options.geometry??[],this.grid,{band:options.band});
+    const vox=flowVoxelize(options.geometry??[],this.grid,{band:options.band,surfaces:options.surfaces,thicken:options.thicken});
     warnings.push(...vox.warnings);
-    this.surfaces=vox.surfaces;this.items=vox.items;
+    this.surfaces=vox.surfaces;this.items=vox.items;this.geometryParts=Math.max(1,vox.parts.length);
+    this.thickening={items:vox.thickenedItems,largest:vox.largestThickening,closedCells:vox.closedCells,slender:vox.slenderItems};
     const parts=[...vox.parts];
     for(const name of Object.keys(options.motion??{}))if(!parts.includes(name))fail(`motion names the part "${name}", which the geometry does not have. Parts: ${parts.join(', ')||'none'}.`);
     const lparts:FlowLatticePart[]=parts.map(name=>{
@@ -229,19 +246,15 @@ export class Flow {
       return {velocity:v?[v[0]/vScale,v[1]/vScale,v[2]/vScale]:undefined,angularVelocity:om?[om[0]*dt,om[1]*dt,om[2]*dt]:undefined,centre:[(ce[0]-origin[0])/h,(ce[1]-origin[1])/h,(ce[2]-origin[2])/h]};
     });
     const lpatches:FlowLatticePatch[]=[],patchNames:string[]=[],patchKinds:('inlet'|'outlet')[]=[];
-    const kind=new Uint8Array(cells),owner=new Int32Array(cells),distance=new Float32Array(cells);
+    const kind=new Uint8Array(cells),owner=new Int16Array(cells),distance=vox.distance;
     const hasGeometry=(options.geometry?.length??0)>0;
     // geometry and the cells of the fluid box
-    for(let c=0;c<cells;c++){
-      const d=hasGeometry?vox.distance[c]/h:vox.band;
-      distance[c]=d;
-      if(d<0){kind[c]=FLOW_WALL;owner[c]=vox.part[c]<0?0:vox.part[c];}
-    }
+    for(let c=0;c<cells;c++)if(distance[c]<0){kind[c]=FLOW_WALL;owner[c]=vox.part[c]<0?0:vox.part[c];}
     if(hasGeometry&&parts.length===0)parts.push('body'),lparts.push({});
     // sides: the boundary layer where the geometry is not solid. Order of precedence at edges: velocity, wall, pressure, slip.
     const sideOwner=new Int32Array(6).fill(-1),sideProfile:(((x:number,y:number,z:number)=>FlowVec3)|null)[]=[null,null,null,null,null,null];
     // velocity of single inlet cells where a profile is given (cells per step); weight of a cell in a parabolic patch
-    let cellVelocity:Float64Array|undefined,cellWeight:Float64Array|undefined;
+    let cellVelocity:Map<number,[number,number,number]>|undefined,cellWeight:Map<number,number>|undefined;
     const rank=(s:string):number=>s==='velocity'?3:s==='wall'?2:s==='pressure'?1:0;
     sides.forEach((s,index)=>{
       const k=sideKind[index],name=FLOW_SIDES[index];
@@ -267,7 +280,6 @@ export class Flow {
         sideOwner[index]=lpatches.length;lpatches.push({density:1+p/this.pressureScale});patchNames.push(spec.name??name);patchKinds.push('outlet');
       }
     });
-    const ghostSide=new Int8Array(cells).fill(-1);
     for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
       let best=-1;
       const consider=(index:number):void=>{if(best<0||rank(sideKind[index])>rank(sideKind[best]))best=index;};
@@ -275,23 +287,22 @@ export class Flow {
       if(pad[1]){if(j===0)consider(2);else if(j===ny-1)consider(3);}
       if(pad[2]){if(k===0)consider(4);else if(k===nz-1)consider(5);}
       if(best<0)continue;
-      ghostSide[c]=best;
       if(kind[c]===FLOW_WALL)continue; // the geometry reaches through the side
       const sk=sideKind[best];
       kind[c]=sk==='wall'?FLOW_WALL:sk==='slip'?FLOW_SLIP:sk==='velocity'?FLOW_VELOCITY:FLOW_PRESSURE;
       owner[c]=sk==='slip'?0:sideOwner[best];
-      if(sk==='wall')distance[c]=NaN; // half-way
       const profile=sideProfile[best];
       if(sk==='velocity'&&profile){
         // the velocity on the side of the box, in front of this boundary cell
         const pos=[origin[0]+(i+0.5)*h,origin[1]+(j+0.5)*h,origin[2]+(k+0.5)*h],a=best>>1;pos[a]=(best&1)===0?origin[a]+h:origin[a]+([nx,ny,nz][a]-1)*h;
         const v=vec(profile(pos[0],pos[1],pos[2]),`${FLOW_SIDES[best]}.velocity()`);
-        cellVelocity??=new Float64Array(3*cells);cellVelocity[3*c]=v[0]/vScale;cellVelocity[3*c+1]=v[1]/vScale;cellVelocity[3*c+2]=v[2]/vScale;
+        (cellVelocity??=new Map()).set(c,[v[0]/vScale,v[1]/vScale,v[2]/vScale]);
       }
     }
     // patches: the cells behind the plane of each opening
+    const backCells:number[]=[];
     const patchNormals:FlowVec3[]=lpatches.map((_,i)=>{const side=sideOwner.indexOf(i),a=side>>1,n:[number,number,number]=[0,0,0];n[a]=(side&1)===0?1:-1;return n;});
-    const pendingRates:{index:number;patch:FlowPatch;normal:FlowVec3}[]=[];
+    const pendingRates:{index:number;patch:FlowPatch;normal:FlowVec3}[]=[],patchCentres:(FlowVec3|null)[]=lpatches.map(()=>null);
     for(const patch of options.patches??[]){
       if(!patch||typeof patch.name!=='string'||patch.name.length===0)fail('a patch needs a name.');
       if(patchNames.includes(patch.name))fail(`two patches are named "${patch.name}".`);
@@ -300,7 +311,8 @@ export class Flow {
       if(!sh||(sh.kind!=='disc'&&sh.kind!=='rect'))fail(`patch "${patch.name}": shape.kind must be 'disc' or 'rect'.`);
       const ce=vec(sh.center,`patch "${patch.name}": center`),nr=vec(sh.normal,`patch "${patch.name}": normal`),nl=Math.hypot(nr[0],nr[1],nr[2]);
       if(!(nl>0))fail(`patch "${patch.name}": normal must not be zero.`);
-      const n:FlowVec3=[nr[0]/nl,nr[1]/nl,nr[2]/nl];
+      // n points into the fluid (the study gives the outward normal)
+      const n:FlowVec3=[-nr[0]/nl,-nr[1]/nl,-nr[2]/nl];
       const parabolic=patch.profile==='parabolic';
       if(patch.profile!==undefined&&patch.profile!=='uniform'&&!parabolic)fail(`patch "${patch.name}": profile must be 'uniform' or 'parabolic'.`);
       // weight of a point of the plane: 0 outside the shape, else 1 or the parabolic profile
@@ -323,22 +335,37 @@ export class Flow {
         const x=origin[0]+(i+0.5)*h-ce[0],y=origin[1]+(j+0.5)*h-ce[1],z=origin[2]+(k+0.5)*h-ce[2],s=x*n[0]+y*n[1]+z*n[2];
         if(s>1e-9*h||s<-2.5*h)continue;
         const wt=inside(x,y,z);if(wt===0)continue;
-        kind[c]=patch.kind==='inlet'?FLOW_VELOCITY:FLOW_PRESSURE;owner[c]=index;marked++;
-        if(parabolic&&patch.kind==='inlet'){cellWeight??=new Float64Array(cells);cellWeight[c]=wt;}
+        kind[c]=patch.kind==='inlet'||patch.flowRate!==undefined||patch.speed!==undefined||patch.velocity!==undefined?FLOW_VELOCITY:FLOW_PRESSURE;owner[c]=index;marked++;
+        if(parabolic&&kind[c]===FLOW_VELOCITY)(cellWeight??=new Map()).set(c,wt);
       }
-      if(marked===0)fail(`patch "${patch.name}" covers no cell: its plane must lie in the box or on one of its sides, with the normal pointing into the fluid.`);
-      patchNames.push(patch.name);patchKinds.push(patch.kind);patchNormals.push(n);
-      if(patch.kind==='inlet'){
-        const given=[patch.flowRate,patch.speed,patch.velocity].filter(v=>v!==undefined).length;
-        if(given!==1)fail(`inlet "${patch.name}" needs exactly one of flowRate, speed and velocity.`);
-        if(parabolic&&patch.velocity)fail(`inlet "${patch.name}": a parabolic profile needs flowRate or speed, not a velocity vector.`);
-        if(patch.velocity){const v=vec(patch.velocity,`inlet "${patch.name}": velocity`);lpatches.push({velocity:[v[0]/vScale,v[1]/vScale,v[2]/vScale]});}
+      if(marked===0)fail(`patch "${patch.name}" covers no cell: its plane must lie in the box or on one of its sides, with the normal pointing out of the fluid.`);
+      patchNames.push(patch.name);patchKinds.push(patch.kind);patchNormals.push(n);patchCentres.push(ce);
+      const given=[patch.flowRate,patch.speed,patch.velocity].filter(v=>v!==undefined).length;
+      if(patch.kind==='inlet'||given>0){
+        if(given!==1)fail(`${patch.kind} "${patch.name}" needs exactly one of flowRate, speed and velocity${patch.kind==='outlet'?', or a pressure':''}.`);
+        if(patch.kind==='outlet'&&patch.pressure!==undefined)fail(`outlet "${patch.name}" has both a pressure and a flow.`);
+        if(parabolic&&patch.velocity)fail(`${patch.kind} "${patch.name}": a parabolic profile needs flowRate or speed, not a velocity vector.`);
+        if(patch.velocity){const v=vec(patch.velocity,`${patch.kind} "${patch.name}": velocity`);lpatches.push({velocity:[v[0]/vScale,v[1]/vScale,v[2]/vScale]});}
         else{lpatches.push({velocity:[0,0,0]});pendingRates.push({index,patch,normal:n});}
       }else{
         const p=patch.pressure??0;if(!Number.isFinite(p))fail(`outlet "${patch.name}": pressure must be finite.`);
         lpatches.push({density:1+p/this.pressureScale});
       }
     }
+    // an opening is open to the fluid in front of it only: cells of its slab that touch no fluid cell in front of the
+    // plane are wall, so that fluid behind the opening (outside a pipe that ends in the box) is not fed by its back
+    for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
+      if(kind[c]!==FLOW_VELOCITY&&kind[c]!==FLOW_PRESSURE)continue;
+      const ce=patchCentres[owner[c]];if(!ce)continue;
+      const n=patchNormals[owner[c]];let front=false;
+      for(let d=1;d<19&&!front;d++){
+        const a=i+FLOW_CX[d],b=j+FLOW_CY[d],e=k+FLOW_CZ[d];if(a<0||b<0||e<0||a>=nx||b>=ny||e>=nz)continue;
+        if(kind[a+nx*(b+ny*e)]!==FLOW_FLUID)continue;
+        if((origin[0]+(a+0.5)*h-ce[0])*n[0]+(origin[1]+(b+0.5)*h-ce[1])*n[1]+(origin[2]+(e+0.5)*h-ce[2])*n[2]>0)front=true;
+      }
+      if(!front)backCells.push(c);
+    }
+    for(const c of backCells){kind[c]=FLOW_WALL;owner[c]=vox.part[c]<0?0:vox.part[c];}
     // cells no opening reaches become solid
     let enclosed=0;
     if(lpatches.length>0){
@@ -355,7 +382,7 @@ export class Flow {
       while(stack.length>0){const idx=stack.pop()!,i=idx%nx,j=Math.floor(idx/nx)%ny,k=Math.floor(idx/(nx*ny));for(let d=1;d<19;d++)visit(i+FLOW_CX[d],j+FLOW_CY[d],k+FLOW_CZ[d]);}
       for(let c=0;c<cells;c++)if(kind[c]===FLOW_FLUID&&!reached[c]){
         if(parts.length===0){parts.push('body');lparts.push({});}
-        kind[c]=FLOW_WALL;owner[c]=vox.part[c]<0?0:vox.part[c];distance[c]=NaN;enclosed++;
+        kind[c]=FLOW_WALL;owner[c]=vox.part[c]<0?0:vox.part[c];enclosed++;
       }
     }
     this.enclosedCells=enclosed;
@@ -372,7 +399,7 @@ export class Flow {
         if(e<0||e>=nz){if(!periodic[2])continue;e=(e+nz)%nz;}
         if(kind[a+nx*(b+ny*e)]!==FLOW_FLUID)continue;
         const w=6*FLOW_WEIGHT[d];areaVec[3*p]+=w*FLOW_CX[d];areaVec[3*p+1]+=w*FLOW_CY[d];areaVec[3*p+2]+=w*FLOW_CZ[d];
-        if(cellWeight){const ww=w*cellWeight[c];weighted[3*p]+=ww*FLOW_CX[d];weighted[3*p+1]+=ww*FLOW_CY[d];weighted[3*p+2]+=ww*FLOW_CZ[d];}
+        if(cellWeight){const ww=w*(cellWeight.get(c)??0);weighted[3*p]+=ww*FLOW_CX[d];weighted[3*p+1]+=ww*FLOW_CY[d];weighted[3*p+2]+=ww*FLOW_CZ[d];}
         if(d<=6)touch[p]++;
       }
     }
@@ -382,28 +409,22 @@ export class Flow {
       const pending=pendingRates.find(r=>r.index===p);
       if(pending){
         if(!(area>0))fail(`inlet "${pending.patch.name}" touches no fluid cell.`);
-        const speed=pending.patch.flowRate!==undefined?pending.patch.flowRate/area:pending.patch.speed!;
-        if(!Number.isFinite(speed))fail(`inlet "${pending.patch.name}": flowRate or speed must be finite.`);
+        // into the fluid for an inlet, out of it for an outlet
+        const speed=(pending.patch.kind==='inlet'?1:-1)*(pending.patch.flowRate!==undefined?pending.patch.flowRate/area:pending.patch.speed!);
+        if(!Number.isFinite(speed))fail(`${pending.patch.kind} "${pending.patch.name}": flowRate or speed must be finite.`);
         lpatches[p]={velocity:[speed*n[0]/vScale,speed*n[1]/vScale,speed*n[2]/vScale]};
         if(pending.patch.profile==='parabolic'&&cellWeight){
           // every cell of the patch takes its weight times the factor that keeps the flow rate
           const wArea=(weighted[3*p]*n[0]+weighted[3*p+1]*n[1]+weighted[3*p+2]*n[2])*h*h,factor=speed*area/wArea/vScale;
-          cellVelocity??=new Float64Array(3*cells);
-          for(let c=0;c<cells;c++)if(kind[c]===FLOW_VELOCITY&&owner[c]===p){const f=factor*cellWeight[c];cellVelocity[3*c]=f*n[0];cellVelocity[3*c+1]=f*n[1];cellVelocity[3*c+2]=f*n[2];}
+          cellVelocity??=new Map();
+          for(const [c,wt] of cellWeight)if(kind[c]===FLOW_VELOCITY&&owner[c]===p){const f=factor*wt;cellVelocity.set(c,[f*n[0],f*n[1],f*n[2]]);}
         }
       }
       if(touch[p]===0)warnings.push(`patch "${patchNames[p]}" touches no fluid cell: nothing flows through it.`);
       const lv=lpatches[p].velocity,ld=lpatches[p].density;
-      infos.push({name:patchNames[p],kind:patchKinds[p],area,normal:n,velocity:lv?[lv[0]*vScale,lv[1]*vScale,lv[2]*vScale]:null,pressure:ld!==undefined?(ld-1)*this.pressureScale:null,cells:touch[p]});
+      infos.push({name:patchNames[p],kind:patchKinds[p],area,normal:[-n[0],-n[1],-n[2]],velocity:lv?[lv[0]*vScale,lv[1]*vScale,lv[2]*vScale]:null,pressure:ld!==undefined?(ld-1)*this.pressureScale:null,cells:touch[p]});
       if(lv){const s=Math.hypot(lv[0],lv[1],lv[2]);if(s>0.3)fail(`patch "${patchNames[p]}": its speed ${(s*vScale).toPrecision(3)} m/s is ${(s/uLat).toFixed(1)} times referenceSpeed; raise referenceSpeed.`);
         else if(s>1.5*uLat+1e-12)warnings.push(`patch "${patchNames[p]}": its speed ${(s*vScale).toPrecision(3)} m/s exceeds referenceSpeed ${options.referenceSpeed.toPrecision(3)} m/s; the lattice Mach number there is ${(s*Math.sqrt(3)).toFixed(2)}.`);}
-    }
-    if(cellVelocity){
-      // cells of the patches without a profile take the velocity of their patch
-      const given=new Uint8Array(lpatches.length);
-      sideProfile.forEach((f,side)=>{if(f)given[sideOwner[side]]=1;});
-      for(const r of pendingRates)if(r.patch.profile==='parabolic')given[r.index]=1;
-      for(let c=0;c<cells;c++)if(kind[c]===FLOW_VELOCITY&&!given[owner[c]]){const v=lpatches[owner[c]].velocity!;cellVelocity[3*c]=v[0];cellVelocity[3*c+1]=v[1];cellVelocity[3*c+2]=v[2];}
     }
     this.parts=parts;this.patches=infos;this.inletVelocity=cellVelocity??null;
     // sponge in front of the pressure sides
@@ -448,7 +469,7 @@ export class Flow {
     const acc=options.acceleration?vec(options.acceleration,'acceleration'):[0,0,0],u0=options.initialVelocity?vec(options.initialVelocity,'initialVelocity'):[0,0,0];
     const aScale=dt*dt/h;
     this.lattice=new FlowLattice({nx,ny,nz,periodic,kind,owner,distance,walls:options.walls??'interpolated',parts:lparts,patches:lpatches,viscosity:nuLat,
-      smagorinsky:this.turbulence==='smagorinsky'?this.smagorinsky:0,force:[acc[0]*aScale,acc[1]*aScale,acc[2]*aScale],initialVelocity:[u0[0]/vScale,u0[1]/vScale,u0[2]/vScale],extraViscosity:extra,cellVelocity,
+      smagorinsky:this.turbulence==='smagorinsky'?this.smagorinsky:0,wallFunction:options.wallFunction,force:[acc[0]*aScale,acc[1]*aScale,acc[2]*aScale],initialVelocity:[u0[0]/vScale,u0[1]/vScale,u0[2]/vScale],extraViscosity:extra,cellVelocity,
       forceCells:fCells.length?Int32Array.from(fCells):undefined,forceValues:fCells.length?Float64Array.from(fValues):undefined});
     this.kinds=kind;this.voxels={distance:vox.distance};
     this.solidCells=cells-this.lattice.fluidCells;this.fluidCells=this.lattice.fluidCells;
@@ -502,8 +523,8 @@ export class Flow {
   excessVolume():number{return this.lattice.excessMass()*this.cell*this.cell*this.cell;}
   /** Largest speed in the last step, m/s. */
   maxSpeed():number{
-    const {ux,uy,uz,cells}=this.lattice;let m=0;
-    for(let c=0;c<cells;c++){const s=ux[c]*ux[c]+uy[c]*uy[c]+uz[c]*uz[c];if(s>m)m=s;}
+    const {ux,uy,uz,fluidCells}=this.lattice;let m=0;
+    for(let c=0;c<fluidCells;c++){const s=ux[c]*ux[c]+uy[c]*uy[c]+uz[c]*uz[c];if(s>m)m=s;}
     return Math.sqrt(m)*this.velocityScale;
   }
   /** False when the run has blown up (a density or velocity that is not finite, or a speed above the sound speed). */
@@ -511,7 +532,7 @@ export class Flow {
 
   /** Add the fields of the last step to the time averages. */
   accumulate():void{
-    const L=this.lattice,n=L.cells;
+    const L=this.lattice,n=L.fluidCells;
     if(!this.meanDensity){this.meanDensity=new Float64Array(n);this.meanUx=new Float64Array(n);this.meanUy=new Float64Array(n);this.meanUz=new Float64Array(n);}
     const md=this.meanDensity,mx=this.meanUx!,my=this.meanUy!,mz=this.meanUz!,d=L.density,ux=L.ux,uy=L.uy,uz=L.uz;
     for(let c=0;c<n;c++){md[c]+=d[c];mx[c]+=ux[c];my[c]+=uy[c];mz[c]+=uz[c];}
@@ -527,7 +548,8 @@ export class Flow {
     const w=mean?1/this.meanSamples:1,sd=mean?this.meanDensity!:L.density,sx=mean?this.meanUx!:L.ux,sy=mean?this.meanUy!:L.uy,sz=mean?this.meanUz!:L.uz;
     const vs=this.velocityScale*w,ps=this.pressureScale*w;
     const fluid=new Uint8Array(n),ux=new Float32Array(n),uy=new Float32Array(n),uz=new Float32Array(n),pressure=new Float32Array(n);
-    for(let c=0;c<n;c++)if(kind[c]===FLOW_FLUID){fluid[c]=1;ux[c]=sx[c]*vs;uy[c]=sy[c]*vs;uz[c]=sz[c]*vs;pressure[c]=sd[c]*ps;}
+    const cellOf=L.cellOf;
+    for(let a=0;a<L.fluidCells;a++){const c=cellOf[a];fluid[c]=1;ux[c]=sx[a]*vs;uy[c]=sy[a]*vs;uz[c]=sz[a]*vs;pressure[c]=sd[a]*ps;}
     // cells that are not fluid: pressure from the fluid around; velocity zero in walls, imposed in inlets, copied elsewhere
     const per=L.periodic;
     for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
@@ -546,7 +568,8 @@ export class Flow {
       const kc=kind[c];
       if(kc===FLOW_VELOCITY){
         const iv=this.inletVelocity,sc=this.velocityScale;
-        if(iv){ux[c]=iv[3*c]*sc;uy[c]=iv[3*c+1]*sc;uz[c]=iv[3*c+2]*sc;}else{const v=this.patches[L.owner[c]].velocity!;ux[c]=v[0];uy[c]=v[1];uz[c]=v[2];}
+        const pv=iv?.get(c);
+        if(pv){ux[c]=pv[0]*sc;uy[c]=pv[1]*sc;uz[c]=pv[2]*sc;}else{const v=this.patches[L.owner[c]].velocity!;ux[c]=v[0];uy[c]=v[1];uz[c]=v[2];}
       }
       else if(kc!==FLOW_WALL){ux[c]=vx/count;uy[c]=vy/count;uz[c]=vz/count;}
     }
