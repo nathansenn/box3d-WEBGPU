@@ -236,8 +236,8 @@ export const DOMAINS = [
       'Laminar flow at small relaxation times: a pipe at Re 1107 (12.6 and 17.9 cells across, relaxation time 0.501 to 0.5015) loses 63% and 42% too much pressure with the regularised collision, which moves a bounce-back wall on a staircase; the two-relaxation-time collision that does not diverged there. The pipe row is at Re 100.',
       'Bodies are 8 to 10 cells across and the tunnels bounded (blockage 3 to 6%, not corrected): drag is within 15 to 20%, not better. Lift, moments, surface pressure distributions other than the stagnation value, and wake lengths of three-dimensional bodies have no row.',
       'Turbulence statistics (spectra, Reynolds stresses), skin friction on bodies and heat transfer have no row. The wall function was checked on a tunnel floor only (Cf 0.0055).',
-      'Reference values: the cylinder rows use computations tabulated by Cui et al. (2019); Hoerner\'s drag coefficients and the Armaly reattachment length were read from published figures and tables as quoted, not from measurements made here.',
-      'Cost: one JavaScript thread; a study of 400,000 cells runs for minutes. The WebGPU kernel is checked against its float32 reference only (docs/GPU_COMPUTE.md).',
+      'Reference values: the cylinder rows use the computations tabulated by Cui et al. (2019), whose tables were read; Williamson\'s Strouhal fit, the Schiller-Naumann correlation, Hoerner\'s drag coefficients (1.05, 1.17) and Armaly\'s reattachment length (about 3.0 at Re 100) are from memory, not checked against a source opened while writing.',
+      'Cost: one JavaScript thread; a study of 400,000 cells runs for minutes. The WebGPU step compiles and encodes on Dawn and its float32 reference follows the float64 solver; the shader has not been run on a device (docs/GPU_COMPUTE.md).',
     ],
   },
   {

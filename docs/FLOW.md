@@ -422,8 +422,10 @@ Hagen-Poiseuille (float64: 1.8%). The study runner does not use the GPU. Details
 same bands by `packages/box3d-kit/test/v24-flow.test.mjs`; the set-ups are in `packages/box3d-kit/test/flow-scenarios.mjs`.
 Every measured number below was produced by running the solver (`node scripts/validation-report.mjs --only flow`, all
 40 pass). Bands were chosen from the resolution of each case and are stated before the result; a case that misses its
-band is listed under "Measured, not in the registry" instead of having its band widened. Wall times are of single runs
-on a 4-core machine shared with two other jobs (load 8 to 11), so roughly twice what an idle machine takes.
+band is listed under "Measured, not in the registry" instead of having its band widened. The cylinder references were
+read from the tables of Cui et al. (2019); Williamson's Strouhal fit, the Schiller-Naumann correlation, Hoerner's drag
+coefficients and Armaly's reattachment length are from memory, not checked against a source opened while writing. Wall times are of single runs
+on a 4-core machine shared with two other jobs (load 8 to 11); an idle machine was not measured.
 
 | Case | Reference | Measured | Error | Band | Resolution | Wall time |
 |---|---|---:|---:|---|---|---:|
@@ -448,7 +450,7 @@ on a 4-core machine shared with two other jobs (load 8 to 11), so roughly twice 
 | Square plate, Re 1e5: Cd | Hoerner 1.17 | 1.039 | -11.2% | ±15% | 8 cells, plate grown to 1.44 cells | 181 s |
 | Building 12 x 30 x 20 m on fixed ground, study runner defaults: Cd | apex band 1.0 to 1.7 | 1.107 | in band | 1.35 ± 0.35 | 8.2 cells across, blockage 2.9% | 114 s |
 | Same: largest surface Cp | 1 | 1.163 | +0.163 | ±0.2 | same | |
-| Backward-facing step, Re 100: x_r / S | Armaly et al. (1983), read from the figure: 3.0 | 2.758 | -8.1% | ±12% | 16 cells over the inlet channel | 29 s |
+| Backward-facing step, Re 100: x_r / S | Armaly et al. (1983), from memory: 3.0 | 2.758 | -8.1% | ±12% | 16 cells over the inlet channel | 29 s |
 | Sudden expansion D2 = 2 D1, Re 5e4: pressure rise | Borda-Carnot 0.1875 rho U1² | 0.1995 | +6.39% | ±15% | 7.6 cells across D1, LES | 75 s |
 | Symmetric tee: split to one arm | 1/2 | 0.4821 | -0.018 | ±0.03 | about 8 cells across, LES | 21 s |
 | Symmetric tee: mass balance | 0 | 9.0e-5 | | ±1e-3 | same | |
@@ -486,14 +488,14 @@ at affordable resolution.** At Re 100 the same study is within 4.8%.
 
 ## Cost
 
-One JavaScript thread, float64. The cost is the number of fluid cells times the number of steps; a step costs about
-0.3 microseconds per fluid cell on this machine under load (2.2 to 3.8 million cell updates per second measured in the
-demo studies below; about twice that on an idle core). The step count is the run length in transits times the box
+One JavaScript thread, float64. The cost is the number of fluid cells times the number of steps; a step costs 0.24
+to 0.45 microseconds per fluid cell on this machine under load (2.2 to 4.2 million cell updates per second measured in
+the demo studies below; not measured on an idle machine). The step count is the run length in transits times the box
 length in cells over `latticeSpeed` (0.06 cells per step): a box 100 cells long takes 1,700 steps per transit.
 
 | Demo study (flow-demo.html, the same documents run by `runFlowStudy` on Node) | Box cells | Fluid cells | Steps | Wall time | Cell updates per second |
 |---|---:|---:|---:|---:|---:|
-| Car-like body on a moving ground, 30 m/s | 215,604 | 187,143 | 4,625 | 227 s | 3.8 M |
+| Car-like body on a moving ground, 30 m/s | 215,604 | 187,143 | 4,625 | 206 s | 4.2 M |
 | Cylinder wake, Re 100 | 71,100 | 45,452 | 7,400 | 100 s | 3.4 M |
 | Pipe bend and manifold, water | 383,616 | 46,472 | 16,000 | 343 s | 2.2 M |
 | Tank with three inlets and one outlet, water | 243,360 | 72,070 | 5,867 | 131 s | 3.2 M |

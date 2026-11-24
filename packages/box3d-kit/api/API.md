@@ -13154,11 +13154,15 @@ export declare const thackerFrequency: (h0: number, a: number, gravity?: number)
 
 ### createFlowStudy · function
 
+Set up a study and return a run to advance one monitor interval at a time (`advance()`) and to read (`result()`).
+
 ```ts
 export declare function createFlowStudy(study: unknown, options?: FlowStudyOptions): FlowStudyRun;
 ```
 
 ### Flow · class
+
+The flow solver in SI units: a lattice-Boltzmann flow around and through voxelised geometry, with forces per part, flow rates through openings, time averages, fields and exact checkpoints.
 
 ```ts
 export declare class Flow {
@@ -13224,11 +13228,15 @@ export declare const FLOW_CX: readonly number[];
 
 ### FLOW_CY · const
 
+y components of the D3Q19 velocities.
+
 ```ts
 export declare const FLOW_CY: readonly number[];
 ```
 
 ### FLOW_CZ · const
+
+z components of the D3Q19 velocities.
 
 ```ts
 export declare const FLOW_CZ: readonly number[];
@@ -13236,10 +13244,10 @@ export declare const FLOW_CZ: readonly number[];
 
 ### FLOW_FLUID · const
 
-Cell kinds of the lattice.
+Cell kind: fluid.
 
 ```ts
-export declare const FLOW_FLUID = 0, FLOW_WALL = 1, FLOW_VELOCITY = 2, FLOW_PRESSURE = 3, FLOW_SLIP = 4;
+export declare const FLOW_FLUID = 0;
 ```
 
 ### FLOW_FLUIDS · const
@@ -13252,11 +13260,15 @@ export declare const FLOW_FLUIDS: Readonly<Record<'air' | 'water', FlowFluid>>;
 
 ### FLOW_LATTICE_ID · const
 
+The solver id of the lattice-Boltzmann kernel (D3Q19, regularised collision, sub-grid model, float64).
+
 ```ts
 export declare const FLOW_LATTICE_ID = "flow-lbm-d3q19-regularized-les-js-f64-v1";
 ```
 
 ### FLOW_LIMITS · const
+
+The standing limits of the solver (`limits` of a result).
 
 ```ts
 export declare const FLOW_LIMITS: readonly string[];
@@ -13285,17 +13297,23 @@ export declare const FLOW_MAX_CELLS: number;
 
 ### FLOW_OPPOSITE · const
 
+Index of the velocity opposite to each D3Q19 velocity.
+
 ```ts
 export declare const FLOW_OPPOSITE: readonly number[];
 ```
 
 ### FLOW_PRESSURE · const
 
+Cell kind: a pressure outlet.
+
 ```ts
-export declare const FLOW_FLUID = 0, FLOW_WALL = 1, FLOW_VELOCITY = 2, FLOW_PRESSURE = 3, FLOW_SLIP = 4;
+export declare const FLOW_PRESSURE = 3;
 ```
 
 ### FLOW_RESULT_FORMAT · const
+
+The format string of a result document.
 
 ```ts
 export declare const FLOW_RESULT_FORMAT = "box3d-flow-result/1";
@@ -13303,17 +13321,23 @@ export declare const FLOW_RESULT_FORMAT = "box3d-flow-result/1";
 
 ### FLOW_SIDES · const
 
+The six sides of the box, in the order of their indices.
+
 ```ts
 export declare const FLOW_SIDES: readonly FlowSideName[];
 ```
 
 ### FLOW_SLIP · const
 
+Cell kind: a slip (specular) side.
+
 ```ts
-export declare const FLOW_FLUID = 0, FLOW_WALL = 1, FLOW_VELOCITY = 2, FLOW_PRESSURE = 3, FLOW_SLIP = 4;
+export declare const FLOW_SLIP = 4;
 ```
 
 ### FLOW_SOLVER_ID · const
+
+The solver id written to results (`solver.id`).
 
 ```ts
 export declare const FLOW_SOLVER_ID = "flow-lbm-d3q19-regularized-les-js-f64-v1";
@@ -13321,17 +13345,23 @@ export declare const FLOW_SOLVER_ID = "flow-lbm-d3q19-regularized-les-js-f64-v1"
 
 ### FLOW_SOLVER_VERSION · const
 
+The version of the solver written to results (`solver.version`).
+
 ```ts
 export declare const FLOW_SOLVER_VERSION = "1.0.0";
 ```
 
 ### FLOW_STATEMENT · const
 
+What the solver is, in one paragraph (`solver.statement` of a result).
+
 ```ts
 export declare const FLOW_STATEMENT = "Weakly compressible lattice-Boltzmann (D3Q19, regularised collision) with a Smagorinsky sub-grid model and a power-law wall function on smooth walls, on a uniform grid of cubic cells, float64, deterministic. Above a cell Reynolds number of about 10 it is an under-resolved large-eddy simulation: an engineering estimate, not certified CFD.";
 ```
 
 ### FLOW_STUDY_FORMAT · const
+
+The format string of a study document.
 
 ```ts
 export declare const FLOW_STUDY_FORMAT = "box3d-flow-study/1";
@@ -13347,17 +13377,23 @@ export declare const FLOW_THIN_CELLS = 1.44;
 
 ### FLOW_VELOCITY · const
 
+Cell kind: a velocity inlet.
+
 ```ts
-export declare const FLOW_FLUID = 0, FLOW_WALL = 1, FLOW_VELOCITY = 2, FLOW_PRESSURE = 3, FLOW_SLIP = 4;
+export declare const FLOW_VELOCITY = 2;
 ```
 
 ### FLOW_WALL · const
 
+Cell kind: a wall (geometry, or a wall side of the box).
+
 ```ts
-export declare const FLOW_FLUID = 0, FLOW_WALL = 1, FLOW_VELOCITY = 2, FLOW_PRESSURE = 3, FLOW_SLIP = 4;
+export declare const FLOW_WALL = 1;
 ```
 
 ### FLOW_WEIGHT · const
+
+Weights of the D3Q19 velocities: 1/3, 1/18 (axis), 1/36 (edge).
 
 ```ts
 export declare const FLOW_WEIGHT: readonly number[];
@@ -13380,6 +13416,8 @@ export interface FlowActuator {
 ```
 
 ### FlowActuatorInfo · interface
+
+An actuator disc as set up: its cells, force, axis and area.
 
 ```ts
 export interface FlowActuatorInfo {
@@ -13438,6 +13476,8 @@ export interface FlowBox extends ItemBase {
 
 ### FlowCapsule · interface
 
+A capsule: a segment (from and to, or centre, rotation and full length along local +y) swept by a sphere of `radius`.
+
 ```ts
 export interface FlowCapsule extends ItemBase, AxisPlacement {
     readonly kind: 'capsule';
@@ -13458,6 +13498,8 @@ export interface FlowCone extends ItemBase, AxisPlacement {
 ```
 
 ### FlowCylinder · interface
+
+A flat-ended cylinder along its axis (from and to, or centre, rotation and full length along local +y).
 
 ```ts
 export interface FlowCylinder extends ItemBase, AxisPlacement {
@@ -13484,6 +13526,8 @@ export interface FlowField {
 ```
 
 ### FlowFluid · interface
+
+A Newtonian fluid of constant properties.
 
 ```ts
 export interface FlowFluid {
@@ -13519,6 +13563,8 @@ export declare function flowGeometryBounds(items: readonly FlowItem[]): {
 
 ### FlowGrid · interface
 
+A box of cubic cells: origin (its minimum corner), cell size and cell counts.
+
 ```ts
 export interface FlowGrid {
     readonly origin: FlowVec3;
@@ -13531,11 +13577,15 @@ export interface FlowGrid {
 
 ### FlowItem · type
 
+An item of the geometry: a primitive or a mesh, solid or cavity.
+
 ```ts
 export type FlowItem = FlowPrimitive | FlowMesh;
 ```
 
 ### FlowItemReport · interface
+
+What the grid did to one item: its smallest dimension, what was added so that it does not leak, its surface and how much of it is unresolved.
 
 ```ts
 export interface FlowItemReport {
@@ -13568,6 +13618,8 @@ export declare function flowItemsFromApexGeometry(document: unknown, options?: F
 ```
 
 ### FlowLattice · class
+
+The lattice-Boltzmann kernel in lattice units (cell 1, step 1, density 1): streaming, boundary links, collision and the sums of forces and flow rates. `Flow` builds one from SI options.
 
 ```ts
 export declare class FlowLattice {
@@ -13618,6 +13670,8 @@ export declare class FlowLattice {
 
 ### FlowLatticeOptions · interface
 
+Options of `FlowLattice`: the box of cells, their kinds and owners, the walls and the fluid, in lattice units.
+
 ```ts
 export interface FlowLatticeOptions {
     readonly nx: number;
@@ -13649,6 +13703,8 @@ export interface FlowLatticeOptions {
 
 ### FlowLatticePart · interface
 
+A part of the walls in lattice units: its velocity and angular velocity (a moving ground, a frozen rotor).
+
 ```ts
 export interface FlowLatticePart {
     readonly velocity?: readonly [number, number, number];
@@ -13658,6 +13714,8 @@ export interface FlowLatticePart {
 ```
 
 ### FlowLatticePatch · interface
+
+An inlet (a velocity) or an outlet (a density) in lattice units.
 
 ```ts
 export interface FlowLatticePatch {
@@ -13676,6 +13734,8 @@ export declare function flowLine(field: FlowField, from: FlowVec3, to: FlowVec3,
 
 ### FlowLine · interface
 
+The fields along a line, and where a velocity component changes sign.
+
 ```ts
 export interface FlowLine {
     readonly from: FlowVec3;
@@ -13693,6 +13753,8 @@ export interface FlowLine {
 
 ### FlowMesh · interface
 
+A triangle mesh: closed components are solids, open ones surfaces of a thickness; `elements` give per-run flags.
+
 ```ts
 export interface FlowMesh extends ItemBase {
     readonly kind: 'mesh';
@@ -13708,6 +13770,8 @@ export interface FlowMesh extends ItemBase {
 
 ### FlowMeshElement · interface
 
+A run of triangles of one model element, closed (a solid) or open (a surface of a thickness).
+
 ```ts
 export interface FlowMeshElement {
     readonly element?: string | number;
@@ -13719,6 +13783,8 @@ export interface FlowMeshElement {
 ```
 
 ### FlowOptions · interface
+
+Options of `Flow`: the grid, geometry, fluid, sides, openings, motion, actuators, model and run settings, SI units.
 
 ```ts
 export interface FlowOptions {
@@ -13765,6 +13831,8 @@ export interface FlowPartMotion {
 
 ### FlowPatch · interface
 
+An opening of an internal flow: an inlet by flow rate, speed or velocity, or an outlet by pressure or flow rate.
+
 ```ts
 export interface FlowPatch {
     readonly name: string;
@@ -13780,6 +13848,8 @@ export interface FlowPatch {
 
 ### FlowPatchInfo · interface
 
+An opening as set up on the lattice: its area, outward normal and what is imposed.
+
 ```ts
 export interface FlowPatchInfo {
     readonly name: string;
@@ -13793,6 +13863,8 @@ export interface FlowPatchInfo {
 ```
 
 ### FlowPatchShape · type
+
+The shape of an opening: a disc or a rectangle in a plane, with the outward normal of the fluid.
 
 ```ts
 export type FlowPatchShape = 
@@ -13813,6 +13885,8 @@ export type FlowPatchShape =
 
 ### FlowPrimitive · type
 
+Any primitive item of the geometry.
+
 ```ts
 export type FlowPrimitive = FlowBox | FlowSphere | FlowCylinder | FlowCapsule | FlowCone | FlowTube | FlowBeam;
 ```
@@ -13829,6 +13903,8 @@ export declare function flowPrimitiveSurface(item: FlowPrimitive, size: number):
 ```
 
 ### FlowProgress · interface
+
+Progress reported after every monitor interval of a study.
 
 ```ts
 export interface FlowProgress {
@@ -13901,6 +13977,8 @@ export declare function flowSection(field: FlowField, density: number, axis: 'x'
 
 ### FlowSection · interface
 
+Integrals over one layer of cells: area, flow rate, mean and peak speeds, mean pressures, momentum factor.
+
 ```ts
 export interface FlowSection {
     readonly axis: 'x' | 'y' | 'z';
@@ -13926,6 +14004,8 @@ export declare function flowSeedPlane(origin: FlowVec3, u: FlowVec3, v: FlowVec3
 
 ### FlowSide · type
 
+What closes a side of the box: a wall, a slip plane, periodic, a velocity inlet or a pressure outlet.
+
 ```ts
 export type FlowSide = 'wall' | 'slip' | 'periodic'
 | {
@@ -13947,6 +14027,8 @@ export type FlowSide = 'wall' | 'slip' | 'periodic'
 
 ### FlowSideName · type
 
+Names of the six sides of the box.
+
 ```ts
 export type FlowSideName = 'xMin' | 'xMax' | 'yMin' | 'yMax' | 'zMin' | 'zMax';
 ```
@@ -13960,6 +14042,8 @@ export declare function flowSlice(field: FlowField, axis: 'x' | 'y' | 'z', posit
 ```
 
 ### FlowSlice · interface
+
+The fields on a plane normal to an axis, sampled at the cell centres.
 
 ```ts
 export interface FlowSlice {
@@ -13980,6 +14064,8 @@ export interface FlowSlice {
 
 ### FlowSphere · interface
 
+A sphere: centre and radius.
+
 ```ts
 export interface FlowSphere extends ItemBase {
     readonly kind: 'sphere';
@@ -13989,6 +14075,8 @@ export interface FlowSphere extends ItemBase {
 ```
 
 ### FlowStreamline · interface
+
+One streamline: points, speed and pressure per point, and why it ended.
 
 ```ts
 export interface FlowStreamline {
@@ -14001,6 +14089,8 @@ export interface FlowStreamline {
 ```
 
 ### FlowStreamlineOptions · interface
+
+Options of `flowStreamlines`: step, stride, length, direction and the speed below which a line stops.
 
 ```ts
 export interface FlowStreamlineOptions {
@@ -14021,6 +14111,8 @@ export declare function flowStreamlines(field: FlowField, seeds: readonly FlowVe
 ```
 
 ### FlowStudyOptions · interface
+
+Options of `runFlowStudy`, `createFlowStudy` and `flowStudySetup`: progress, file loaders, clock, provenance.
 
 ```ts
 export interface FlowStudyOptions {
@@ -14135,6 +14227,8 @@ export interface FlowSurface {
 
 ### FlowSurfaceField · interface
 
+Pressure at the vertices of the surface of one part.
+
 ```ts
 export interface FlowSurfaceField {
     readonly part: string;
@@ -14177,11 +14271,15 @@ export declare function flowTubeMesh(path: readonly FlowVec3[], radius: number, 
 
 ### FlowVec3 · type
 
+A point or vector [x, y, z], metres in SI frames.
+
 ```ts
 export type FlowVec3 = readonly [number, number, number];
 ```
 
 ### FlowVoxelization · interface
+
+The voxelisation with the surfaces of the parts and the thickening counts.
 
 ```ts
 export interface FlowVoxelization extends FlowVoxels {
@@ -14204,6 +14302,8 @@ export declare function flowVoxelize(items: readonly FlowItem[], grid: FlowGrid,
 
 ### FlowVoxelizeOptions · interface
 
+Options of `flowVoxelize`: band, surface sampling and thickening.
+
 ```ts
 export interface FlowVoxelizeOptions {
     readonly band?: number;
@@ -14214,6 +14314,8 @@ export interface FlowVoxelizeOptions {
 ```
 
 ### FlowVoxels · interface
+
+The voxelised geometry: signed distance per cell, the part of each cell, the report and the warnings.
 
 ```ts
 export interface FlowVoxels {
@@ -14256,6 +14358,8 @@ export declare function flowColormap(name?: FlowColormap): (t: number) => [numbe
 
 ### FlowColormap · type
 
+The colour maps of the streamlines, slices and surfaces.
+
 ```ts
 export type FlowColormap = 'rainbow' | 'turbo' | 'viridis' | 'coolwarm';
 ```
@@ -14287,6 +14391,8 @@ export interface FlowLegendContext {
 ```
 
 ### FlowLegendOptions · interface
+
+Options of `flowLegend`: the range, title, unit, colour map and placement.
 
 ```ts
 export interface FlowLegendOptions {
@@ -14367,6 +14473,8 @@ export interface FlowThreeLike {
 
 ### FlowView · interface
 
+The three.js objects of a result: a group, the streamlines, surfaces and slices, the colour range, and `dispose()`.
+
 ```ts
 export interface FlowView {
     readonly group: any;
@@ -14380,6 +14488,8 @@ export interface FlowView {
 ```
 
 ### FlowViewOptions · interface
+
+Options of `createFlowView`: what to draw, the styles and the colour ranges.
 
 ```ts
 export interface FlowViewOptions {
@@ -15421,11 +15531,15 @@ export interface DemStats {
 
 ### FLOW_GPU_SOLVER_ID · const
 
+The solver id of the flow step on WebGPU (float32).
+
 ```ts
 export declare const FLOW_GPU_SOLVER_ID = "flow-lbm-d3q19-regularized-les-webgpu-f32-v1";
 ```
 
 ### FLOW_WGSL · const
+
+The WGSL of the flow step: one dispatch per step, one invocation per fluid cell.
 
 ```ts
 export declare const FLOW_WGSL: string;
@@ -15464,6 +15578,8 @@ export declare function flowGpuSupport(lattice: FlowLattice): {
 ```
 
 ### flowGpuTables · function
+
+The tables of a lattice in the shader's layout; throws when the lattice uses a feature the kernel does not have.
 
 ```ts
 export declare function flowGpuTables(lattice: FlowLattice): FlowGpuTables;
