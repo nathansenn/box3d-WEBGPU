@@ -11,11 +11,15 @@
 //   this build (3 files, short locals)    7.6       6.3         9.5      6.4        30.1    28.7 .. 48.4
 //
 // The budgets below are on the median of 21 processes and sit about 1.7 times above the medians measured under load, so
-// a busy CI machine passes; a second batch is measured before a failure counts. What they cannot catch on a fast machine
-// the two exact checks do: the number of files and bytes the main entry loads, which is what the import time follows.
+// a busy CI machine passes; a second batch is measured before a failure counts. A machine with more runnable processes
+// than processors (1-minute load average above the processor count) measures the load, not the kit: there an exceeded
+// budget is reported and the timing test is skipped (on 2026-11-24, at load 13 on 4 processors, the import took 35 ms
+// and the total 111). What the timing cannot catch, the two exact checks do on any machine: the number of files and bytes
+// the main entry loads, which is what the import time follows.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
+import {availableParallelism, loadavg} from 'node:os';
 import {readFileSync} from 'node:fs';
 import {dirname, join, relative, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -63,11 +67,16 @@ test('the main entry loads at most three modules and 180,000 bytes', () => {
   assert.ok(bytes <= BUDGET.bytes, `the main entry loads ${bytes} bytes; the budget is ${BUDGET.bytes}`);
 });
 
-test('time to the first step in a fresh process stays within its budget', () => {
+test('time to the first step in a fresh process stays within its budget', t => {
   const over = m => [m.importMs > BUDGET.importMs && `import ${m.importMs.toFixed(1)} ms > ${BUDGET.importMs}`, m.totalMs > BUDGET.totalMs && `total ${m.totalMs.toFixed(1)} ms > ${BUDGET.totalMs}`].filter(Boolean);
   let measured = measure();
   // Timing on a shared machine: one batch over budget is measured again before it counts.
   if (over(measured).length) measured = measure();
-  console.log(`first step, median of ${PROCESSES} fresh processes: import ${measured.importMs.toFixed(1)} ms, instantiate ${measured.instantiateMs.toFixed(1)}, build ${measured.buildMs.toFixed(1)}, first step ${measured.firstStepMs.toFixed(1)}, total ${measured.totalMs.toFixed(1)} (${measured.minMs.toFixed(1)} to ${measured.maxMs.toFixed(1)})`);
+  const load = loadavg()[0], processors = availableParallelism();
+  console.log(`first step, median of ${PROCESSES} fresh processes: import ${measured.importMs.toFixed(1)} ms, instantiate ${measured.instantiateMs.toFixed(1)}, build ${measured.buildMs.toFixed(1)}, first step ${measured.firstStepMs.toFixed(1)}, total ${measured.totalMs.toFixed(1)} (${measured.minMs.toFixed(1)} to ${measured.maxMs.toFixed(1)}); load ${load.toFixed(1)} on ${processors} processors`);
+  if (over(measured).length && load > processors) {
+    t.skip(`over budget (${over(measured).join(', ')}) on an overloaded machine (load ${load.toFixed(1)} on ${processors} processors): not counted`);
+    return;
+  }
   assert.deepEqual(over(measured), []);
 });

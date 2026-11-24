@@ -178,5 +178,6 @@ The goal was an import of at most 5 ms and a total within 1.25 times the thin bu
 - **First step** is V8 compiling the solver on its first call; it is the same as in the thin build or faster.
 
 `packages/box3d-kit/test/v24-first-step.test.mjs` (kit gate) measures 21 fresh processes and fails when the median
-import exceeds 13 ms or the median total 56 ms, and checks exactly that the main entry loads those 3 files and at most
-180,000 bytes.
+import exceeds 13 ms or the median total 56 ms (on a machine whose load average exceeds its processor count an exceeded
+budget is reported and the timing test skipped: at load 13 on 4 processors the import took 35 ms), and checks exactly
+that the main entry loads those 3 files and at most 180,000 bytes.
