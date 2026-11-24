@@ -6,7 +6,7 @@
  * Smagorinsky sub-grid model, interpolated bounce-back walls); above a cell
  * Reynolds number of about 10 an under-resolved large-eddy simulation: an
  * engineering estimate, not certified CFD. `runFlowStudy` takes a
- * `box3d-flow-study/1` document and returns a `box3d-flow-result/1` document
+ * `box3d-flow-study/1` study and returns a `box3d-flow-result/1` result
  * with forces and coefficients, flow rates and pressure drops, streamlines,
  * slices and surface pressure. See docs/FLOW.md in the repository for both
  * formats, the validation against published data, and the limits.

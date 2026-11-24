@@ -14350,7 +14350,7 @@ export declare function createFlowView(THREE: FlowThreeLike, result: FlowResultL
 
 ### flowColormap · function
 
-A colour map: `t` in [0, 1] to [r, g, b] in [0, 1].
+A colour map: `t` in [0, 1] to [r, g, b] in [0, 1]. A name that is not a colour map gives 'rainbow'.
 
 ```ts
 export declare function flowColormap(name?: FlowColormap): (t: number) => [number, number, number];
