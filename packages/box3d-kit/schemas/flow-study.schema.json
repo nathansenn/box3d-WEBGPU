@@ -1202,6 +1202,14 @@
   "model": {
    "type": "object",
    "properties": {
+    "collision": {
+     "enum": [
+      "auto",
+      "regularized",
+      "trt"
+     ],
+     "description": "auto (default): trt without a sub-grid model when the relaxation time is at least 0.51, else regularized."
+    },
     "turbulence": {
      "enum": [
       "auto",

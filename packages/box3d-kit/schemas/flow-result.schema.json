@@ -303,6 +303,13 @@
       "halfway"
      ]
     },
+    "collision": {
+     "enum": [
+      "regularized",
+      "trt"
+     ],
+     "description": "The collision the run used."
+    },
     "referenceSpeed": {
      "type": "number",
      "description": "m/s"
@@ -823,6 +830,7 @@
     "cellReynolds",
     "turbulence",
     "walls",
+    "collision",
     "referenceSpeed",
     "referenceLength",
     "reynolds",

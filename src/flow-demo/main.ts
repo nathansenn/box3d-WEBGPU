@@ -91,6 +91,13 @@ state.id = demo.id;
 $('title').textContent = demo.title; $('caption').textContent = demo.caption;
 camera.position.set(...demo.camera.position); controls.target.set(...demo.camera.target);
 resize(); frame();
+// `?result=<url>`: draw a result document computed elsewhere (the same study run by runFlowStudy on Node) instead of
+// running the study here
+const resultUrl = params.get('result');
+if (resultUrl) {
+  fetch(resultUrl).then(r => r.json()).then(result => { ($('bar') as HTMLProgressElement).value = 1; $('status').textContent = `Loaded ${resultUrl} (computed in ${fmt(result.run.wallTime)} s).`; state.result = result; show(demo, result); state.status = 'done'; })
+    .catch(error => { state.status = 'error'; state.error = String(error); $('status').textContent = `Error: ${error}`; });
+} else {
 const worker = new Worker(new URL('./worker.ts', import.meta.url), {type: 'module'});
 worker.onmessage = (event: MessageEvent<any>) => {
   const m = event.data;
@@ -100,3 +107,4 @@ worker.onmessage = (event: MessageEvent<any>) => {
   else if (m.type === 'error') { state.status = 'error'; state.error = m.message; $('status').textContent = `Error: ${m.message}`; }
 };
 worker.postMessage({id: demo.id});
+}

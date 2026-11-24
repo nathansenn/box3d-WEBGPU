@@ -20,6 +20,7 @@ import robot from './domains/robot.mjs';
 import cloth from './domains/cloth.mjs';
 import granular from './domains/granular.mjs';
 import fluid from './domains/fluid.mjs';
+import flow from './domains/flow.mjs';
 import shallowWater from './domains/shallow-water.mjs';
 import solidContact from './domains/solid-contact.mjs';
 import heat from './domains/heat.mjs';
@@ -226,6 +227,20 @@ export const DOMAINS = [
     ],
   },
   {
+    id: 'flow', title: 'Flow around and through geometry: ducts, pipes, bluff bodies, buildings, internal networks', needsKit: true,
+    solver: '`box3d-webgpu-kit/flow`: weakly compressible lattice-Boltzmann, D3Q19, two-relaxation-time collision for laminar flow and regularised collision with a Smagorinsky sub-grid model and a power-law wall function above a cell Reynolds number of 10, interpolated bounce-back walls from a signed distance of primitives and meshes, float64, deterministic',
+    summary: 'Plane Poiseuille, a square duct and a round pipe drawn as meshes and as primitives, with their convergence and the force on the walls; a pipe through its openings (pressure drop, developed profile, mass balance); the cylinder at Re 20, 40, 100 and 200; a sphere at Re 100; a cube and a square plate at Re 1e5; a building on the ground through the study runner (drag and stagnation pressure); the backward-facing step; the sudden expansion against Borda-Carnot; a symmetric tee; a tank with three inlets; Stokes drag against Hasimoto; conservation of mass; repeatability and resume; meshes against primitives, imperfect meshes and thin walls; the streamline tracer.',
+    docs: ['docs/FLOW.md'],
+    notValidated: [
+      'High Reynolds numbers on smooth bodies: there is no resolved boundary layer, and the wall function is used only on flat and gently curved walls. A sphere at Re 1e4 (8 cells across) gave Cd 0.73 against about 0.40; the drag crisis is not predicted. Only sharp-edged bodies have rows above Re 200.',
+      'Laminar flow at small relaxation times: a pipe at Re 1107 (12.6 and 17.9 cells across, relaxation time 0.501 to 0.5015) loses 63% and 42% too much pressure with the regularised collision, which moves a bounce-back wall on a staircase; the two-relaxation-time collision that does not diverged there. The pipe row is at Re 100.',
+      'Bodies are 8 to 10 cells across and the tunnels bounded (blockage 3 to 6%, not corrected): drag is within 15 to 20%, not better. Lift, moments, surface pressure distributions other than the stagnation value, and wake lengths of three-dimensional bodies have no row.',
+      'Turbulence statistics (spectra, Reynolds stresses), skin friction on bodies and heat transfer have no row. The wall function was checked on a tunnel floor only (Cf 0.0055).',
+      'Reference values: the cylinder rows use computations tabulated by Cui et al. (2019); Hoerner\'s drag coefficients and the Armaly reattachment length were read from published figures and tables as quoted, not from measurements made here.',
+      'Cost: one JavaScript thread; a study of 400,000 cells runs for minutes. The WebGPU kernel is checked against its float32 reference only (docs/GPU_COMPUTE.md).',
+    ],
+  },
+  {
     id: 'shallow-water', title: 'Shallow water on terrain: dam breaks, steady flows, rain and infiltration', needsKit: true,
     solver: '`box3d-webgpu-kit/shallow-water`: the 2D Saint-Venant equations by finite volumes, hydrostatic reconstruction (Audusse et al. 2004), MUSCL with minmod, HLL, Heun in time, wetting and drying, Manning friction (split, backward Euler), rain, Green-Ampt infiltration, inflow, open and stage sides, float64; rigid bodies coupled by buoyancy and drag',
     summary: 'A lake at rest over a bumpy, partly emerged bed; Ritter\'s and Stoker\'s dam breaks; Thacker\'s oscillating paraboloid; the subcritical, transcritical and shock flows over the Goutal-Maurel bump (SWASHES); Manning\'s normal depth; rain on a slope against the kinematic wave; Green-Ampt against its closed form; the volume budget; repeatability; a floating box and a sphere in a current.',
@@ -370,7 +385,7 @@ export const DOMAINS = [
   },
 ];
 
-export const CASES = [...rigid, ...rigidCore, ...waterCoupling, ...structureCoupling, ...siBridge, ...siSuspension, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...shallowWater, ...heat, ...solid, ...solidViscoelastic, ...solidConcrete, ...solidContact, ...fracture, ...plate, ...frame, ...cable, ...closedWater, ...materials];
+export const CASES = [...rigid, ...rigidCore, ...waterCoupling, ...structureCoupling, ...siBridge, ...siSuspension, ...geometry, ...scene, ...simulation, ...robot, ...cloth, ...granular, ...fluid, ...flow, ...shallowWater, ...heat, ...solid, ...solidViscoelastic, ...solidConcrete, ...solidContact, ...fracture, ...plate, ...frame, ...cable, ...closedWater, ...materials];
 
 /** Cases of the given domains (all when `only` is empty), in registry order. */
 export function selectCases(only = []) {

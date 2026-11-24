@@ -110,6 +110,9 @@ export interface FlowOptions {
   /** 'auto' (default): Smagorinsky when the cell Reynolds number referenceSpeed h / nu exceeds 10 and the Reynolds
    * number of the flow, when `reynolds` gives it, exceeds 2000; else none. */
   readonly turbulence?:'auto'|'none'|'smagorinsky'|'wale';
+  /** 'auto' (default): two relaxation times ('trt') when no sub-grid model runs and the relaxation time is at least 0.51,
+   * else 'regularized' (below 0.51 the two-relaxation-time collision diverged next to no-slip walls and openings). */
+  readonly collision?:'auto'|'regularized'|'trt';
   /** WALE constant Cw. Default 0.5. */
   readonly wale?:number;
   /** Reynolds number of the flow (reference speed, a length of the body or the duct), for the 'auto' rule. */
@@ -497,7 +500,7 @@ export class Flow {
       }
     }
     this.lattice=new FlowLattice({wallFunctionMask:wfMask,nx,ny,nz,periodic,kind,owner,distance,walls:options.walls??'interpolated',parts:lparts,patches:lpatches,viscosity:nuLat,
-      smagorinsky:this.turbulence==='smagorinsky'?this.smagorinsky:0,wale:this.turbulence==='wale'?this.wale:0,wallFunction:options.wallFunction,force:[acc[0]*aScale,acc[1]*aScale,acc[2]*aScale],initialVelocity:[u0[0]/vScale,u0[1]/vScale,u0[2]/vScale],extraViscosity:extra,cellVelocity,
+      smagorinsky:this.turbulence==='smagorinsky'?this.smagorinsky:0,wale:this.turbulence==='wale'?this.wale:0,collision:(options.collision??'auto')==='auto'?(this.turbulence==='none'&&this.relaxationTime>=0.51?'trt':'regularized'):options.collision as 'trt',wallFunction:options.wallFunction,force:[acc[0]*aScale,acc[1]*aScale,acc[2]*aScale],initialVelocity:[u0[0]/vScale,u0[1]/vScale,u0[2]/vScale],extraViscosity:extra,cellVelocity,
       forceCells:fCells.length?Int32Array.from(fCells):undefined,forceValues:fCells.length?Float64Array.from(fValues):undefined});
     this.kinds=kind;this.voxels={distance:vox.distance};
     this.solidCells=cells-this.lattice.fluidCells;this.fluidCells=this.lattice.fluidCells;
@@ -527,6 +530,12 @@ export class Flow {
     this.time=L.stepCount*this.dt;
   }
 
+  /** Multiply the fluid's viscosity by `k` from the next step on (k >= 1, at most a relaxation time of 1.5): a start-up
+   * aid for laminar flows, whose developed profile does not depend on the viscosity. 1 restores the fluid's own. */
+  setViscosityScale(k:number):void{
+    if(!(k>=1)||!Number.isFinite(k))fail('the viscosity scale must be at least 1.');
+    this.lattice.viscosityScale=Math.min(k,(1.5-0.5)/3/this.lattice.viscosity);
+  }
   /** Force (N) and moment about `about` (N m) that a uniform gauge pressure of 1 Pa exerts on every part: zero for a
    * closed body in the fluid; for a body on the ground, its footprint. Subtract `p` times it from the forces to refer
    * them to the static pressure `p` (the free stream's) instead of the outlet's. */

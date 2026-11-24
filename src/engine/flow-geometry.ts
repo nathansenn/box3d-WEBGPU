@@ -657,7 +657,7 @@ export function flowVoxelize(items:readonly FlowItem[],grid:FlowGrid,options:Flo
       }
       if(shellAdded>0){thickenedItems++;largestThickening=Math.max(largestThickening,shellAdded);}
       pending.push({report:{...base,kind:'mesh',smallestDimension:smallest,thickened:shellAdded,thickenedCells:0,
-        triangles,components,closedComponents:closedCount,surfaceArea:0,unresolvedFraction:0},surface:{positions:allPositions,indices:allIndices}});
+        triangles,components,closedComponents:closedCount,surfaceArea:0,unresolvedFraction:0},surface:keep?refine(allPositions,allIndices,size):{positions:allPositions,indices:allIndices}});
     }else{
       const {pieces,smallest}=piecesOf(item);let added=0,slender=false;
       for(const piece of pieces){
@@ -735,6 +735,23 @@ export function flowVoxelize(items:readonly FlowItem[],grid:FlowGrid,options:Flo
   if(unresolvedItems>0)warnings.push(`${unresolvedItems} item(s) have more than 5% of their surface with no cell of their own within 1.25 cells: features thinner than the cell size ${h.toPrecision(3)} m are lost: ${some(r=>r.unresolvedFraction>0.05)}.`);
   return {grid,distance,part,parts,band,items:itemReports,warnings,solidCells,thickenedItems,largestThickening,closedCells,slenderItems,
     surfaces:[...surfaces].map(([name,sf])=>({part:name,positions:Float32Array.from(sf.positions),indices:Uint32Array.from(sf.indices)}))};
+}
+
+/** Triangles split so that no edge is longer than `size` (an n x n barycentric grid per triangle): the surface of a mesh
+ * is sampled at its vertices, so a large triangle would carry no sample where the pressure peaks. */
+function refine(positions:ArrayLike<number>,indices:ArrayLike<number>,size:number):{positions:number[];indices:number[]}{
+  const P:number[]=Array.from(positions),I:number[]=[];
+  for(let f=0;f<indices.length;f+=3){
+    const a=indices[f],b=indices[f+1],c=indices[f+2];
+    const edge=(u:number,v:number):number=>Math.hypot(P[3*u]-P[3*v],P[3*u+1]-P[3*v+1],P[3*u+2]-P[3*v+2]);
+    const n=Math.min(64,Math.max(1,Math.ceil(Math.max(edge(a,b),edge(b,c),edge(c,a))/size)));
+    if(n===1){I.push(a,b,c);continue;}
+    // vertices (i, j), i + j <= n, at a + (b - a) i / n + (c - a) j / n
+    const base=P.length/3,row=(j:number):number=>j*(n+1)-(j*(j-1))/2,at=(i:number,j:number):number=>base+row(j)+i;
+    for(let j=0;j<=n;j++)for(let i=0;i+j<=n;i++)for(let k=0;k<3;k++)P.push(P[3*a+k]+(P[3*b+k]-P[3*a+k])*i/n+(P[3*c+k]-P[3*a+k])*j/n);
+    for(let j=0;j<n;j++)for(let i=0;i+j<n;i++){I.push(at(i,j),at(i+1,j),at(i,j+1));if(i+j+1<n)I.push(at(i+1,j),at(i+1,j+1),at(i,j+1));}
+  }
+  return {positions:P,indices:I};
 }
 
 /** A tube swept along a polyline, as a closed triangle mesh (caps at both ends): a pipe bore, a bent duct. */

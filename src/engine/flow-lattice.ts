@@ -88,6 +88,8 @@ export const FLOW_CZ=Object.freeze([0,0,0,0,0,1,-1,0,0,0,0,1,-1,-1,1,1,-1,-1,1])
 export const FLOW_OPPOSITE=Object.freeze([0,2,1,4,3,6,5,8,7,10,9,12,11,14,13,16,15,18,17]);
 export const FLOW_WEIGHT=Object.freeze([1/3,1/18,1/18,1/18,1/18,1/18,1/18,1/36,1/36,1/36,1/36,1/36,1/36,1/36,1/36,1/36,1/36,1/36,1/36]);
 const Q=19;
+/** The TRT "magic" product (tau - 1/2)(tau_odd - 1/2): 3/16 makes the half-way bounce-back exact for Poiseuille flow. */
+const TRT_MAGIC=3/16;
 
 export interface FlowLatticePart {
   /** Velocity of the wall, cells per step (a moving ground, a belt). Default 0. */
@@ -132,6 +134,12 @@ export interface FlowLatticeOptions {
   /** Per cell of the box: 1 where the wall function may be used (a cell next to a smooth wall), 0 where the wall is
    * plain bounce-back (next to a sharp convex edge, where the geometry fixes the separation). Default: everywhere. */
   readonly wallFunctionMask?:Uint8Array;
+  /** 'regularized' (default): the populations are rebuilt from density, momentum and stress (stable at small viscosity,
+   * used with the sub-grid models). 'trt': two relaxation times with the magic product 3/16, for laminar flows (no
+   * sub-grid model): unlike the regularised collision, which relaxes the odd non-equilibrium at once, it keeps
+   * bounce-back walls on curved and staircase boundaries where they are as the viscosity falls (measured: a pipe at
+   * Re 1107, relaxation time 0.501, lost 60% too much pressure with the regularised collision). */
+  readonly collision?:'regularized'|'trt';
   /** Relaxation time of the trace of the stress (bulk viscosity). Default 1. */
   readonly bulkRelaxation?:number;
   /** Body force per unit mass, cells per step squared. */
@@ -154,14 +162,14 @@ export interface FlowLatticeOptions {
 
 const fail=(message:string):never=>{throw new EngineError('INVALID_ARGUMENT',`FlowLattice: ${message}`);};
 const LINK_WALL=0,LINK_PRESSURE=1,LINK_SLIP=2;
-const LATTICE_FIELDS:FieldOptions={label:'FlowLattice',skip:['nx','ny','nz','cells','periodic','kind','owner','walls','viscosity','smagorinsky','wale','eddy','bulkRelaxation','extraViscosity','cellOf','activeOf','linkIndex','boundaryCell','source','linkStart','linkDir','linkKind','linkQ','linkAdd','linkOwner','linkAux','linkArm','linkAbsorb','absorbRate','wallDistance','wallVelocity','wallNormal','wallPart','wallFunction','inletCell','inletPatch','inletCount','inletOver','forceCells','forceValues','partCount','patchCount','fluidCells','partForce','partMoment','patchMass','scratch']};
+const LATTICE_FIELDS:FieldOptions={label:'FlowLattice',skip:['nx','ny','nz','cells','periodic','kind','owner','walls','viscosity','smagorinsky','wale','eddy','collision','openCell','bulkRelaxation','extraViscosity','cellOf','activeOf','linkIndex','boundaryCell','source','linkStart','linkDir','linkKind','linkQ','linkAdd','linkOwner','linkAux','linkArm','linkAbsorb','absorbRate','wallDistance','wallVelocity','wallNormal','wallPart','wallFunction','inletCell','inletPatch','inletCount','inletOver','forceCells','forceValues','partCount','patchCount','fluidCells','partForce','partMoment','patchMass','scratch']};
 
 export class FlowLattice {
   readonly nx:number;readonly ny:number;readonly nz:number;readonly cells:number;
   readonly periodic:readonly [boolean,boolean,boolean];
   readonly kind:Uint8Array;readonly owner:Int16Array|Int32Array;
   readonly walls:'interpolated'|'halfway';
-  readonly viscosity:number;readonly smagorinsky:number;readonly wale:number;readonly bulkRelaxation:number;
+  readonly viscosity:number;readonly smagorinsky:number;readonly wale:number;readonly bulkRelaxation:number;readonly collision:'regularized'|'trt';
   readonly partCount:number;readonly patchCount:number;
   /** Number of fluid cells; the cell index of each; and the fluid number of each cell of the box (-1: not fluid). */
   readonly fluidCells:number;readonly cellOf:Int32Array;readonly activeOf:Int32Array;
@@ -174,6 +182,9 @@ export class FlowLattice {
   force:[number,number,number];
   /** Factor on every wall and inlet velocity (a start-up ramp). May be changed between steps. */
   ramp=1;
+  /** Factor on the molecular viscosity (a start-up aid: a laminar flow develops its profile in fewer steps with a larger
+   * viscosity). May be changed between steps; 1 is the fluid's own. */
+  viscosityScale=1;
   stepCount=0;
   /** Momentum given to each part in the last step, and its moment about the origin of the cell coordinates (3 per part). */
   readonly partForce:Float64Array;readonly partMoment:Float64Array;
@@ -200,6 +211,9 @@ export class FlowLattice {
   private readonly scratch=new Float64Array(Q);
   /** Eddy viscosity of the WALE model per fluid cell (lattice units), worked out at the start of each step. */
   private eddy:Float64Array|null=null;
+  /** Per cell with boundary links: 1 when one of them is an inlet or an outlet (the cell collides regularised even when
+   * the collision is 'trt': the two-relaxation-time collision is unstable there as the viscosity falls). */
+  private readonly openCell:Uint8Array;
   /** Eddy viscosity of the sub-grid model in the last step, lattice units, per fluid cell (WALE only; null otherwise). */
   get eddyViscosity():Float64Array|null{return this.eddy;}
 
@@ -214,7 +228,8 @@ export class FlowLattice {
     this.periodic=options.periodic??[false,false,false];
     this.kind=options.kind;this.owner=options.owner??new Int32Array(cells);
     this.walls=options.walls??'interpolated';
-    this.viscosity=options.viscosity;this.smagorinsky=options.smagorinsky??0;this.wale=options.wale??0;if(!(this.wale>=0))fail('wale must not be negative.');this.bulkRelaxation=options.bulkRelaxation??1;
+    this.viscosity=options.viscosity;this.smagorinsky=options.smagorinsky??0;this.wale=options.wale??0;if(!(this.wale>=0))fail('wale must not be negative.');
+    this.collision=options.collision??'regularized';if(this.collision!=='regularized'&&this.collision!=='trt')fail(`collision must be 'regularized' or 'trt'.`);this.bulkRelaxation=options.bulkRelaxation??1;
     if(!(this.smagorinsky>=0))fail('smagorinsky must not be negative.');
     if(!(this.bulkRelaxation>0.5))fail('bulkRelaxation must exceed 1/2.');
     if(options.extraViscosity&&options.extraViscosity.length!==cells)fail('extraViscosity must have one entry per cell.');
@@ -336,6 +351,9 @@ export class FlowLattice {
       if(inletOf>=0){inCell.push(a);inPatch.push(inletOf);}
       linkStart[b+1]=l;
     }
+    const openCell=new Uint8Array(boundaryCells);
+    for(let bc=0;bc<boundaryCells;bc++)for(let m=linkStart[bc];m<linkStart[bc+1];m++)if(linkKind[m]===LINK_PRESSURE||(linkKind[m]===LINK_WALL&&linkOwner[m]<-1))openCell[bc]=1;
+    this.openCell=openCell;
     this.linkStart=linkStart;this.linkDir=linkDir;this.linkKind=linkKind;this.linkQ=linkQ;this.linkAdd=linkAdd;this.linkOwner=linkOwner;this.linkAux=linkAux;this.linkArm=linkArm;this.linkAbsorb=linkAbsorb;
     this.inletDensity=new Float64Array(Math.max(1,patches.length));this.inletOver=new Float64Array(Math.max(1,patches.length));this.inletCount=new Float64Array(Math.max(1,patches.length));
     this.inletCell=Int32Array.from(inCell);this.inletPatch=Int32Array.from(inPatch);
@@ -381,10 +399,10 @@ export class FlowLattice {
   step():void{
     const a=this.f,b=this.next,linkIndex=this.linkIndex,fluid=this.fluidCells,src=this.source;
     const rho=this.density,UX=this.ux,UY=this.uy,UZ=this.uz;
-    const tau0=3*this.viscosity+0.5,cs=this.smagorinsky,les=cs>0,K=18*Math.SQRT2*cs*cs,ab=1-1/this.bulkRelaxation,extra=this.extraViscosity;
+    const tau0=3*this.viscosity*this.viscosityScale+0.5,cs=this.smagorinsky,les=cs>0,K=18*Math.SQRT2*cs*cs,ab=1-1/this.bulkRelaxation,extra=this.extraViscosity;
     const Fx=this.force[0],Fy=this.force[1],Fz=this.force[2],hx=0.5*Fx,hy=0.5*Fy,hz=0.5*Fz;
     const linkStart=this.linkStart,linkDir=this.linkDir,linkKind=this.linkKind,linkQ=this.linkQ,linkAdd=this.linkAdd,linkOwner=this.linkOwner,linkAux=this.linkAux,linkArm=this.linkArm,linkAbsorb=this.linkAbsorb,inletOver=this.inletOver,g=this.scratch,ramp=this.ramp;
-    const wallDistance=this.wallDistance,wallVelocity=this.wallVelocity,wallNormal=this.wallNormal,wallPart=this.wallPart,wallLaw=(les||this.wale>0)&&this.wallFunction,nu0=this.viscosity,A7=1/(8.3*8.3*8.3*8.3*8.3*8.3*8.3);
+    const wallDistance=this.wallDistance,wallVelocity=this.wallVelocity,wallNormal=this.wallNormal,wallPart=this.wallPart,wallLaw=(les||this.wale>0)&&this.wallFunction,nu0=this.viscosity*this.viscosityScale,A7=1/(8.3*8.3*8.3*8.3*8.3*8.3*8.3);
     const partForce=this.partForce,partMoment=this.partMoment,patchMass=this.patchMass;
     partForce.fill(0);partMoment.fill(0);patchMass.fill(0);let wallMass=0;
     if(this.absorbRate>0){
@@ -394,7 +412,7 @@ export class FlowLattice {
       for(let n=0;n<cellsOf.length;n++)inletOver[patchOf[n]]+=rho[cellsOf[n]];
       for(let p=0;p<inletOver.length;p++){if(count[p]>0){const over=inletOver[p]/count[p]-slow[p];inletOver[p]=over;slow[p]+=this.absorbRate*over;}}
     }
-    const W1=1/18,W2=1/36,W0=1/3,wale=this.wale>0;
+    const W1=1/18,W2=1/36,W0=1/3,wale=this.wale>0,trt=this.collision==='trt'&&!les&&!wale,openCell=this.openCell;
     let eddy=this.eddy;
     if(wale){
       // velocity gradient of the last step by central differences (one-sided where a neighbour is not fluid)
@@ -501,6 +519,20 @@ export class FlowLattice {
       const txx=rux*ux+as*exx+bt,tyy=ruy*uy+as*eyy+bt,tzz=ruz*uz+as*ezz+bt,txy=rux*uy+as*qxy,txz=rux*uz+as*qxz,tyz=ruy*uz+as*qyz;
       let mx=3*(jx+Fx),my=3*(jy+Fy),mz=3*(jz+Fz);
       if(bi>=0){mx+=3*wfx;my+=3*wfy;mz+=3*wfz;}
+      if(trt&&(bi<0||openCell[bi]===0)){
+        // two-relaxation-time collision (laminar flows): the even part relaxes with 1/tau, the odd part with the rate
+        // that keeps (tau - 1/2)(tau_odd - 1/2) = 3/16, which puts a bounce-back wall where it is for any viscosity
+        const op=1/tau,om=1/(0.5+TRT_MAGIC/(tau-0.5)),usq=ux*ux+uy*uy+uz*uz,fu=Fx*ux+Fy*uy+Fz*uz,gp=1-0.5*op,gm=1-0.5*om;
+        b[o]=d0-op*(d0-W0*(dr-1.5*r*usq))-gp*W0*3*fu;
+        const pair=(i:number,gi:number,gj:number,cx:number,cy:number,cz:number,w:number):void=>{
+          const cu=cx*ux+cy*uy+cz*uz,cf=cx*Fx+cy*Fy+cz*Fz,sp=0.5*(gi+gj)-w*(dr+r*(4.5*cu*cu-1.5*usq)),sm=0.5*(gi-gj)-w*3*r*cu;
+          const fp=gp*w*(9*cu*cf-3*fu),fm=gm*w*3*cf;
+          b[o+i]=gi-op*sp-om*sm+fp+fm;b[o+i+1]=gj-op*sp+om*sm+fp-fm;
+        };
+        pair(1,d1,d2,1,0,0,W1);pair(3,d3,d4,0,1,0,W1);pair(5,d5,d6,0,0,1,W1);
+        pair(7,d7,d8,1,1,0,W2);pair(9,d9,d10,1,-1,0,W2);pair(11,d11,d12,1,0,1,W2);pair(13,d13,d14,1,0,-1,W2);pair(15,d15,d16,0,1,1,W2);pair(17,d17,d18,0,1,-1,W2);
+        continue;
+      }
       const base=dr-1.5*(txx+tyy+tzz);
       b[o]=W0*base;
       let e=base+4.5*txx;b[o+1]=W1*(e+mx);b[o+2]=W1*(e-mx);

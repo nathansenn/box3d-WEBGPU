@@ -249,7 +249,7 @@ function tunnel2d(K, {n, re, length = 18, height = 12, up = 5, offset = 0, latti
 }
 const cylinder2d = (centre, h) => [{kind: 'cylinder', from: [centre[0], centre[1], -1], to: [centre[0], centre[1], 1], radius: 0.5, part: 'cylinder'}];
 /** Steady flow past a cylinder (Re 20, 40): drag coefficient and the length of the recirculation behind it, over D. */
-export function cylinderSteady(K, {re = 20, n = 12, height = 12, length = 18, up = 5, latticeSpeed = 0.08, tolerance = 1e-5, settle = 60, maxSteps = 100000} = {}) {
+export function cylinderSteady(K, {re = 20, n = 8, height = 24, length = 30, up = 10, latticeSpeed = 0.08, tolerance = 1e-5, settle = 60, maxSteps = 100000} = {}) {
   const {flow, depth, blockage} = tunnel2d(K, {n, re, height, length, up, latticeSpeed, geometry: cylinder2d});
   // at least `settle` D/U, then until the drag changes by less than `tolerance` per D/U
   const every = Math.round(1 / flow.dt);
@@ -267,9 +267,9 @@ export function cylinderSteady(K, {re = 20, n = 12, height = 12, length = 18, up
   return {re, n, cd, recirculation: reattach, steps: flow.stepCount, blockage, cells: flow.fluidCells};
 }
 /** Unsteady flow past a cylinder (Re 100 to 200): mean drag coefficient and the Strouhal number of the lift. */
-export function cylinderShedding(K, {re = 100, n = 12, settle = 160, average = 80, latticeSpeed = 0.08} = {}) {
+export function cylinderShedding(K, {re = 100, n = 10, height = 16, length = 25, up = 6, settle = 100, average = 50, latticeSpeed = 0.08} = {}) {
   // a centre 2% of D off the middle starts the shedding without a kick
-  const {flow, depth, blockage} = tunnel2d(K, {n, re, latticeSpeed, offset: 0.02, geometry: cylinder2d});
+  const {flow, depth, blockage} = tunnel2d(K, {n, re, height, length, up, latticeSpeed, offset: 0.02, geometry: cylinder2d});
   const unit = 1 / flow.dt, every = Math.max(1, Math.round(unit / 20)); // steps per D/U, and 20 samples per D/U
   flow.step(Math.round(settle * unit)); flow.takeSums();
   const cd = [], cl = [];
@@ -285,13 +285,13 @@ export function cylinderShedding(K, {re = 100, n = 12, settle = 160, average = 8
 /** Hagen-Poiseuille through a pipe of diameter D = 1 m and length 6 D drawn as a fluid cylinder, inlet by flow rate with
  * the developed profile, outlet by pressure: the pressure drop between sections 2 D and 4 D from the inlet against
  * 128 mu L Q / (pi D^4), the peak over the mean speed on the middle section against 2, and the mass balance. */
-export function pipeStudy(K, {re = 1107, cells = 15000, transits = 4, profile = 'developed'} = {}) {
+export function pipeStudy(K, {re = 1107, cells = 15000, transits = 30, tolerance = 0.001, profile = 'developed', model, latticeSpeed} = {}) {
   const D = 1, L = 6, U = 1, nu = U * D / re, Q = Math.PI / 4 * D * D * U;
   const study = {format: 'box3d-flow-study/1', name: 'Hagen-Poiseuille', fluid: {density: 1, viscosity: nu}, mode: 'internal',
     geometry: [{kind: 'cylinder', center: [L / 2, 0, 0], length: L, rotation: [0, 0, -Math.SQRT1_2, Math.SQRT1_2], radius: D / 2, role: 'cavity', part: 'pipe'}],
     internal: {inlets: [{name: 'in', shape: {kind: 'disc', center: [0, 0, 0], normal: [-1, 0, 0], radius: D / 2}, flowRate: Q, profile}],
       outlets: [{name: 'out', shape: {kind: 'disc', center: [L, 0, 0], normal: [1, 0, 0], radius: D / 2}, pressure: 0}]},
-    resolution: {cells}, run: {transits, windowTransits: 0.5, startupTransits: 1},
+    resolution: {cells, ...(latticeSpeed ? {latticeSpeed} : {})}, ...(model ? {model} : {}), run: {transits, windowTransits: 1, startupTransits: 1, tolerance},
     outputs: {sections: [{name: 'a', axis: 'x', position: 2}, {name: 'mid', axis: 'x', position: 3}, {name: 'b', axis: 'x', position: 4}], history: false}};
   const r = K.runFlowStudy(study);
   const [a, mid, b] = r.flow.sections, drop = a.meanPressure - b.meanPressure, exact = 128 * nu * 1 * 2 * Q / (Math.PI * D ** 4);
@@ -351,7 +351,7 @@ export function backwardStep(K, {re = 100, n = 16, upstream = 3, downstream = 30
 
 /** Sudden expansion of a round pipe, D2 = 2 D1, at Re 50,000 (sub-grid model on): the static pressure rise from just
  * before the step to 8 D2 after it, against Borda-Carnot, rho U1^2 s (1 - s) with s = A1 / A2; and the mass balance. */
-export function suddenExpansion(K, {cells = 16000, transits = 3, re = 5e4} = {}) {
+export function suddenExpansion(K, {cells = 40000, transits = 3, re = 5e4} = {}) {
   const D1 = 0.5, D2 = 1, U1 = 1, nu = U1 * D1 / re, up = 1.5 * D1, down = 9 * D2, x0 = up, s = (D1 / D2) ** 2;
   const along = [0, 0, -Math.SQRT1_2, Math.SQRT1_2]; // local +y to world +x
   const study = {format: 'box3d-flow-study/1', name: 'sudden expansion', fluid: {density: 1, viscosity: nu}, mode: 'internal',
@@ -405,4 +405,41 @@ export function building(K, {cells = 120000, transits = 3} = {}) {
   const r = K.runFlowStudy(study), c = r.forces.coefficients;
   return {cells: r.setup.lattice.fluidCells, bodyCells: r.setup.external.bodyCells, blockage: r.setup.external.blockage, cd: c.cd, cl: c.cl, cpMax: r.surface[0].cpMax,
     referencePressure: r.setup.external.referencePressure.value / c.dynamicPressure, steps: r.run.steps, turbulence: r.setup.turbulence.model, reynolds: r.setup.reynolds};
+}
+
+/** Closed boxes whose six walls are 0.02 m thick on a grid of 0.11 m cells (0.18 cells), given five ways: as closed
+ * meshes, rotated meshes, thin boxes, rotated thin boxes and open quads with thickness 0. A walk over the lattice links
+ * from a corner of the grid must not reach the centre of the box. */
+export function thinWallLeak(K) {
+  const h = 0.11, n = 20, grid = {origin: [0, 0, 0], cell: h, nx: n, ny: n, nz: n}, t = 0.02, a = 0.53, b = 1.61, c = (a + b) / 2;
+  const walls = [[[a, a, a], [b, b, a + t]], [[a, a, b - t], [b, b, b]], [[a, a, a], [b, a + t, b]], [[a, b - t, a], [b, b, b]], [[a, a, a], [a + t, b, b]], [[b - t, a, a], [b, b, b]]];
+  const angle = 0.5, q = [0, Math.sin(angle / 2) * 0.6, Math.sin(angle / 2) * 0.8, Math.cos(angle / 2)];
+  const rotate = v => { const [x, y, z, w] = q, tx = 2 * (y * v[2] - z * v[1]), ty = 2 * (z * v[0] - x * v[2]), tz = 2 * (x * v[1] - y * v[0]); return [v[0] + w * tx + (y * tz - z * ty), v[1] + w * ty + (z * tx - x * tz), v[2] + w * tz + (x * ty - y * tx)]; };
+  const sets = {
+    meshes: walls.map(([lo, hi], i) => ({kind: 'mesh', ...boxMesh(lo, hi), part: `w${i}`})),
+    rotatedMeshes: walls.map(([lo, hi], i) => ({kind: 'mesh', ...boxMesh(lo.map(v => v - c), hi.map(v => v - c)), rotation: q, position: [c, c, c], part: `w${i}`})),
+    boxes: walls.map(([lo, hi], i) => ({kind: 'box', center: lo.map((v, k) => (v + hi[k]) / 2), size: lo.map((v, k) => hi[k] - v), part: `w${i}`})),
+    rotatedBoxes: walls.map(([lo, hi], i) => ({kind: 'box', center: rotate(lo.map((v, k) => (v + hi[k]) / 2 - c)).map(v => v + c), size: lo.map((v, k) => hi[k] - v), rotation: q, part: `w${i}`})),
+    openQuads: walls.map(([lo, hi], i) => { const m = boxMesh(lo, hi), face = [0, 6, 12, 18, 30, 24][i]; return {kind: 'mesh', positions: m.positions, indices: m.indices.slice(face, face + 6), thickness: 0, part: `w${i}`}; }),
+  };
+  const links = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1], [1, 1, 0], [-1, -1, 0], [1, -1, 0], [-1, 1, 0], [1, 0, 1], [-1, 0, -1], [1, 0, -1], [-1, 0, 1], [0, 1, 1], [0, -1, -1], [0, 1, -1], [0, -1, 1]];
+  const out = {leaking: 0, thickened: {}, closedCells: {}};
+  for (const [name, items] of Object.entries(sets)) {
+    const v = K.flowVoxelize(items, grid), seen = new Uint8Array(n * n * n), stack = [0];
+    seen[0] = 1;
+    while (stack.length) {
+      const cell = stack.pop(), i = cell % n, j = Math.floor(cell / n) % n, k = Math.floor(cell / (n * n));
+      for (const [dx, dy, dz] of links) {
+        const x = i + dx, y = j + dy, z = k + dz;
+        if (x < 0 || y < 0 || z < 0 || x >= n || y >= n || z >= n) continue;
+        const e = x + n * (y + n * z);
+        if (seen[e] || v.distance[e] < 0) continue;
+        seen[e] = 1; stack.push(e);
+      }
+    }
+    const centre = Math.floor(c / h), inside = centre + n * (centre + n * centre);
+    if (v.distance[inside] >= 0 && seen[inside]) out.leaking++;
+    out.thickened[name] = v.largestThickening; out.closedCells[name] = v.closedCells;
+  }
+  return out;
 }

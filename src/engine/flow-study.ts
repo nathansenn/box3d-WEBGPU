@@ -82,7 +82,9 @@ export interface FlowStudySetup {
     bodySize:number;bodyBounds:{min:[number,number,number];max:[number,number,number]};
     margins:{upstream:number;downstream:number;side:number;top:number;bottom:number;length:number};momentCenter:[number,number,number];referenceArea:number|null};
   readonly internal:null|{inlets:string[];outlets:string[];fluidFraction:number};
-  readonly run:{maxSteps:number;startupSteps:number;windowSteps:number;monitorEvery:number;sampleEvery:number;tolerance:number};
+  readonly run:{maxSteps:number;startupSteps:number;windowSteps:number;monitorEvery:number;sampleEvery:number;tolerance:number;
+    /** Laminar internal flows: the start-up viscosity factor, held to step `fullUntil` and lowered to 1 by `rampUntil`. */
+    viscosityBoost:null|{scale:number;fullUntil:number;rampUntil:number}};
   readonly outputs:Json;
   readonly warnings:string[];
 }
@@ -157,7 +159,8 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
   known(res,'resolution',['cells','cellSize','latticeSpeed']);
   const budget=res.cells===undefined?400000:num(res.cells,'resolution.cells',1000);
   const model=s.model===undefined?{}:isObject(s.model)?s.model as Json:fail('model must be an object.');
-  known(model,'model',['turbulence','smagorinsky','wale','wallFunction','walls','spongeCells','thicken']);
+  known(model,'model',['turbulence','smagorinsky','wale','wallFunction','walls','spongeCells','thicken','collision']);
+  if(model.collision!==undefined&&model.collision!=='auto'&&model.collision!=='regularized'&&model.collision!=='trt')fail(`model.collision must be 'auto', 'regularized' or 'trt'.`);
   if(model.wallFunction!==undefined&&typeof model.wallFunction!=='boolean')fail('model.wallFunction must be true or false.');
   const runIn=s.run===undefined?{}:isObject(s.run)?s.run as Json:fail('run must be an object.');
   known(runIn,'run',['transits','startupTransits','windowTransits','tolerance','maxSteps','monitorEvery','sampleEvery']);
@@ -206,7 +209,7 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
     return {name:o.name as string,center:vec3(o.center,`actuators[${i}].center`),axis:vec3(o.axis,`actuators[${i}].axis`),radius:num(o.radius,`actuators[${i}].radius`,0,true),
       thickness:o.thickness===undefined?undefined:num(o.thickness,`actuators[${i}].thickness`,0,true),force:o.force===undefined?undefined:num(o.force,`actuators[${i}].force`),pressureJump:o.pressureJump===undefined?undefined:num(o.pressureJump,`actuators[${i}].pressureJump`)};
   });
-  const common={fluid,motion,actuators,turbulence:turbulence as 'auto',walls:walls as 'interpolated',surfaces:outputs.surface===true,thicken:model.thicken as boolean|undefined,wallFunction:model.wallFunction as boolean|undefined,
+  const common={fluid,motion,actuators,collision:model.collision as 'auto'|undefined,turbulence:turbulence as 'auto',walls:walls as 'interpolated',surfaces:outputs.surface===true,thicken:model.thicken as boolean|undefined,wallFunction:model.wallFunction as boolean|undefined,
     smagorinsky:model.smagorinsky===undefined?undefined:num(model.smagorinsky,'model.smagorinsky',0,true),wale:model.wale===undefined?undefined:num(model.wale,'model.wale',0,true),
     latticeSpeed:res.latticeSpeed===undefined?undefined:num(res.latticeSpeed,'resolution.latticeSpeed',0,true),
     spongeCells:model.spongeCells===undefined?undefined:num(model.spongeCells,'model.spongeCells',0)};
@@ -377,13 +380,29 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
   const startup=runIn.startupTransits===undefined?1:num(runIn.startupTransits,'run.startupTransits',0);
   const windowT=runIn.windowTransits===undefined?1.5:num(runIn.windowTransits,'run.windowTransits',0,true);
   const windowSteps=Math.max(8,Math.round(windowT*transitSteps));
-  let maxSteps=Math.max(windowSteps,Math.round(transits*transitSteps));
+  let maxSteps=Math.max(windowSteps,Math.round(transits*transitSteps)),startupSteps=Math.round(startup*transitSteps);
+  // A laminar internal flow approaches its steady state on the viscous time of its bore, R^2 / (5.78 nu) (the slowest
+  // mode of a round pipe, 2.405^2 = 5.78), far longer than a transit when the Reynolds number is high: the windows of
+  // the monitor would agree while the profile still creeps. Its developed profile does not depend on the viscosity, so
+  // the run starts with the viscosity raised until that time is one transit (two transits), lowers it to the fluid's
+  // own over the third, runs a fourth with it, and only then averages.
+  const cellReynolds=referenceSpeed*grid.cell/fluid.viscosity,closure=(common.turbulence??'auto') as string;
+  const laminar=closure==='none'||(closure==='auto'&&!(cellReynolds>10&&reynolds>2000));
+  let viscosityBoost:FlowStudySetup['run']['viscosityBoost']=null;
+  if(mode==='internal'&&laminar&&!flowOptions.acceleration){
+    const viscousSteps=(referenceLength/2)**2/(5.78*fluid.viscosity)/dt;
+    if(viscousSteps>transitSteps){
+      viscosityBoost={scale:viscousSteps/transitSteps,fullUntil:Math.round(2*transitSteps),rampUntil:Math.round(3*transitSteps)};
+      startupSteps=Math.max(startupSteps,Math.round(4*transitSteps));
+      maxSteps=Math.max(maxSteps,startupSteps+2*windowSteps);
+    }
+  }
   if(runIn.maxSteps!==undefined)maxSteps=Math.min(maxSteps,Math.max(1,Math.floor(num(runIn.maxSteps,'run.maxSteps',1))));
   const monitorEvery=runIn.monitorEvery===undefined?Math.max(1,Math.round(windowSteps/60)):Math.max(1,Math.floor(num(runIn.monitorEvery,'run.monitorEvery',1)));
   const sampleEvery=runIn.sampleEvery===undefined?Math.max(1,Math.floor(monitorEvery/5)):Math.max(1,Math.floor(num(runIn.sampleEvery,'run.sampleEvery',1)));
   const tolerance=runIn.tolerance===undefined?0.02:num(runIn.tolerance,'run.tolerance',0);
   return {name:typeof s.name==='string'?s.name:'',mode:mode as 'external'|'internal',options:flowOptions,fluid,grid,referenceSpeed,referenceLength,referenceLengthSource,reynolds,
-    transitTime,external,internal,run:{maxSteps,startupSteps:Math.min(maxSteps,Math.round(startup*transitSteps)),windowSteps,monitorEvery,sampleEvery,tolerance},outputs,warnings};
+    transitTime,external,internal,run:{maxSteps,startupSteps:Math.min(maxSteps,startupSteps),windowSteps,monitorEvery,sampleEvery,tolerance,viscosityBoost},outputs,warnings};
 }
 
 /** A study in progress. */
@@ -470,7 +489,11 @@ export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowS
   };
   const advance=():FlowProgress|null=>{
     if(done)return null;
-    const target=Math.min(run.maxSteps,L.stepCount+run.monitorEvery);
+    const target=Math.min(run.maxSteps,L.stepCount+run.monitorEvery),boost=run.viscosityBoost;
+    if(boost){
+      const n=L.stepCount;
+      flow.setViscosityScale(n<boost.fullUntil?boost.scale:n<boost.rampUntil?Math.pow(boost.scale,(boost.rampUntil-n)/(boost.rampUntil-boost.fullUntil)):1);
+    }
     while(L.stepCount<target){
       const toSample=run.sampleEvery-(L.stepCount%run.sampleEvery),n=Math.min(target-L.stepCount,toSample);
       flow.step(n);
@@ -539,7 +562,7 @@ export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowS
       grid:{origin:[...sg.origin],cell:sg.cell,nx:sg.nx,ny:sg.ny,nz:sg.nz,min:[...sg.origin],max:[sg.origin[0]+sg.nx*sg.cell,sg.origin[1]+sg.ny*sg.cell,sg.origin[2]+sg.nz*sg.cell]},
       lattice:{origin:[...g.origin],cell:g.cell,nx:g.nx,ny:g.ny,nz:g.nz,cells:L.cells,fluidCells:flow.fluidCells,solidCells:flow.solidCells,enclosedCells:flow.enclosedCells,boundaryLinks:L.linkCount},
       timeStep:flow.dt,latticeSpeed:flow.latticeSpeed,latticeMach:flow.latticeSpeed*Math.sqrt(3),relaxationTime:flow.relaxationTime,cellReynolds:flow.cellReynolds,
-      turbulence:{model:flow.turbulence,constant:flow.turbulence==='smagorinsky'?flow.smagorinsky:flow.turbulence==='wale'?flow.wale:null,wallFunction:flow.turbulence!=='none'&&L.wallFunction,rule:setup.options.turbulence==='auto'||setup.options.turbulence===undefined?`auto: ${FLOW_AUTO_MODEL} when the cell Reynolds number exceeds 10 and the Reynolds number exceeds 2000`:'given'},walls:L.walls,
+      turbulence:{model:flow.turbulence,constant:flow.turbulence==='smagorinsky'?flow.smagorinsky:flow.turbulence==='wale'?flow.wale:null,wallFunction:flow.turbulence!=='none'&&L.wallFunction,rule:setup.options.turbulence==='auto'||setup.options.turbulence===undefined?`auto: ${FLOW_AUTO_MODEL} when the cell Reynolds number exceeds 10 and the Reynolds number exceeds 2000`:'given'},walls:L.walls,collision:L.collision==='trt'&&flow.turbulence==='none'?'trt':'regularized',
       referenceSpeed:setup.referenceSpeed,referenceLength:{value:setup.referenceLength,source:setup.referenceLengthSource},reynolds:setup.reynolds,transitTime:setup.transitTime,
       external:ext?{speed:ext.speed,direction:ext.direction,up:ext.up,side:ext.side,ground:ext.ground,bodySize:ext.bodySize,bodyCells:ext.bodySize/g.cell,bodyBounds:ext.bodyBounds,blockage,
         referenceArea:{value:referenceArea,source:ext.referenceArea===null?'shadow of the solid cells along the flow (half-cell grid)':'given'},dynamicPressure,momentCenter:ext.momentCenter,margins:ext.margins,
@@ -607,7 +630,10 @@ export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowS
       const dtSample=run.monitorEvery*flow.dt,tail=(a:number[]):number[]=>a.slice(Math.max(0,H.step.findIndex(sx=>sx>run.startupSteps)));
       const fl=flowFrequency(tail(H.lift),dtSample),fs=flowFrequency(tail(H.side),dtSample),drag=Math.abs(meanOf(H.drag));
       const pick=fl&&fs?(fl.amplitude>=fs.amplitude?fl:fs):fl??fs;
-      const shedding=pick&&pick.periods>=3&&pick.amplitude>0.01*Math.max(drag,1e-30)?{frequency:pick.frequency,strouhal:pick.frequency*ext.bodySize/ext.speed,length:ext.bodySize,periods:pick.periods,amplitude:pick.amplitude,axis:pick===fl?'lift':'side'}:null;
+      // the Strouhal length: the size of the body (inside the box) along the axis of the oscillating force
+      const bb=ext.bodyBounds,gmax=[sg.origin[0]+sg.nx*sg.cell,sg.origin[1]+sg.ny*sg.cell,sg.origin[2]+sg.nz*sg.cell],axis=pick===fl?ext.up:ext.side;
+      let across=0;for(let a=0;a<3;a++)across+=Math.abs(axis[a])*Math.max(0,Math.min(bb.max[a],gmax[a])-Math.max(bb.min[a],sg.origin[a]));
+      const shedding=pick&&pick.periods>=3&&pick.amplitude>0.01*Math.max(drag,1e-30)?{frequency:pick.frequency,strouhal:pick.frequency*across/ext.speed,length:across,periods:pick.periods,amplitude:pick.amplitude,axis:pick===fl?'lift':'side'}:null;
       const b=ext.bodyBounds,d=ext.direction,centre:[number,number,number]=[(b.min[0]+b.max[0])/2,(b.min[1]+b.max[1])/2,(b.min[2]+b.max[2])/2];
       const half=0.5*(Math.abs(d[0])*(b.max[0]-b.min[0])+Math.abs(d[1])*(b.max[1]-b.min[1])+Math.abs(d[2])*(b.max[2]-b.min[2]));
       const rear:[number,number,number]=[centre[0]+half*d[0],centre[1]+half*d[1],centre[2]+half*d[2]];
