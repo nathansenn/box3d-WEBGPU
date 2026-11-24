@@ -392,6 +392,23 @@ export class FlowLattice {
     return {force,moment};
   }
 
+  /** The tables of the kernel, for a backend that runs the same step elsewhere (src/engine/gpu/flow-gpu.ts), and the
+   * features of this lattice such a backend must support: `features` lists those in use. */
+  program():{fluidCells:number;source:Int32Array;linkIndex:Int32Array;linkStart:Int32Array;linkDir:Uint8Array;linkKind:Uint8Array;linkQ:Float64Array;linkAdd:Float64Array;linkOwner:Int32Array;linkAux:Int32Array;linkArm:Float32Array;
+    viscosity:number;smagorinsky:number;bulkRelaxation:number;features:string[]}{
+    const features:string[]=[];
+    const les=this.smagorinsky>0;
+    if(this.wale>0)features.push('wale');
+    if((les||this.wale>0)&&this.wallFunction&&this.wallNormal.some((v,i)=>i%4===3&&v>0))features.push('wall function');
+    if(this.collision==='trt'&&!les&&!(this.wale>0))features.push('trt');
+    if(this.absorbRate>0&&this.inletCell.length>0)features.push('absorbing inlets');
+    if(this.extraViscosity)features.push('sponge');
+    if(this.forceCells)features.push('actuators');
+    if(this.viscosityScale!==1)features.push('viscosity scale');
+    return {fluidCells:this.fluidCells,source:this.source,linkIndex:this.linkIndex,linkStart:this.linkStart,linkDir:this.linkDir,linkKind:this.linkKind,linkQ:this.linkQ,linkAdd:this.linkAdd,linkOwner:this.linkOwner,linkAux:this.linkAux,linkArm:this.linkArm,
+      viscosity:this.viscosity,smagorinsky:this.smagorinsky,bulkRelaxation:this.bulkRelaxation,features};
+  }
+
   /** Number of boundary links (wall, inlet, outlet and slip), for the cost report. */
   get linkCount():number{return this.linkDir.length;}
 

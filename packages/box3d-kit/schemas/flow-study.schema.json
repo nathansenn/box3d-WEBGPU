@@ -1208,7 +1208,7 @@
       "regularized",
       "trt"
      ],
-     "description": "auto (default): trt without a sub-grid model when the relaxation time is at least 0.51, else regularized."
+     "description": "auto (default) = regularized; trt: two relaxation times, for closed or periodic laminar flows (it diverged next to openings at small viscosity)."
     },
     "turbulence": {
      "enum": [

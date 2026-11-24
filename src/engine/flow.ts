@@ -110,8 +110,12 @@ export interface FlowOptions {
   /** 'auto' (default): Smagorinsky when the cell Reynolds number referenceSpeed h / nu exceeds 10 and the Reynolds
    * number of the flow, when `reynolds` gives it, exceeds 2000; else none. */
   readonly turbulence?:'auto'|'none'|'smagorinsky'|'wale';
-  /** 'auto' (default): two relaxation times ('trt') when no sub-grid model runs and the relaxation time is at least 0.51,
-   * else 'regularized' (below 0.51 the two-relaxation-time collision diverged next to no-slip walls and openings). */
+  /** Steps over which a velocity inlet's mean density is low-passed to give way to sound (FlowLattice); 0 makes inlets
+   * hard (the GPU kernel has no absorbing inlets). Default: the time sound takes through the box and back. */
+  readonly absorbSteps?:number;
+  /** 'auto' (default) is 'regularized'. 'trt' (two relaxation times, laminar flow only) keeps bounce-back walls on
+   * curved boundaries where they are at small viscosity, but diverged next to inlets, outlets and no-slip walls at
+   * relaxation times of 0.501 to 0.51: use it for closed or periodic laminar flows. */
   readonly collision?:'auto'|'regularized'|'trt';
   /** WALE constant Cw. Default 0.5. */
   readonly wale?:number;
@@ -500,7 +504,7 @@ export class Flow {
       }
     }
     this.lattice=new FlowLattice({wallFunctionMask:wfMask,nx,ny,nz,periodic,kind,owner,distance,walls:options.walls??'interpolated',parts:lparts,patches:lpatches,viscosity:nuLat,
-      smagorinsky:this.turbulence==='smagorinsky'?this.smagorinsky:0,wale:this.turbulence==='wale'?this.wale:0,collision:(options.collision??'auto')==='auto'?(this.turbulence==='none'&&this.relaxationTime>=0.51?'trt':'regularized'):options.collision as 'trt',wallFunction:options.wallFunction,force:[acc[0]*aScale,acc[1]*aScale,acc[2]*aScale],initialVelocity:[u0[0]/vScale,u0[1]/vScale,u0[2]/vScale],extraViscosity:extra,cellVelocity,
+      smagorinsky:this.turbulence==='smagorinsky'?this.smagorinsky:0,absorbSteps:options.absorbSteps,wale:this.turbulence==='wale'?this.wale:0,collision:(options.collision??'auto')==='auto'?'regularized':options.collision as 'trt',wallFunction:options.wallFunction,force:[acc[0]*aScale,acc[1]*aScale,acc[2]*aScale],initialVelocity:[u0[0]/vScale,u0[1]/vScale,u0[2]/vScale],extraViscosity:extra,cellVelocity,
       forceCells:fCells.length?Int32Array.from(fCells):undefined,forceValues:fCells.length?Float64Array.from(fValues):undefined});
     this.kinds=kind;this.voxels={distance:vox.distance};
     this.solidCells=cells-this.lattice.fluidCells;this.fluidCells=this.lattice.fluidCells;
