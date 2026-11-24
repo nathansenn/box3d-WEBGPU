@@ -477,6 +477,7 @@ camera.follow(hero.state.position);
 | `box3d-webgpu-kit/cloth` | Calibrated cloth: a membrane and plate with real material parameters, implicit integration, contact and friction against rigid bodies, self-collision, and two-way coupling to the rigid world (see below). |
 | `box3d-webgpu-kit/granular` | Granular media by the discrete element method: spherical grains with Hertz or linear contact, friction, rolling resistance, silo and hopper walls, and two-way coupling to the rigid world (see below). |
 | `box3d-webgpu-kit/fluid` | Volumetric incompressible flow: the Navier–Stokes equations on a staggered grid with walls, inflows, outflows and periodic sides, fixed and moving obstacles, two-way coupling to the rigid world, and a free-surface tank of liquid particles (see below). |
+| `box3d-webgpu-kit/flow` | Flow around and through geometry from primitives and triangle meshes: a virtual wind or water tunnel, or pipes, manifolds and tanks with named inlets and outlets; forces per part, drag and lift, surface pressure, flow rates, pressure drops, streamlines and slices, by a lattice-Boltzmann large-eddy simulation; JSON study and result documents and the `box3d-flow` command (see below). `./flow-bundle` is the same in one ES module; `./flow-three` draws a result with three.js. |
 | `box3d-webgpu-kit/shallow-water` | Depth-averaged water on terrain: dam breaks, rivers and floods with Manning friction, rain and Green-Ampt infiltration, inflow, outflow and stage sides, and floating rigid bodies (see below). |
 | `box3d-webgpu-kit/materials` | A material library with sources: steels, aluminium, copper, cast iron, glass, concrete, granite, wood, polymers, rubber, ice, water, air, glass beads and sand, each value with its conditions and citation, and helpers that build the inputs of the solvers above (see below). |
 | `box3d-webgpu-kit/simulation` | One stepping loop: a `Simulation` that steps the world, the water and structure couplings, heat and solids in a fixed order, with one clock, energy ledger and event stream (see below). |
@@ -792,6 +793,38 @@ Sides are `'no-slip'` (a wall, moving along itself if you give it a velocity), `
 - **Time step:** with explicit viscosity at most `h^2 / (2 d nu)`; the Courant number must stay below `cflLimit` (1). A step above either is refused (`UNSTABLE_TIME_STEP`); `fluid.maxTimeStep()` gives both. The coupling is explicit: keep the rigid step below the body's response time (about `m / (6 pi mu r)` for a sphere).
 - **Accuracy:** `test/v18-fluid.test.mjs` checks it against closed forms and published data; the repository's `docs/FLUID.md` has the table. The lid-driven cavity within 0.8% (Re 100) and 1.5% (Re 400) of Ghia et al. on the centre lines, Taylor–Green decay at second order, water at rest to round-off, a sphere's drag 7.5% low at 2.4 cells per radius and 3.3% at 3.6, a dam break within 7.4% of Martin & Moyce, sloshing frequency within 0.5%.
 - **Limits, measured:** about 0.3 to 0.9 million cell-steps per second on one thread (a 16³ grid in 5 ms, 32³ in 53 ms), so about 10,000 cells per 60 Hz frame. No turbulence model. The free surface has no viscosity, surface tension or bodies.
+
+### Flow around and through geometry: tunnels, pipes, tanks
+
+`runFlowStudy` takes a study document (`box3d-flow-study/1`) and returns a result document (`box3d-flow-result/1`):
+
+```ts
+import {runFlowStudy} from 'box3d-webgpu-kit/flow';
+
+const result = runFlowStudy({
+  format: 'box3d-flow-study/1', fluid: 'air', mode: 'external',
+  geometry: [{kind: 'box', center: [0, 15, 0], size: [12, 30, 20], part: 'building'}],
+  external: {speed: 20, direction: [1, 0, 0], ground: {height: 0, type: 'fixed'}},
+  resolution: {cells: 400000},
+  outputs: {surface: true, streamlines: true, slices: [{axis: 'z', position: 0}]},
+});
+console.log(result.forces.coefficients.cd, result.forces.parts, result.warnings);
+```
+
+- **Geometry:** boxes (full `size` or `halfExtents`), spheres, cylinders, capsules, cones, tubes, beams and triangle
+  meshes (closed solids, or open surfaces with a thickness), in SI metres, quaternions `[x, y, z, w]`; an
+  `apex-flow-geometry/1` document as it is. Thin walls are grown so that they do not leak, and the result says by how much.
+- **External** studies are a tunnel round the geometry (inflow in any direction, a fixed, moving or slip ground, margins);
+  **internal** studies are the fluid inside cavities (pipes drawn by their bore, tanks) between named openings: inlets by
+  flow rate or speed (uniform or developed), outlets by pressure or flow rate.
+- **Results:** forces and moments per part, Cd, Cl, Cs, surface pressure and Cp per part, flow rate and mean pressure
+  per opening, pressure drops, flow splits, sections (with the peak speed), mass balance, streamlines with speed and
+  pressure per point, slices, the convergence history, the solver id, version and provenance.
+- **Method:** D3Q19 lattice-Boltzmann, regularised collision, Smagorinsky sub-grid model with a wall function, walls
+  placed by interpolated bounce-back from a signed distance; float64, deterministic. Above a cell Reynolds number of about
+  10 it is an under-resolved large-eddy simulation: an engineering estimate, **not certified CFD**.
+- **Accuracy and limits:** `test/v24-flow.test.mjs` and the repository's `docs/FLOW.md` (the validation table, what is
+  not validated, the cost). The command line: `npx box3d-flow study.json --out result.json`.
 
 ### Shallow water on terrain: floods, rivers, rain
 

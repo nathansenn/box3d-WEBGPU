@@ -35,7 +35,8 @@ const manifest = JSON.parse(readFileSync(join(pkg, 'package.json'), 'utf8'));
 const entries = Object.entries(manifest.exports).filter(([name, target]) => typeof target === 'object' && name !== './single').map(([name, target]) => ({name, file: target.default.replace('./dist/', '')}));
 // The solver modules. `import {PhysicsWorld} from 'box3d-webgpu-kit'` must reach none of them.
 const SOLVERS = ['compliant-cable', 'linear-water', 'closed-water', 'water-coupling', 'frame-element', 'frame-runtime', 'envelope-matrix', 'heat', 'solid', 'solid-mesh', 'concrete-law', 'sparse-ldl', 'structure-coupling',
-  'scene-format', 'scene-examples', 'geometry', 'simulation', 'robot-import', 'solid-fracture', 'cloth', 'granular', 'granular-kernels', 'fluid', 'fluid-multigrid', 'shallow-water', 'solid-contact', 'materials'].map(name => `core/${name}.js`);
+  'scene-format', 'scene-examples', 'geometry', 'simulation', 'robot-import', 'solid-fracture', 'cloth', 'granular', 'granular-kernels', 'fluid', 'fluid-multigrid', 'shallow-water', 'solid-contact', 'materials',
+  'flow-lattice', 'flow-geometry', 'flow', 'flow-post', 'flow-study'].map(name => `core/${name}.js`);
 // Budgets in bytes of gzip (level 9), set from the measured sizes of 1.0.0-rc.1 with about 15 % of headroom, rounded up to
 // a kibibyte. Raise one deliberately, in review, with the measurement in the commit message; never silently.
 // Raised with the rigid-core merge (measured then, KiB): box3d.wasm 704.2 raw (was under 700), main entry 75.3 (58.8: the
@@ -45,7 +46,9 @@ const SOLVERS = ['compliant-cable', 'linear-water', 'closed-water', 'water-coupl
 // von Karman plate of bf0b767). The pthread artifact is new and has budgets of its own (mt*).
 const KiB = 1024;
 // The tarball: both WebAssembly builds and everything else. Measured 1,434 KiB at rc.1 and 1,915.7 KiB after the
-// rigid-core merge, of which the pthread artifact is about 290 KiB compressed.
+// rigid-core merge, of which the pthread artifact is about 290 KiB compressed. Measured 2026-11-24 with the flow solver
+// (./flow, the single-module ./flow-bundle, ./flow-three, the GPU step, the two JSON Schemas) on the smaller WebAssembly:
+// 2,155 KiB packed, inside the budget below without raising it.
 const PACKED_BUDGET = 2194 * KiB;
 // Lowered 2026-11-23 with the size work on the WebAssembly build (docs/WASM_SIZE.md: recording hooks compiled out, cold
 // functions and the bridge compiled for size, Closure for the glue). Measured then, bytes: box3d.wasm 587,365 raw (it was
@@ -90,7 +93,12 @@ const BUDGET = {
     './materials': 40 * KiB, './geometry': 33 * KiB, './scene-format': 92 * KiB, './robot': 74 * KiB, './scene': 460 * KiB, './simulation': 459 * KiB,
     // Added 2026-11-18: the GPU backends with their float32 references and the scene sections on the GPU. It loads the
     // grain and shallow-water solvers they are built from (the flow solver only by type: a page that runs no flow does not load it; the scene loader is in ./simulation). Measured 150.8 KiB, 152.3 KiB with the flow sections (151.1 before them).
-    './gpu': 174 * KiB,
+    // Raised 2026-11-24 with the flow solver's GPU step (flow-gpu.ts): measured 173.3 KiB (it was 174 with 152.3 measured).
+    './gpu': 200 * KiB,
+    // Added 2026-11-23, measured 2026-11-24: flow around and through geometry (the lattice-Boltzmann kernel, the voxeliser,
+    // the study runner and the post-processing) 78.2 KiB, the same as one module (./flow-bundle, not minified) 66.7 KiB,
+    // and its three.js view 3.8 KiB. Budgets are the measured sizes plus about 15%.
+    './flow': 90 * KiB, './flow-bundle': 77 * KiB, './flow-three': 5 * KiB,
   },
 };
 const size = {
@@ -129,7 +137,7 @@ try {
   if (measureOnly) console.log(`${'packed'.padEnd(26)} ${(packed.size / KiB).toFixed(1).padStart(8)} KiB`);
   const over = [...Object.entries(size).filter(([k, v]) => v > BUDGET[k]).map(([k, v]) => `${k} ${v} > ${BUDGET[k]}`), ...Object.entries(entrySize).filter(([k, v]) => v > BUDGET.entry[k]).map(([k, v]) => `import '${k}' ${v} > ${BUDGET.entry[k]}`)];
   if (over.length && !measureOnly) throw new Error(`size budget exceeded (bytes): ${over.join(', ')}`);
-  for (const required of ['dist/index.js', 'dist/rigid.js', 'dist/shared.js', 'dist/index.d.ts', 'dist/three.js', 'dist/worker.js', 'dist/worker.d.ts', 'dist/babylon.js', 'dist/core/build-info.js', 'dist/shared-frames.js', 'dist/session.js', 'dist/inspector.js', 'api/API.md', 'CHANGELOG.md', 'dist/single.js', 'dist/cable.js', 'dist/water.js', 'dist/coupling.js', 'dist/frame.js', 'dist/heat.js', 'dist/gameplay.js', 'bin/box3d-kit.mjs', 'templates/three/main.js', 'wasm/box3d.js', 'wasm/box3d.wasm', 'LICENSE', 'wasm/BOX3D_LICENSE.txt', 'THIRD_PARTY_NOTICES.md', 'dist/geometry.js', 'dist/solid.js', 'dist/scene.js', 'dist/robot.js', 'dist/robot.d.ts', 'dist/core/robot-import.js', 'dist/fracture.js', 'dist/fracture.d.ts', 'dist/core/solid-fracture.js', 'dist/cloth.js', 'dist/solid-contact.js', 'dist/cloth.d.ts', 'dist/core/cloth.js', 'dist/gpu-compute.js', 'dist/gpu-compute.d.ts', 'dist/core/gpu/scene-backends.js', 'dist/core/gpu/fluid-gpu.js']) {
+  for (const required of ['dist/index.js', 'dist/rigid.js', 'dist/shared.js', 'dist/index.d.ts', 'dist/three.js', 'dist/worker.js', 'dist/worker.d.ts', 'dist/babylon.js', 'dist/core/build-info.js', 'dist/shared-frames.js', 'dist/session.js', 'dist/inspector.js', 'api/API.md', 'CHANGELOG.md', 'dist/single.js', 'dist/cable.js', 'dist/water.js', 'dist/coupling.js', 'dist/frame.js', 'dist/heat.js', 'dist/gameplay.js', 'bin/box3d-kit.mjs', 'templates/three/main.js', 'wasm/box3d.js', 'wasm/box3d.wasm', 'LICENSE', 'wasm/BOX3D_LICENSE.txt', 'THIRD_PARTY_NOTICES.md', 'dist/geometry.js', 'dist/solid.js', 'dist/scene.js', 'dist/robot.js', 'dist/robot.d.ts', 'dist/core/robot-import.js', 'dist/fracture.js', 'dist/fracture.d.ts', 'dist/core/solid-fracture.js', 'dist/cloth.js', 'dist/solid-contact.js', 'dist/cloth.d.ts', 'dist/core/cloth.js', 'dist/gpu-compute.js', 'dist/gpu-compute.d.ts', 'dist/core/gpu/scene-backends.js', 'dist/core/gpu/fluid-gpu.js', 'dist/flow.js', 'dist/flow-bundle.js', 'dist/flow-three.js', 'dist/core/gpu/flow-gpu.js', 'schemas/flow-study.schema.json', 'schemas/flow-result.schema.json', 'bin/flow-cli.mjs']) {
     if (!files.includes(required)) throw new Error(`tarball is missing ${required}`);
   }
   const leaked = files.filter(f => f.startsWith('src/') || f.startsWith('test/') || f.endsWith('.tgz') || f.endsWith('.map')); // maps would point at src/, which is not shipped

@@ -17,6 +17,7 @@ Updated 2026-11-17.
 | Drawing from the simulation buffers (`src/webgpu/simulation-layers.ts`) | done: grains as shaded quads from the position buffer, terrain and water surface from the state and bed buffers, slices of a fluid coloured by speed from its data buffer |
 | Lab examples at scale (`lab.html?example=sand-avalanche-100k`, `flood-valley-1m`, `lid-cavity-262k`) | done, with a CPU example as the fall back; seen on SwiftShader at small sizes only |
 | Incompressible flow on the MAC grid (`fluid-gpu.ts`) | done, with fixed and moving obstacles and rigid bodies coupled through `FluidCoupling`: 24 closed-form rows pass on the GPU (SwiftShader), 19 with the float64 tolerance; the GPU gives the float32 reference's bits, forces included |
+| Flow around and through geometry (`flow-gpu.ts`) | the step of the lattice-Boltzmann solver and its float32 reference; compiled and encoded on Dawn, the reference checked against the float64 solver; **not run on any device** ([Flow](#flow)) |
 | Free surface (APIC), cloth | **not done** on the GPU (see "Not done" for why the free surface was not attempted) |
 | Shallow water with coupled rigid bodies or point sources on the GPU | **not done** (the float64 solver has both) |
 | Checkpoints of the GPU backends (`checkpoint()`, `restoreCheckpoint()`) | done for the three backends, a format shared with each float32 reference; bit-exact on resume (gate: references, and the fluid across GPU and reference; SwiftShader: the GPU backends) |
@@ -436,6 +437,35 @@ Adams-Bashforth history restarts) and ends 3.4e-7 from a float64 run.
 
 On SwiftShader a step of the 48^2 cavity at Re 400 took about 1 s (1450 steps in 25 minutes): numbers for the record,
 not for a GPU.
+
+## Flow
+
+The lattice-Boltzmann step of `box3d-webgpu-kit/flow` ([`FLOW.md`](FLOW.md)) is one gather per fluid cell, which is
+the natural form of a compute pass: `src/engine/gpu/flow-gpu.ts` holds the shader (`FLOW_WGSL`, one dispatch per step,
+64 invocations per workgroup), its float32 CPU reference `FlowLatticeF32`, the device backend `GpuFlowLattice`, and
+`flowGpuSums`, which turns the link fluxes the shader writes (what each boundary link took and gave) into forces,
+moments and flow rates in float64 on the host, exactly as `FlowLattice` sums them.
+
+- **Covered:** streaming through the precomputed source table (fluid cells only), interpolated and half-way bounce-back
+  with wall and inlet velocities and the mass correction of the interpolation, anti-bounce-back pressure outlets,
+  specular slip sides, the regularised collision, the Smagorinsky model, a body force, the start-up ramp.
+- **Not covered** (the kernel refuses a lattice that uses them, `flowGpuSupport`): the wall function, the WALE model,
+  the two-relaxation-time collision, absorbing inlets, sponges, actuator discs and the start-up viscosity factor. A
+  `Flow` for the GPU is built with `wallFunction: false, absorbSteps: 0, collision: 'regularized'`. The study runner
+  (`runFlowStudy`) does not use the GPU.
+- **Memory:** two population buffers of 19 floats per fluid cell, 4 moments per cell, one table of 19 + 1 integers per
+  cell and 3 per link, 2 floats per link each for the link data and the fluxes: about 190 bytes per fluid cell. One
+  storage binding must hold 76 bytes per fluid cell (the populations): the WebGPU default binding of 128 MiB holds
+  1.7 million fluid cells.
+
+What was exercised here (`tests/engine/gpu-flow.test.mjs`, in `npm run test:gpu`): the shader compiles on Dawn without
+messages; steps of a tunnel with a sphere, a box, an inlet, an outlet, a no-slip ground and slip sides encode, submit and
+read back on Dawn's null backend without a validation error (the null backend runs nothing, so no number comes from
+it); the float32 reference against the float64 lattice over 200 steps of that tunnel with the sub-grid model on
+(velocities and forces, bands in the test); the float32 reference's laminar pipe at its steady state against
+Hagen-Poiseuille. **Not exercised:** the shader's results on any device (SwiftShader in a browser, or a GPU), its speed,
+device loss, checkpoints of the GPU state, and the study runner on the GPU. The float32 reference is written to perform
+the shader's operations in its order; whether a device gives its bits was not checked.
 
 ## Coupling grains to rigid bodies
 

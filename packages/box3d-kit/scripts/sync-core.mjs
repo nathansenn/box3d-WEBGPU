@@ -85,6 +85,14 @@ export const CORE = [
   // Contact between deformable solids and self-contact, part of ./solid-contact. Imports contracts.ts, checkpoint.ts, solid.ts and
   // the Subsystem type from simulation.ts.
   {from: 'src/engine/solid-solid-contact.ts', rewrites: []},
+  // ./flow: flow around and through geometry (lattice-Boltzmann). flow-lattice.ts is the kernel; flow-geometry.ts turns
+  // primitives and meshes into a signed distance; flow.ts is the SI solver; flow-post.ts streamlines, slices and sections;
+  // flow-study.ts the JSON study and result. They import contracts.ts and checkpoint.ts only.
+  {from: 'src/engine/flow-lattice.ts', rewrites: []},
+  {from: 'src/engine/flow-geometry.ts', rewrites: []},
+  {from: 'src/engine/flow.ts', rewrites: []},
+  {from: 'src/engine/flow-post.ts', rewrites: []},
+  {from: 'src/engine/flow-study.ts', rewrites: []},
   // ./materials: the sourced material library and the helpers that build solver inputs from it. Imports contracts.ts
   // and only types from solid.ts, solid-fracture.ts, heat.ts and granular.ts.
   {from: 'src/engine/materials.ts', rewrites: []},
@@ -93,7 +101,7 @@ export const CORE = [
   // the solvers above resolve. They need the WebGPU types (GPUDevice, ...) at compile time: webgpu-minimal.d.ts below,
   // which is not emitted; a TypeScript consumer of ./gpu adds @webgpu/types.
   ...['compute', 'layout', 'wgsl', 'shallow-water-wgsl', 'shallow-water-f32', 'shallow-water-gpu', 'granular-wgsl', 'granular-f32', 'granular-gpu',
-    'fluid-kernels', 'fluid-program', 'fluid-f32', 'fluid-gpu', 'scene-backends'].map(name => ({from: `src/engine/gpu/${name}.ts`, to: `gpu/${name}.ts`, rewrites: []})),
+    'fluid-kernels', 'fluid-program', 'fluid-f32', 'fluid-gpu', 'flow-gpu', 'scene-backends'].map(name => ({from: `src/engine/gpu/${name}.ts`, to: `gpu/${name}.ts`, rewrites: []})),
   // The WebGPU declarations the app compiles with; ambient, compile-time only (a .d.ts in src is not copied to dist).
   {from: 'src/webgpu-minimal.d.ts', rewrites: []},
 ];

@@ -41,3 +41,25 @@ const assets = output.filter(o => o.type === 'asset');
 writeFileSync(join(pkg, 'dist/single.js'), `/*! box3d-webgpu-kit single-file build. Box3D (c) Erin Catto, MIT. */\n${chunks[0].code}`);
 rmSync(work, {recursive: true, force: true});
 console.log(`wrote dist/single.js (${(chunks[0].code.length / 1024).toFixed(0)} KiB${assets.length ? `; ignored ${assets.length} asset(s): ${assets.map(a => a.fileName).join(', ')}` : ''})`);
+
+// dist/flow-bundle.js: the flow entry (box3d-webgpu-kit/flow) as one ES module with no imports and no WebAssembly, to
+// vendor with provenance. The header and FLOW_SOURCE_COMMIT name the package version and the commit it was built from.
+{
+  const {spawnSync} = await import('node:child_process');
+  const version = JSON.parse(readFileSync(join(pkg, 'package.json'), 'utf8')).version;
+  const git = spawnSync('git', ['rev-parse', 'HEAD'], {cwd: pkg, encoding: 'utf8'});
+  const commit = git.status === 0 ? git.stdout.trim() : null;
+  const dirty = commit ? spawnSync('git', ['status', '--porcelain', '--', '.', '../../src/engine'], {cwd: pkg, encoding: 'utf8'}).stdout.trim() !== '' : false;
+  mkdirSync(work, {recursive: true});
+  writeFileSync(join(work, 'flow-entry.mjs'), `export * from '../dist/flow.js';\nexport const FLOW_SOURCE_COMMIT = ${JSON.stringify(commit ? commit + (dirty ? '+modified' : '') : null)};\n`);
+  const flowBundle = await rolldown({input: join(work, 'flow-entry.mjs'), platform: 'neutral', logLevel: 'warn'});
+  const {output: flowOutput} = await flowBundle.generate({format: 'esm', codeSplitting: false, minify: false});
+  await flowBundle.close();
+  const flowChunks = flowOutput.filter(o => o.type === 'chunk');
+  if (flowChunks.length !== 1) throw new Error(`flow bundle: expected one chunk, got ${flowChunks.map(c => c.fileName).join(', ')}`);
+  if (/^\s*import\s/m.test(flowChunks[0].code)) throw new Error('flow bundle: the bundle still imports a module.');
+  writeFileSync(join(pkg, 'dist/flow-bundle.js'), `/*! box3d-webgpu-kit ${version} flow bundle (box3d-webgpu-kit/flow in one ES module). Source commit ${commit ?? 'unknown'}${dirty ? ' with local changes' : ''}. MIT. See docs/FLOW.md. */\n${flowChunks[0].code}`);
+  writeFileSync(join(pkg, 'dist/flow-bundle.d.ts'), `export * from './flow.js';\n/** The commit the bundle was built from ("+modified" when the sources had local changes), or null. */\nexport declare const FLOW_SOURCE_COMMIT: string | null;\n`);
+  rmSync(work, {recursive: true, force: true});
+  console.log(`wrote dist/flow-bundle.js (${(flowChunks[0].code.length / 1024).toFixed(0)} KiB)`);
+}

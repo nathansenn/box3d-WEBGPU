@@ -5,10 +5,10 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 776,
-  "passed": 776,
+  "cases": 827,
+  "passed": 827,
   "failed": 0,
-  "domains": 23
+  "domains": 24
  },
  "domains": [
   {
@@ -267,6 +267,25 @@
    ],
    "cases": 36,
    "passed": 36
+  },
+  {
+   "id": "flow",
+   "title": "Flow around and through geometry: ducts, pipes, bluff bodies, buildings, internal networks",
+   "summary": "Plane Poiseuille, a square duct and a round pipe drawn as meshes and as primitives, a finer pipe, and the force on the walls; laminar round pipes at Re 500, 1000 and 1500 and the warning below the resolution that holds them; a pipe through its openings (pressure drop, developed profile, mass balance); the cylinder at Re 20, 40, 100 and 200; a sphere at Re 100; a cube and a square plate at Re 1e5; a building on the ground through the study runner (drag and stagnation pressure); the backward-facing step; the sudden expansion against Borda-Carnot; a symmetric tee; a tank with three inlets; Stokes drag against Hasimoto; conservation of mass; repeatability and resume; meshes against primitives, imperfect meshes and thin walls; the streamline tracer.",
+   "solver": "`box3d-webgpu-kit/flow`: weakly compressible lattice-Boltzmann, D3Q19, regularised collision (two-relaxation-time on request for laminar flow) with a Smagorinsky sub-grid model and a power-law wall function above a cell Reynolds number of 10, interpolated bounce-back walls from a signed distance of primitives and meshes, float64, deterministic",
+   "docs": [
+    "docs/FLOW.md"
+   ],
+   "notValidated": [
+    "High Reynolds numbers on smooth bodies: there is no resolved boundary layer, and the wall function is used only on flat and gently curved walls. A sphere at Re 1e4 gave Cd 0.78, 0.58 and 0.53 at 8, 12 and 16 cells across (blockage 4.9%) against about 0.40; letting the wall function act on the sphere gave 0.435 at 12 cells but 0.233 at 16, so it is not used. The drag crisis is not predicted. Only sharp-edged bodies have rows above Re 200.",
+    "Laminar ducts at high cell Reynolds numbers: above a cell Reynolds number of about 50 (peak speed) a laminar pipe, and a square duct aligned with the grid, grow a steady secondary flow that takes 15 to 45% of the flow rate (a periodic pipe at Re 1000 to 1500, 12 to 20 cells across: -25 to -43%; a pipe through its openings at Re 1107: +63% pressure drop at 12.6 cells, +35% at 41 cells). Below it the loss is slower, not absent (Re 1107, 48 cells: -0.3% after 3 viscous times, -15% after 8). The rows hold periodic pipes for 2 to 8 viscous times; the regularised collision, interpolated and half-way walls, the two-relaxation-time and recursive collisions and a hybrid finite-difference stress were tried and did not remove it at affordable resolution. The Flow warns above FLOW_LAMINAR_CELL_REYNOLDS.",
+    "Bodies are 8 to 10 cells across and the tunnels bounded (blockage 3 to 6%, not corrected): drag is within 15 to 20%, not better. Lift, moments, surface pressure distributions other than the stagnation value, and wake lengths of three-dimensional bodies have no row.",
+    "Turbulence statistics (spectra, Reynolds stresses), skin friction on bodies and heat transfer have no row. The wall function was checked on a tunnel floor only (Cf 0.0055).",
+    "Reference values: the cylinder rows use the computations tabulated by Cui et al. (2019), whose tables were read; Williamson's Strouhal fit, the Schiller-Naumann correlation, Hoerner's drag coefficients (1.05, 1.17) and Armaly's reattachment length (about 3.0 at Re 100) are from memory, not checked against a source opened while writing.",
+    "Cost: one JavaScript thread; a study of 400,000 cells runs for minutes. The WebGPU step compiles and encodes on Dawn and its float32 reference follows the float64 solver; the shader has not been run on a device (docs/GPU_COMPUTE.md)."
+   ],
+   "cases": 51,
+   "passed": 51
   },
   {
    "id": "shallow-water",
@@ -13993,6 +14012,1441 @@
     "measured": "0",
     "error": "0",
     "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "flow.poiseuille.plane",
+   "domain": "flow",
+   "title": "Plane Poiseuille flow between mesh walls",
+   "quantity": "flow rate between two walls 8 cells apart that lie off the grid lines (a slot drawn as a mesh), driven by a body force",
+   "unit": "m^3/s",
+   "formula": "q = G H^3 / (12 nu) per unit depth",
+   "reference": 0.0833333333,
+   "measured": 0.0804748549,
+   "error": -0.00285847842,
+   "relativeError": -0.034301741,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "ducts and pipes driven by a pressure gradient: plane Poiseuille, a square duct and a round pipe drawn as meshes and primitives, a finer pipe, the force on the walls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.08333333 m^3/s",
+    "measured": "0.08047485",
+    "error": "-3.43%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "flow.duct.flow-rate",
+   "domain": "flow",
+   "title": "Square duct drawn as a mesh",
+   "quantity": "flow rate through a square duct 8 cells across whose walls lie off the grid lines",
+   "unit": "m^3/s",
+   "formula": "Q = (a^4 G / mu) [1/12 - (16 / pi^5) sum_odd tanh(n pi / 2) / n^5]",
+   "reference": 0.878606344,
+   "measured": 0.836624876,
+   "error": -0.0419814676,
+   "relativeError": -0.0477818853,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "ducts and pipes driven by a pressure gradient: plane Poiseuille, a square duct and a round pipe drawn as meshes and primitives, a finer pipe, the force on the walls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.8786063 m^3/s",
+    "measured": "0.8366249",
+    "error": "-4.78%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "flow.pipe.flow-rate",
+   "domain": "flow",
+   "title": "Round pipe drawn as a cylinder",
+   "quantity": "flow rate through a pipe 12 cells across, a fluid cylinder (role cavity), driven by a body force",
+   "unit": "m^3/s",
+   "formula": "Q = pi R^4 G / (8 mu) (Hagen-Poiseuille)",
+   "reference": 0.368155389,
+   "measured": 0.35880924,
+   "error": -0.00934614934,
+   "relativeError": -0.0253864255,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "ducts and pipes driven by a pressure gradient: plane Poiseuille, a square duct and a round pipe drawn as meshes and primitives, a finer pipe, the force on the walls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.3681554 m^3/s",
+    "measured": "0.3588092",
+    "error": "-2.54%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "flow.pipe.mesh-flow-rate",
+   "domain": "flow",
+   "title": "Round pipe drawn as a mesh",
+   "quantity": "the same pipe as a swept tube of 48 sides, a closed mesh",
+   "unit": "m^3/s",
+   "formula": "Q = pi R^4 G / (8 mu)",
+   "reference": 0.368155389,
+   "measured": 0.357372804,
+   "error": -0.010782585,
+   "relativeError": -0.0292881357,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "ducts and pipes driven by a pressure gradient: plane Poiseuille, a square duct and a round pipe drawn as meshes and primitives, a finer pipe, the force on the walls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.3681554 m^3/s",
+    "measured": "0.3573728",
+    "error": "-2.93%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "flow.pipe.fine",
+   "domain": "flow",
+   "title": "Round pipe at 24 cells across",
+   "quantity": "flow rate through the pipe drawn as a cylinder, 24 cells across, the relaxation time held at 0.6",
+   "unit": "m^3/s",
+   "formula": "Q = pi R^4 G / (8 mu)",
+   "reference": 0.368155389,
+   "measured": 0.364577529,
+   "error": -0.00357786014,
+   "relativeError": -0.00971834242,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "At the relaxation time 0.6 the error is 2.2% at 12 and at 16 cells and 1.0% at 24: the staircase of a circle does not converge evenly. With the lattice speed fixed instead, the relaxation time falls with the cell size and the wall of bounce-back moves with it: 12% low at 8 cells (relaxation time 0.53).",
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "ducts and pipes driven by a pressure gradient: plane Poiseuille, a square duct and a round pipe drawn as meshes and primitives, a finer pipe, the force on the walls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.3681554 m^3/s",
+    "measured": "0.3645775",
+    "error": "-0.972%",
+    "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "flow.pipe.force-balance",
+   "domain": "flow",
+   "title": "Round pipe: force on the wall",
+   "quantity": "force the wall takes, over the body force on the fluid, minus one",
+   "unit": "1",
+   "formula": "a steady duct: the wall takes all the driving force",
+   "reference": 0,
+   "measured": -9.69006653e-10,
+   "error": -9.69006653e-10,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "ducts and pipes driven by a pressure gradient: plane Poiseuille, a square duct and a round pipe drawn as meshes and primitives, a finer pipe, the force on the walls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "-9.690067e-10",
+    "error": "-9.69e-10",
+    "tolerance": "±1e-6"
+   }
+  },
+  {
+   "id": "flow.laminar-pipe.re500",
+   "domain": "flow",
+   "title": "Laminar round pipe, Re 500, 20 cells across",
+   "quantity": "flow rate through a periodic pipe 20 cells across (cell Reynolds number 50, peak speed) after 8 viscous times R^2 / (5.78 nu), started from the exact parabola",
+   "unit": "m^3/s",
+   "formula": "Q = pi R^4 G / (8 mu) (Hagen-Poiseuille)",
+   "reference": 0.785398163,
+   "measured": 0.774037687,
+   "error": -0.0113604764,
+   "relativeError": -0.0144646078,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a laminar round pipe at Re 500 to 1500, periodic, started from the exact parabola: the flow rate against Hagen-Poiseuille, and the warning below the resolution that holds it",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.7853982 m^3/s",
+    "measured": "0.7740377",
+    "error": "-1.45%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "flow.laminar-pipe.re1000",
+   "domain": "flow",
+   "title": "Laminar round pipe, Re 1000, 48 cells across",
+   "quantity": "flow rate through a periodic pipe 48 cells across (cell Reynolds number 41.7, peak speed) after 3 viscous times R^2 / (5.78 nu), started from the exact parabola, lattice speed 0.12",
+   "unit": "m^3/s",
+   "formula": "Q = pi R^4 G / (8 mu) (Hagen-Poiseuille)",
+   "reference": 0.785398163,
+   "measured": 0.783325166,
+   "error": -0.00207299738,
+   "relativeError": -0.00263942223,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a laminar round pipe at Re 500 to 1500, periodic, started from the exact parabola: the flow rate against Hagen-Poiseuille, and the warning below the resolution that holds it",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.7853982 m^3/s",
+    "measured": "0.7833252",
+    "error": "-0.264%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "flow.laminar-pipe.re1500",
+   "domain": "flow",
+   "title": "Laminar round pipe, Re 1500, 64 cells across",
+   "quantity": "flow rate through a periodic pipe 64 cells across (cell Reynolds number 46.9, peak speed) after 2 viscous times R^2 / (5.78 nu), started from the exact parabola, lattice speed 0.12",
+   "unit": "m^3/s",
+   "formula": "Q = pi R^4 G / (8 mu) (Hagen-Poiseuille)",
+   "reference": 0.785398163,
+   "measured": 0.783366075,
+   "error": -0.00203208825,
+   "relativeError": -0.00258733512,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a laminar round pipe at Re 500 to 1500, periodic, started from the exact parabola: the flow rate against Hagen-Poiseuille, and the warning below the resolution that holds it",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.7853982 m^3/s",
+    "measured": "0.7833661",
+    "error": "-0.259%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "flow.laminar-pipe.coarse-warning",
+   "domain": "flow",
+   "title": "Laminar round pipe, Re 1000, 16 cells across: the warning",
+   "quantity": "whether the Flow warns about the cell Reynolds number (125) at which the pipe loses a quarter of its flow rate",
+   "unit": "1",
+   "formula": "the warning is given above FLOW_LAMINAR_CELL_REYNOLDS = 50",
+   "reference": 1,
+   "measured": 1,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a laminar round pipe at Re 500 to 1500, periodic, started from the exact parabola: the flow rate against Hagen-Poiseuille, and the warning below the resolution that holds it",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "flow.sparse.populations",
+   "domain": "flow",
+   "title": "Sparse storage against dense: populations",
+   "quantity": "populations that differ in bits after 300 steps of an L of two pipes (a sphere at the corner, a baffle, a parabolic inlet, a pressure outlet, Smagorinsky), stored as 8^3 tiles and as a dense box",
+   "unit": "values",
+   "formula": "the same lattice, numbered in the order of the cell index",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "sparse storage: the same bits as dense storage on an L of pipes, and a long L whose box is three times the dense limit",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 values",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "flow.sparse.fields",
+   "domain": "flow",
+   "title": "Sparse storage against dense: fields",
+   "quantity": "cells of the box whose fluid flag, velocity, pressure or distance differ in bits",
+   "unit": "cells",
+   "formula": "identical fields",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "sparse storage: the same bits as dense storage on an L of pipes, and a long L whose box is three times the dense limit",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 cells",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "flow.sparse.large-box",
+   "domain": "flow",
+   "title": "Sparse storage: a box three times the dense limit",
+   "quantity": "box cells of a long thin L of pipes (legs 3000 cells, radius 2.6 cells) over the dense limit 2^25",
+   "unit": "1",
+   "formula": "more than the dense limit",
+   "reference": 1,
+   "measured": 2.95436513,
+   "error": 1.95436513,
+   "relativeError": 1.95436513,
+   "tolerance": {
+    "kind": "lower",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "sparse storage: the same bits as dense storage on an L of pipes, and a long L whose box is three times the dense limit",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "2.954365",
+    "error": "+1.95",
+    "tolerance": "not below the reference"
+   }
+  },
+  {
+   "id": "flow.sparse.large-box-mass",
+   "domain": "flow",
+   "title": "Sparse storage, long L: mass ledger",
+   "quantity": "volume the box gained over 400 steps minus the volume through the openings and walls",
+   "unit": "m^3",
+   "formula": "conservation of mass",
+   "reference": 0,
+   "measured": -1.12265752e-12,
+   "error": -1.12265752e-12,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "sparse storage: the same bits as dense storage on an L of pipes, and a long L whose box is three times the dense limit",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 m^3",
+    "measured": "-1.122658e-12",
+    "error": "-1.12e-12",
+    "tolerance": "±1e-6"
+   }
+  },
+  {
+   "id": "flow.pipe-study.pressure-drop",
+   "domain": "flow",
+   "title": "Pipe through its openings, Re 100: pressure drop",
+   "quantity": "pressure drop between sections 2 D and 4 D from the inlet of a pipe 6 D long drawn as a fluid cylinder, inlet by flow rate with the developed profile, outlet by pressure, about 12.6 cells across",
+   "unit": "Pa",
+   "formula": "dp = 128 mu L Q / (pi D^4)",
+   "reference": 0.64,
+   "measured": 0.67085725,
+   "error": 0.0308572498,
+   "relativeError": 0.0482144527,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "At Re 1107 with the same cells the drop is 63% high and the peak over the mean speed 1.90 (docs/FLOW.md): the relaxation time is 0.501, where the regularised collision moves a bounce-back wall on a staircase.",
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a pipe drawn as a fluid cylinder, through its openings: Hagen-Poiseuille pressure drop, the developed profile, the mass balance",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.64 Pa",
+    "measured": "0.6708572",
+    "error": "+4.82%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "flow.pipe-study.peak",
+   "domain": "flow",
+   "title": "Pipe through its openings, Re 100: peak over mean",
+   "quantity": "largest speed normal to the middle section over its mean speed",
+   "unit": "1",
+   "formula": "developed laminar profile: 2",
+   "reference": 2,
+   "measured": 2.01256478,
+   "error": 0.0125647843,
+   "relativeError": 0.00628239214,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a pipe drawn as a fluid cylinder, through its openings: Hagen-Poiseuille pressure drop, the developed profile, the mass balance",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "2",
+    "measured": "2.012565",
+    "error": "+0.628%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "flow.pipe-study.mass",
+   "domain": "flow",
+   "title": "Pipe through its openings, Re 100: mass balance",
+   "quantity": "(inflow - outflow) / inflow over the averaging window",
+   "unit": "1",
+   "formula": "conservation of mass",
+   "reference": 0,
+   "measured": 7.10367124e-8,
+   "error": 7.10367124e-8,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a pipe drawn as a fluid cylinder, through its openings: Hagen-Poiseuille pressure drop, the developed profile, the mass balance",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "7.103671e-8",
+    "error": "+7.1e-8",
+    "tolerance": "±0.0001"
+   }
+  },
+  {
+   "id": "flow.cylinder.re20-drag",
+   "domain": "flow",
+   "title": "Cylinder, Re 20: drag coefficient",
+   "quantity": "Cd of a cylinder 8 cells across in a 2D tunnel 24 D high (blockage 4.2%), inlet 9.5 D ahead, laminar",
+   "unit": "1",
+   "formula": "computed in unbounded domains: 2.091 (Wu & Shu), 2.11 (Cui et al.), 2.144 (Niu et al.), as tabulated by Cui et al. 2019",
+   "reference": 2.091,
+   "measured": 2.18216616,
+   "error": 0.0911661605,
+   "relativeError": 0.0435993116,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.08
+   },
+   "pass": true,
+   "note": "The blockage of the tunnel raises the drag a few percent; it is not corrected. In a tunnel 12 D high with the inlet 4.5 D ahead the drag was 2.39 (14% high).",
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the circular cylinder: drag and recirculation at Re 20 and 40, drag and Strouhal number at Re 100 and 200",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "2.091",
+    "measured": "2.182166",
+    "error": "+4.36%",
+    "tolerance": "±8%"
+   }
+  },
+  {
+   "id": "flow.cylinder.re20-length",
+   "domain": "flow",
+   "title": "Cylinder, Re 20: recirculation length",
+   "quantity": "length of the recirculation behind the cylinder over D, from its rear",
+   "unit": "1",
+   "formula": "Wu & Shu, Cui et al.: 0.93",
+   "reference": 0.93,
+   "measured": 0.933051018,
+   "error": 0.00305101797,
+   "relativeError": 0.00328066448,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.08
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the circular cylinder: drag and recirculation at Re 20 and 40, drag and Strouhal number at Re 100 and 200",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.93",
+    "measured": "0.933051",
+    "error": "+0.328%",
+    "tolerance": "±8%"
+   }
+  },
+  {
+   "id": "flow.cylinder.re40-drag",
+   "domain": "flow",
+   "title": "Cylinder, Re 40: drag coefficient",
+   "quantity": "Cd, the same tunnel",
+   "unit": "1",
+   "formula": "Wu & Shu: 1.539 (Cui et al. 1.56, Niu et al. 1.589)",
+   "reference": 1.539,
+   "measured": 1.63960241,
+   "error": 0.100602412,
+   "relativeError": 0.0653686885,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.1
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the circular cylinder: drag and recirculation at Re 20 and 40, drag and Strouhal number at Re 100 and 200",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1.539",
+    "measured": "1.639602",
+    "error": "+6.54%",
+    "tolerance": "±10%"
+   }
+  },
+  {
+   "id": "flow.cylinder.re40-length",
+   "domain": "flow",
+   "title": "Cylinder, Re 40: recirculation length",
+   "quantity": "length of the recirculation over D",
+   "unit": "1",
+   "formula": "Wu & Shu: 2.23 (Cui et al. 2.20, Niu et al. 2.26)",
+   "reference": 2.23,
+   "measured": 2.34401875,
+   "error": 0.11401875,
+   "relativeError": 0.0511294842,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.1
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the circular cylinder: drag and recirculation at Re 20 and 40, drag and Strouhal number at Re 100 and 200",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "2.23",
+    "measured": "2.344019",
+    "error": "+5.11%",
+    "tolerance": "±10%"
+   }
+  },
+  {
+   "id": "flow.cylinder.re100-drag",
+   "domain": "flow",
+   "title": "Cylinder, Re 100: mean drag coefficient",
+   "quantity": "mean Cd over 50 D/U after 100 D/U, 10 cells across, tunnel 16 D high (blockage 6.3%)",
+   "unit": "1",
+   "formula": "Wu & Shu: 1.334 (Ding et al. 1.325)",
+   "reference": 1.334,
+   "measured": 1.4717851,
+   "error": 0.137785097,
+   "relativeError": 0.103287179,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.15
+   },
+   "pass": true,
+   "note": "The drag is high by about the blockage effect; it is not corrected.",
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the circular cylinder: drag and recirculation at Re 20 and 40, drag and Strouhal number at Re 100 and 200",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1.334",
+    "measured": "1.471785",
+    "error": "+10.3%",
+    "tolerance": "±15%"
+   }
+  },
+  {
+   "id": "flow.cylinder.re100-strouhal",
+   "domain": "flow",
+   "title": "Cylinder, Re 100: Strouhal number",
+   "quantity": "frequency of the lift over U / D",
+   "unit": "1",
+   "formula": "Williamson (1988): St = -3.3265 / Re + 0.1816 + 1.6e-4 Re",
+   "reference": 0.164335,
+   "measured": 0.170578255,
+   "error": 0.00624325468,
+   "relativeError": 0.0379910225,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.08
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the circular cylinder: drag and recirculation at Re 20 and 40, drag and Strouhal number at Re 100 and 200",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.164335",
+    "measured": "0.1705783",
+    "error": "+3.8%",
+    "tolerance": "±8%"
+   }
+  },
+  {
+   "id": "flow.cylinder.re200-strouhal",
+   "domain": "flow",
+   "title": "Cylinder, Re 200: Strouhal number",
+   "quantity": "frequency of the lift over U / D, two-dimensional",
+   "unit": "1",
+   "formula": "two-dimensional computations: 0.196 (Ding et al.), 0.195 (Wu & Shu); experiments are three-dimensional above Re 180",
+   "reference": 0.196,
+   "measured": 0.199244705,
+   "error": 0.00324470547,
+   "relativeError": 0.0165546197,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.08
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the circular cylinder: drag and recirculation at Re 20 and 40, drag and Strouhal number at Re 100 and 200",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.196",
+    "measured": "0.1992447",
+    "error": "+1.66%",
+    "tolerance": "±8%"
+   }
+  },
+  {
+   "id": "flow.sphere.re100",
+   "domain": "flow",
+   "title": "Sphere, Re 100: drag coefficient",
+   "quantity": "mean Cd of a sphere 8 cells across in a tunnel 5 D square (blockage 3.1%), laminar",
+   "unit": "1",
+   "formula": "Schiller-Naumann: 24 / Re (1 + 0.15 Re^0.687)",
+   "reference": 1.09173109,
+   "measured": 1.26473249,
+   "error": 0.173001396,
+   "relativeError": 0.158465209,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.2
+   },
+   "pass": true,
+   "note": "Eight cells across a sphere are few; the drag is high.",
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "bluff bodies: a sphere at Re 100, a cube and a square plate at Re 1e5",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1.091731",
+    "measured": "1.264732",
+    "error": "+15.8%",
+    "tolerance": "±20%"
+   }
+  },
+  {
+   "id": "flow.cube.re1e5",
+   "domain": "flow",
+   "title": "Cube face-on, Re 1e5: drag coefficient",
+   "quantity": "mean Cd of a cube 8 cells across in a tunnel 5 D square (blockage 4%), sub-grid model and wall function",
+   "unit": "1",
+   "formula": "Hoerner (Fluid-Dynamic Drag), from memory: 1.05",
+   "reference": 1.05,
+   "measured": 0.913968845,
+   "error": -0.136031155,
+   "relativeError": -0.129553481,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.15
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "bluff bodies: a sphere at Re 100, a cube and a square plate at Re 1e5",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1.05",
+    "measured": "0.9139688",
+    "error": "-13%",
+    "tolerance": "±15%"
+   }
+  },
+  {
+   "id": "flow.plate.re1e5",
+   "domain": "flow",
+   "title": "Square plate normal to the stream, Re 1e5: drag coefficient",
+   "quantity": "mean Cd of a square plate D x D, 0.05 D thick (grown to 1.44 cells), 8 cells across",
+   "unit": "1",
+   "formula": "Hoerner, from memory: 1.17",
+   "reference": 1.17,
+   "measured": 1.03851128,
+   "error": -0.131488724,
+   "relativeError": -0.112383524,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.15
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "bluff bodies: a sphere at Re 100, a cube and a square plate at Re 1e5",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1.17",
+    "measured": "1.038511",
+    "error": "-11.2%",
+    "tolerance": "±15%"
+   }
+  },
+  {
+   "id": "flow.building.drag",
+   "domain": "flow",
+   "title": "Building on fixed ground: drag coefficient",
+   "quantity": "Cd of a block 12 x 30 x 20 m (30 m high) in a 20 m/s wind normal to its 20 m face, study runner with its default margins, about 8 cells across",
+   "unit": "1",
+   "formula": "the band of the apex building studies: 1.0 to 1.7 (sharp-edged rectangular buildings)",
+   "reference": 1.35,
+   "measured": 1.0409824,
+   "error": -0.309017602,
+   "relativeError": -0.228901928,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.35
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a rectangular building on fixed ground through the study runner: drag coefficient and the largest surface pressure coefficient",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1.35",
+    "measured": "1.040982",
+    "error": "-0.309",
+    "tolerance": "±0.35"
+   }
+  },
+  {
+   "id": "flow.building.cp-max",
+   "domain": "flow",
+   "title": "Building on fixed ground: largest surface Cp",
+   "quantity": "largest pressure coefficient over the surface, pressure gauge to the free stream (the mean on the inlet)",
+   "unit": "1",
+   "formula": "stagnation: Cp = 1",
+   "reference": 1,
+   "measured": 1.16070085,
+   "error": 0.160700852,
+   "relativeError": 0.160700852,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.2
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a rectangular building on fixed ground through the study runner: drag coefficient and the largest surface pressure coefficient",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.160701",
+    "error": "+0.161",
+    "tolerance": "±0.2"
+   }
+  },
+  {
+   "id": "flow.building.cp-max-resolved",
+   "domain": "flow",
+   "title": "Building on fixed ground: largest resolved surface Cp",
+   "quantity": "largest pressure coefficient over the surface samples not flagged as on a sharp edge or in a gap under three cells",
+   "unit": "1",
+   "formula": "stagnation: Cp = 1",
+   "reference": 1,
+   "measured": 1.16070085,
+   "error": 0.160700852,
+   "relativeError": 0.160700852,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.2
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a rectangular building on fixed ground through the study runner: drag coefficient and the largest surface pressure coefficient",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.160701",
+    "error": "+0.161",
+    "tolerance": "±0.2"
+   }
+  },
+  {
+   "id": "flow.stagnation.cube",
+   "domain": "flow",
+   "title": "Cube in a free stream: stagnation Cp",
+   "quantity": "largest resolved surface pressure coefficient of a cube face-on, Re 1e4, about 6.7 cells across, study runner (free-stream inlet, reference the mean inlet pressure)",
+   "unit": "1",
+   "formula": "incompressible stagnation point: Cp = 1",
+   "reference": 1,
+   "measured": 1.04040203,
+   "error": 0.0404020309,
+   "relativeError": 0.0404020309,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.1
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the stagnation pressure coefficient of a cube and a sphere in a free stream through the study runner is 1 within 0.1",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.040402",
+    "error": "+0.0404",
+    "tolerance": "±0.1"
+   }
+  },
+  {
+   "id": "flow.stagnation.sphere",
+   "domain": "flow",
+   "title": "Sphere in a free stream: stagnation Cp",
+   "quantity": "largest resolved surface pressure coefficient of a sphere, Re 1e4, about 6.7 cells across, study runner",
+   "unit": "1",
+   "formula": "incompressible stagnation point: Cp = 1",
+   "reference": 1,
+   "measured": 0.956754684,
+   "error": -0.0432453156,
+   "relativeError": -0.0432453156,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.1
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the stagnation pressure coefficient of a cube and a sphere in a free stream through the study runner is 1 within 0.1",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.9567547",
+    "error": "-0.0432",
+    "tolerance": "±0.1"
+   }
+  },
+  {
+   "id": "flow.step.reattachment",
+   "domain": "flow",
+   "title": "Backward-facing step, Re 100: reattachment",
+   "quantity": "reattachment length over the step height S, expansion ratio 1.94, Re = U_mean 2 h / nu, 16 cells over the inlet channel",
+   "unit": "1",
+   "formula": "Armaly et al. (1983): about 3.0, from memory (two-dimensional computations agree with the experiment to Re 400)",
+   "reference": 3,
+   "measured": 2.75762871,
+   "error": -0.242371293,
+   "relativeError": -0.080790431,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.12
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the backward-facing step at Re 100: reattachment length against Armaly et al. (1983)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "3",
+    "measured": "2.757629",
+    "error": "-8.08%",
+    "tolerance": "±12%"
+   }
+  },
+  {
+   "id": "flow.expansion.pressure-rise",
+   "domain": "flow",
+   "title": "Sudden expansion D2 = 2 D1, Re 5e4: pressure rise",
+   "quantity": "rise of the mean pressure from 0.5 D1 before the step to 8 D2 after it, about 7.6 cells across D1, sub-grid model",
+   "unit": "Pa",
+   "formula": "Borda-Carnot: rho U1^2 s (1 - s), s = A1 / A2",
+   "reference": 0.1875,
+   "measured": 0.200640754,
+   "error": 0.0131407544,
+   "relativeError": 0.0700840237,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.15
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "internal flows through the study runner: the sudden expansion against Borda-Carnot, a symmetric tee, a tank with three inlets",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.1875 Pa",
+    "measured": "0.2006408",
+    "error": "+7.01%",
+    "tolerance": "±15%"
+   }
+  },
+  {
+   "id": "flow.tee.split",
+   "domain": "flow",
+   "title": "Symmetric tee: flow split",
+   "quantity": "fraction of the outflow through one arm of a tee whose arms are equal and open at the same pressure",
+   "unit": "1",
+   "formula": "symmetry: 1/2",
+   "reference": 0.5,
+   "measured": 0.481918733,
+   "error": -0.0180812674,
+   "relativeError": -0.0361625349,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.03
+   },
+   "pass": true,
+   "note": "The flow in the tee is unsteady (sub-grid model on); the split is a mean over one window.",
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "internal flows through the study runner: the sudden expansion against Borda-Carnot, a symmetric tee, a tank with three inlets",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.5",
+    "measured": "0.4819187",
+    "error": "-0.0181",
+    "tolerance": "±0.03"
+   }
+  },
+  {
+   "id": "flow.tee.mass",
+   "domain": "flow",
+   "title": "Symmetric tee: mass balance",
+   "quantity": "(inflow - outflow) / inflow",
+   "unit": "1",
+   "formula": "conservation of mass",
+   "reference": 0,
+   "measured": 0.000089714444,
+   "error": 0.000089714444,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "internal flows through the study runner: the sudden expansion against Borda-Carnot, a symmetric tee, a tank with three inlets",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "8.971444e-5",
+    "error": "+8.97e-5",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "flow.tank.mass",
+   "domain": "flow",
+   "title": "Tank with three inlets: mass balance",
+   "quantity": "(inflow - outflow) / inflow, three inlets by flow rate, one outlet by pressure",
+   "unit": "1",
+   "formula": "conservation of mass",
+   "reference": 0,
+   "measured": -0.000336776909,
+   "error": -0.000336776909,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "internal flows through the study runner: the sudden expansion against Borda-Carnot, a symmetric tee, a tank with three inlets",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "-0.0003367769",
+    "error": "-0.000337",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "flow.tank.inlets",
+   "domain": "flow",
+   "title": "Tank with three inlets: flow at the inlets",
+   "quantity": "largest relative difference between the flow through an inlet and the flow rate given",
+   "unit": "1",
+   "formula": "the flow rate given",
+   "reference": 0,
+   "measured": 0.000109700531,
+   "error": 0.000109700531,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "internal flows through the study runner: the sudden expansion against Borda-Carnot, a symmetric tee, a tank with three inlets",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.0001097005",
+    "error": "+0.00011",
+    "tolerance": "at most 0.001 above the reference"
+   }
+  },
+  {
+   "id": "flow.stokes.drag",
+   "domain": "flow",
+   "title": "Stokes drag on a sphere, 2.4 cells per radius",
+   "quantity": "drag of a sphere of radius 0.15 L in a periodic cube of 16^3 cells, Re about 0.1",
+   "unit": "N",
+   "formula": "Hasimoto (1959): F = 6 pi mu a U / (1 - 1.7601 c^(1/3) + c - 1.5593 c^2) (as given by Ladd 1994)",
+   "reference": 0.010602937,
+   "measured": 0.00986327917,
+   "error": -0.000739657789,
+   "relativeError": -0.0697597082,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.1
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "Stokes drag on a sphere in a periodic cube against Hasimoto (1959), and the force on the sphere against the body force on the fluid",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.01060294 N",
+    "measured": "0.009863279",
+    "error": "-6.98%",
+    "tolerance": "±10%"
+   }
+  },
+  {
+   "id": "flow.stokes.force-balance",
+   "domain": "flow",
+   "title": "Stokes drag: force on the body against the body force",
+   "quantity": "drag over the body force on the fluid, minus one, at the steady state",
+   "unit": "1",
+   "formula": "momentum balance of the periodic box (a control volume)",
+   "reference": 0,
+   "measured": -2.10431239e-7,
+   "error": -2.10431239e-7,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "Stokes drag on a sphere in a periodic cube against Hasimoto (1959), and the force on the sphere against the body force on the fluid",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "-2.104312e-7",
+    "error": "-2.1e-7",
+    "tolerance": "±1e-6"
+   }
+  },
+  {
+   "id": "flow.mass.openings",
+   "domain": "flow",
+   "title": "Mass through openings and walls",
+   "quantity": "change of the mass in a tunnel with two bodies over 200 steps, minus what entered through the openings and the walls, over the throughput",
+   "unit": "1",
+   "formula": "conservation of mass on the lattice",
+   "reference": 0,
+   "measured": -2.97664021e-15,
+   "error": -2.97664021e-15,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-12
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "conservation: mass through openings and walls, a closed box",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "-2.97664e-15",
+    "error": "-2.98e-15",
+    "tolerance": "±1e-12"
+   }
+  },
+  {
+   "id": "flow.mass.closed",
+   "domain": "flow",
+   "title": "Mass in a closed periodic box",
+   "quantity": "change of the mass over 300 steps per fluid cell, body force and a sphere",
+   "unit": "1",
+   "formula": "conservation of mass",
+   "reference": 0,
+   "measured": 3.74892394e-18,
+   "error": 3.74892394e-18,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-12
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "conservation: mass through openings and walls, a closed box",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "3.748924e-18",
+    "error": "+3.75e-18",
+    "tolerance": "±1e-12"
+   }
+  },
+  {
+   "id": "flow.determinism.repeat",
+   "domain": "flow",
+   "title": "Repeatability",
+   "quantity": "runs whose populations differ from the first in any bit, of two runs of a turbulent tunnel",
+   "unit": "runs",
+   "formula": "bit-identical state",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "determinism: repeat runs are bit-identical, and a run resumed from a checkpoint continues with the same bits",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 runs",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "flow.determinism.resume",
+   "domain": "flow",
+   "title": "Resume from a checkpoint",
+   "quantity": "runs resumed from saveState / restoreState whose state, sums or time differ from the uninterrupted run",
+   "unit": "runs",
+   "formula": "bit-identical continuation",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "determinism: repeat runs are bit-identical, and a run resumed from a checkpoint continues with the same bits",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 runs",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "flow.geometry.mesh-sphere",
+   "domain": "flow",
+   "title": "Mesh against primitive: sphere",
+   "quantity": "cells whose solid / fluid state differs between a sphere and its 96 x 48 mesh, 24^3 grid, of about 1570 solid cells",
+   "unit": "cells",
+   "formula": "the same shape",
+   "reference": 0,
+   "measured": 6,
+   "error": 6,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 12
+   },
+   "pass": true,
+   "note": "The mesh is inscribed in the sphere: cells within its sagitta (0.06 cells) of the surface may change side.",
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "geometry: meshes against primitives, imperfect meshes, thin walls that do not leak",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 cells",
+    "measured": "6",
+    "error": "+6",
+    "tolerance": "at most 12 above the reference"
+   }
+  },
+  {
+   "id": "flow.geometry.mesh-box",
+   "domain": "flow",
+   "title": "Mesh against primitive: box",
+   "quantity": "cells whose state differs between a box and its 12-triangle mesh",
+   "unit": "cells",
+   "formula": "the same shape",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "geometry: meshes against primitives, imperfect meshes, thin walls that do not leak",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 cells",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "flow.geometry.soup",
+   "domain": "flow",
+   "title": "Imperfect mesh: triangle soup with flipped triangles",
+   "quantity": "cells whose state differs from the clean sphere when no vertex is shared and every third triangle is flipped",
+   "unit": "cells",
+   "formula": "welding and parity ignore indexing and winding",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "geometry: meshes against primitives, imperfect meshes, thin walls that do not leak",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 cells",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "flow.geometry.hole",
+   "domain": "flow",
+   "title": "Imperfect mesh: a hole",
+   "quantity": "cells whose state differs from the clean sphere when three triangles are missing (a hole about a cell wide)",
+   "unit": "cells",
+   "formula": "the majority vote of three ray directions outvotes the hole",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "geometry: meshes against primitives, imperfect meshes, thin walls that do not leak",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 cells",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "flow.geometry.thin-wall",
+   "domain": "flow",
+   "title": "Thin walls do not leak",
+   "quantity": "closed boxes whose walls are 0.18 cells thick (as meshes, rotated meshes, boxes, rotated boxes, open quads): ones whose inside the lattice links reach from outside",
+   "unit": "boxes",
+   "formula": "walls grown to 1.44 cells, closed meshes sealed",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "geometry: meshes against primitives, imperfect meshes, thin walls that do not leak",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 boxes",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "flow.streamline.straight",
+   "domain": "flow",
+   "title": "Streamline in a uniform flow",
+   "quantity": "largest distance of the traced points from the straight line through the seed, in cells",
+   "unit": "cells",
+   "formula": "a straight line",
+   "reference": 0,
+   "measured": 0.00000117892171,
+   "error": 0.00000117892171,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "streamlines: straight in a uniform flow, a closed circle in a solid-body rotation",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 cells",
+    "measured": "1.178922e-6",
+    "error": "+1.18e-6",
+    "tolerance": "at most 0.0001 above the reference"
+   }
+  },
+  {
+   "id": "flow.streamline.circle",
+   "domain": "flow",
+   "title": "Streamline in a solid-body rotation",
+   "quantity": "largest radial error over the radius, one turn of RK4 with steps of half a cell",
+   "unit": "1",
+   "formula": "a circle",
+   "reference": 0,
+   "measured": 1.22829837e-7,
+   "error": 1.22829837e-7,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "streamlines: straight in a uniform flow, a closed circle in a solid-body rotation",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "1.228298e-7",
+    "error": "+1.23e-7",
+    "tolerance": "at most 0.0001 above the reference"
    }
   },
   {

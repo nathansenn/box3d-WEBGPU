@@ -46,6 +46,7 @@ const FILES = [
   'test/v23-solid-solid-mortar.test.mjs',
   'test/v23-gpu-scene.test.mjs',
   'test/v24-first-step.test.mjs',
+  'test/v24-flow.test.mjs',
 ];
 const tests = spawnSync(process.execPath, ['--test', ...FILES], {stdio: 'inherit'});
 const clean = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'clean'], {stdio: 'inherit'});

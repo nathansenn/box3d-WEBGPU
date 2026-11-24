@@ -68,6 +68,20 @@
       "types": "./dist/shallow-water.d.ts",
       "default": "./dist/shallow-water.js"
     },
+    "./flow": {
+      "types": "./dist/flow.d.ts",
+      "default": "./dist/flow.js"
+    },
+    "./flow-bundle": {
+      "types": "./dist/flow-bundle.d.ts",
+      "default": "./dist/flow-bundle.js"
+    },
+    "./flow-three": {
+      "types": "./dist/flow-three.d.ts",
+      "default": "./dist/flow-three.js"
+    },
+    "./schemas/flow-study.schema.json": "./schemas/flow-study.schema.json",
+    "./schemas/flow-result.schema.json": "./schemas/flow-result.schema.json",
     "./materials": {
       "types": "./dist/materials.d.ts",
       "default": "./dist/materials.js"
@@ -127,6 +141,7 @@
     "CHANGELOG.md",
     "api/API.md",
     "bin",
+    "schemas",
     "templates"
   ],
   "engines": {
@@ -184,7 +199,8 @@
     "directory": "packages/box3d-kit"
   },
   "bin": {
-    "box3d-kit": "./bin/box3d-kit.mjs"
+    "box3d-kit": "./bin/box3d-kit.mjs",
+    "box3d-flow": "./bin/flow-cli.mjs"
   },
   "homepage": "https://nathansenn.github.io/box3d-WEBGPU/docs/",
   "bugs": {
