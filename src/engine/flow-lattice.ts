@@ -81,8 +81,12 @@ export const FLOW_MAX_CELLS=1<<25;
 
 /** Most cells a box stored as tiles (FlowTiles) may span: the cell index i + nx (j + ny k) is a 32-bit integer. */
 export const FLOW_MAX_SPARSE_CELLS=0x7fffffff;
-/** Boundary links (of 18) from which a fluid cell keeps its walls half-way instead of interpolated. */
+/** Boundary links (of 18) from which a fluid cell keeps its walls half-way instead of interpolated, in a run with a
+ * sub-grid model whose relaxation time is under FLOW_SQUEEZED_TAU. */
 export const FLOW_SQUEEZED_LINKS=10;
+/** Relaxation time under which, with a sub-grid model, the cells with FLOW_SQUEEZED_LINKS or more boundary links keep
+ * half-way walls. */
+export const FLOW_SQUEEZED_TAU=0.51;
 /** Edge of a tile of FlowTiles, cells. */
 export const FLOW_TILE=8;
 
@@ -93,6 +97,7 @@ export const FLOW_TILE=8;
  * the box visit the blocks (`blockTile`), not the box. Dense storage is `tiles` null: the slot is the cell index.
  */
 export class FlowTiles {
+  /** Cells of the box along each axis. */
   readonly nx:number;readonly ny:number;readonly nz:number;
   /** Tiles along each axis. */
   readonly tx:number;readonly ty:number;readonly tz:number;
@@ -100,6 +105,7 @@ export class FlowTiles {
   readonly block:Int32Array;
   /** Per block: its tile; block 0 is the shared solid tile (-1). */
   readonly blockTile:Int32Array;
+  /** Blocks with storage plus the shared solid block 0, and the slots of an array of the box (blocks x 512). */
   readonly blocks:number;readonly slots:number;
   /** `marked`: per tile, 1 where storage is wanted. */
   constructor(nx:number,ny:number,nz:number,marked:Uint8Array){
@@ -391,16 +397,17 @@ export class FlowLattice {
     if(wfMask&&wfMask.length!==cells)fail('wallFunctionMask must have one entry per cell.');
     const wallDistance=new Float32Array(boundaryCells),wallVelocity=new Float32Array(3*boundaryCells),wallNormal=new Float64Array(4*boundaryCells),wallPart=new Int32Array(boundaryCells);
     this.wallFunction=options.wallFunction!==false;this.wallDistance=wallDistance;this.wallVelocity=wallVelocity;this.wallNormal=wallNormal;this.wallPart=wallPart;
-    let l=0,linkTotal:Float64Array|null=null,squeezedCells=0;
+    let l=0,linkTotal:Float64Array|null=null,squeezedCells=0;const lowTau=(this.smagorinsky>0||this.wale>0)&&3*this.viscosity+0.5<FLOW_SQUEEZED_TAU;
     for(let a=0;a<fluid;a++){
       const b=linkIndex[a];if(b<0)continue;
       const c=cellOf[a],i=c%nx,j=((c-i)/nx)%ny,k=(c-i-nx*j)/nxy,first=l;
       let inx=0,iny=0,inz=0,inletOf=-1,missing=0;
       for(let d=1;d<Q;d++)if(source[a*Q+d]<0)missing++;
-      // a cell with FLOW_SQUEEZED_LINKS or more boundary links (a sliver in a corner or a gap the grid does not resolve)
-      // keeps its walls half-way: interpolated links there take most of the cell's mass through the leak correction
-      // and diverged (a pipe-rack header at 0.13 of its bore per cell)
-      const squeezed=missing>=FLOW_SQUEEZED_LINKS;if(squeezed)squeezedCells++;
+      // with a sub-grid model at a relaxation time near 1/2, a cell with FLOW_SQUEEZED_LINKS or more boundary links (a sliver in a corner or a
+      // gap the grid does not resolve) keeps its walls half-way: interpolated links there take most of the cell's mass
+      // through the leak correction and diverged (a pipe-rack header at 0.13 of its bore per cell, relaxation time
+      // 0.500006 with the sub-grid model)
+      const squeezed=lowTau&&missing>=FLOW_SQUEEZED_LINKS;if(squeezed)squeezedCells++;
       for(let d=1;d<Q;d++){
         if(source[a*Q+d]>=0)continue;
         const cx=FLOW_CX[d],cy=FLOW_CY[d],cz=FLOW_CZ[d],s=neighbour(i,j,k,-cx,-cy,-cz),ss=S(s),sk=kind[ss],o=FLOW_OPPOSITE[d],w=FLOW_WEIGHT[d];

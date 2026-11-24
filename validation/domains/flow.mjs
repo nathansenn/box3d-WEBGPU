@@ -33,7 +33,7 @@ const modules = () => memo('flow/modules', async () => {
 /** Runs one scenario once, whatever number of rows read it. */
 const run = (key, call) => memo(`flow/${key}`, async () => { const {S, K} = await modules(); return call(S, K); });
 const pipe = (n, source = 'cylinder') => run(`pipe/${n}/${source}`, (S, K) => S.pipe(K, {n, source}));
-const laminar = (re, n, viscousTimes = 3) => run(`laminar/${re}/${n}/${viscousTimes}`, (S, K) => S.laminarPipe(K, {re, n, viscousTimes}));
+const laminar = (re, n, viscousTimes = 3, latticeSpeed = 0.06) => run(`laminar/${re}/${n}/${viscousTimes}/${latticeSpeed}`, (S, K) => S.laminarPipe(K, {re, n, viscousTimes, latticeSpeed}));
 const sparse = () => run('sparse', (S, K) => S.sparseStorage(K));
 const pipeStudy = () => run('pipe-study', (S, K) => S.pipeStudy(K, {re: 100}));
 const steady = re => run(`cylinder/${re}`, (S, K) => S.cylinderSteady(K, {re}));
@@ -74,10 +74,10 @@ export default defineCases('flow', FILE, [
     reference: {formula: 'a steady duct: the wall takes all the driving force', value: 0}, tolerance: absolute(1e-6), measure: async () => (await pipe(12)).forceBalance},
   {id: 'flow.laminar-pipe.re500', title: 'Laminar round pipe, Re 500, 20 cells across', quantity: 'flow rate through a periodic pipe 20 cells across (cell Reynolds number 50, peak speed) after 8 viscous times R^2 / (5.78 nu), started from the exact parabola', unit: 'm^3/s', test: T.laminar,
     reference: {formula: 'Q = pi R^4 G / (8 mu) (Hagen-Poiseuille)', value: null}, tolerance: relative(0.03), measure: async () => { const r = await laminar(500, 20, 8); return {value: r.flowRate, reference: r.exact}; }},
-  {id: 'flow.laminar-pipe.re1000', title: 'Laminar round pipe, Re 1000, 48 cells across', quantity: 'flow rate through a periodic pipe 48 cells across (cell Reynolds number 41.7, peak speed) after 3 viscous times R^2 / (5.78 nu), started from the exact parabola', unit: 'm^3/s', test: T.laminar,
-    reference: {formula: 'Q = pi R^4 G / (8 mu) (Hagen-Poiseuille)', value: null}, tolerance: relative(0.03), measure: async () => { const r = await laminar(1000, 48, 3); return {value: r.flowRate, reference: r.exact}; }},
-  {id: 'flow.laminar-pipe.re1500', title: 'Laminar round pipe, Re 1500, 64 cells across', quantity: 'flow rate through a periodic pipe 64 cells across (cell Reynolds number 46.9, peak speed) after 2 viscous times R^2 / (5.78 nu), started from the exact parabola', unit: 'm^3/s', test: T.laminar,
-    reference: {formula: 'Q = pi R^4 G / (8 mu) (Hagen-Poiseuille)', value: null}, tolerance: relative(0.03), measure: async () => { const r = await laminar(1500, 64, 2); return {value: r.flowRate, reference: r.exact}; }},
+  {id: 'flow.laminar-pipe.re1000', title: 'Laminar round pipe, Re 1000, 48 cells across', quantity: 'flow rate through a periodic pipe 48 cells across (cell Reynolds number 41.7, peak speed) after 3 viscous times R^2 / (5.78 nu), started from the exact parabola, lattice speed 0.12', unit: 'm^3/s', test: T.laminar,
+    reference: {formula: 'Q = pi R^4 G / (8 mu) (Hagen-Poiseuille)', value: null}, tolerance: relative(0.03), measure: async () => { const r = await laminar(1000, 48, 3, 0.12); return {value: r.flowRate, reference: r.exact}; }},
+  {id: 'flow.laminar-pipe.re1500', title: 'Laminar round pipe, Re 1500, 64 cells across', quantity: 'flow rate through a periodic pipe 64 cells across (cell Reynolds number 46.9, peak speed) after 2 viscous times R^2 / (5.78 nu), started from the exact parabola, lattice speed 0.12', unit: 'm^3/s', test: T.laminar,
+    reference: {formula: 'Q = pi R^4 G / (8 mu) (Hagen-Poiseuille)', value: null}, tolerance: relative(0.03), measure: async () => { const r = await laminar(1500, 64, 2, 0.12); return {value: r.flowRate, reference: r.exact}; }},
   {id: 'flow.laminar-pipe.coarse-warning', title: 'Laminar round pipe, Re 1000, 16 cells across: the warning', quantity: 'whether the Flow warns about the cell Reynolds number (125) at which the pipe loses a quarter of its flow rate', unit: '1', test: T.laminar,
     reference: {formula: 'the warning is given above FLOW_LAMINAR_CELL_REYNOLDS = 50', value: 1}, tolerance: absolute(0), measure: async () => ((await laminar(1000, 16, 3)).warned ? 1 : 0)},
   {id: 'flow.sparse.populations', title: 'Sparse storage against dense: populations', quantity: 'populations that differ in bits after 300 steps of an L of two pipes (a sphere at the corner, a baffle, a parabolic inlet, a pressure outlet, Smagorinsky), stored as 8^3 tiles and as a dense box', unit: 'values', test: T.sparse,

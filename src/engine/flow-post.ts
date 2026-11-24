@@ -152,11 +152,14 @@ export interface FlowSurfaceField {
   readonly pressure:Float32Array;
   /** Per vertex, why its pressure is not a resolved value (0: it is): FLOW_SAMPLE_EDGE, the vertex is on a sharp convex
    * edge or corner (the pressure of the cell there is singular); FLOW_SAMPLE_GAP, the fluid in front of it is less than
-   * FLOW_GAP_CELLS cells deep (a gap to another wall or the ground, a contact line), too thin to resolve. */
+   * FLOW_GAP_CELLS cells deep (a gap to another wall or the ground), or it lies within FLOW_GAP_CELLS cells of the layer
+   * of boundary cells of a side of the box (a ground, a contact line with it), too thin to resolve. */
   readonly flags:Uint8Array;
 }
-/** Surface sample flags (FlowSurfaceField.flags). */
-export const FLOW_SAMPLE_EDGE=1,FLOW_SAMPLE_GAP=2;
+/** Surface sample flag (FlowSurfaceField.flags): on a sharp convex edge or corner. */
+export const FLOW_SAMPLE_EDGE=1;
+/** Surface sample flag (FlowSurfaceField.flags): under FLOW_GAP_CELLS cells of fluid in front (a gap, a contact line). */
+export const FLOW_SAMPLE_GAP=2;
 /** Fluid depth in front of a surface sample below which it is flagged FLOW_SAMPLE_GAP, cells. */
 export const FLOW_GAP_CELLS=3;
 /** Laplacian of the wall distance times the cell size, one cell out, above which a sample is FLOW_SAMPLE_EDGE: 0 on a
@@ -191,6 +194,8 @@ export function flowSurfacePressure(field:FlowField,surfaces:readonly FlowSurfac
       const nx=g[0]/gl,ny=g[1]/gl,nz=g[2]/gl,cx=x+h*nx,cy=y+h*ny,cz=z+h*nz,d0=distanceAt(cx,cy,cz);
       const lap=(distanceAt(cx+h,cy,cz)+distanceAt(cx-h,cy,cz)+distanceAt(cx,cy+h,cz)+distanceAt(cx,cy-h,cz)+distanceAt(cx,cy,cz+h)+distanceAt(cx,cy,cz-h)-6*d0)/h;
       let flag=lap>FLOW_EDGE_CURVATURE?FLOW_SAMPLE_EDGE:0;
+      // within FLOW_GAP_CELLS of a side of the box (a ground, a tunnel wall): a contact line or a gap
+      if(flag===0&&(x-o[0]<(FLOW_GAP_CELLS+1)*h||y-o[1]<(FLOW_GAP_CELLS+1)*h||z-o[2]<(FLOW_GAP_CELLS+1)*h||o[0]+gx*h-x<(FLOW_GAP_CELLS+1)*h||o[1]+gy*h-y<(FLOW_GAP_CELLS+1)*h||o[2]+gz*h-z<(FLOW_GAP_CELLS+1)*h))flag=FLOW_SAMPLE_GAP;
       for(let t=3;t<=FLOW_GAP_CELLS*2&&flag===0;t++){
         const r=0.5*t*h;
         if(!flowSample(field,x+r*nx,y+r*ny,z+r*nz,s)||!fluidAt(x+r*nx,y+r*ny,z+r*nz))flag=FLOW_SAMPLE_GAP;

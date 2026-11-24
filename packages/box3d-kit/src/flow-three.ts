@@ -74,7 +74,7 @@ export interface FlowViewOptions {
   /** 'plain' (default), 'cp' (coloured by the pressure coefficient, coolwarm over `cpRange`), or false. */
   readonly surface?: 'plain' | 'cp' | false;
   /** With surface 'cp': the colour of vertices whose sample is flagged as not resolved (`surface[].flags`: a sharp
-   * edge, a gap under three cells), or null to colour them like the rest. Default 0x9a9a9a (grey). */
+   * edge, a gap under three cells), or null to colour them like the rest. Default 0x6e6e6e (dark grey). */
   readonly flaggedColor?: number | null;
   readonly surfaceColor?: number;
   /** Opacity of the surfaces, 0 to 1. Default 1 (internal walls are usually drawn at 0.2 to 0.35). */
@@ -191,7 +191,7 @@ export function createFlowView(THREE: FlowThreeLike, result: FlowResultLike, opt
       let colors: Float32Array | null = null;
       if (byCp) {
         colors = new Float32Array(positions.length);
-        const flags = part.flags, grey = options.flaggedColor === undefined ? 0x9a9a9a : options.flaggedColor;
+        const flags = part.flags, grey = options.flaggedColor === undefined ? 0x6e6e6e : options.flaggedColor;
         const gc: [number, number, number] | null = grey === null ? null : [((grey >> 16) & 255) / 255, ((grey >> 8) & 255) / 255, (grey & 255) / 255];
         for (let v = 0; v < part.cp.length; v++) {
           const c = gc && flags && flags[v] ? gc : cpMap((part.cp[v] - cpRange[0]) / (cpRange[1] - cpRange[0]));

@@ -101,9 +101,10 @@ Lattice units below: cell 1, step 1, reference density 1. `src/engine/flow-latti
 - **Walls.** Interpolated bounce-back (Bouzidi, Firdaouss & Lallemand 2001) with the link fraction `q` taken from the
   signed distance to the geometry, so a wall sits where the geometry puts it, to second order, not on the staircase.
   What the interpolation would create or destroy in mass is taken from the rest population of the same cell, so walls
-  conserve mass. `model.walls: 'halfway'` uses the plain half-way bounce-back. A fluid cell with 10 or more of its 18
-  links on a wall (`FLOW_SQUEEZED_LINKS`: a sliver in a corner, or in a gap the grid does not resolve) keeps half-way
-  walls, with a warning: there the interpolated links take most of the cell's mass through the leak correction. That
+  conserve mass. `model.walls: 'halfway'` uses the plain half-way bounce-back. In a run with a sub-grid model whose
+  relaxation time is under 0.51 (`FLOW_SQUEEZED_TAU`), a fluid cell with 10 or more of
+  its 18 links on a wall (`FLOW_SQUEEZED_LINKS`: a sliver in a corner, or in a gap the grid does not resolve) keeps
+  half-way walls, with a warning: there the interpolated links take most of the cell's mass through the leak correction. That
   is what diverged in the apex pipe-rack header study (`pipe-rack-header-branches`, step 1,875 at a lattice speed of
   0.06 and 5,620 at 0.04): its box of 72 M cells had been coarsened to 2²⁵ cells, 7.6 cells across a branch, and a
   fluid cell 0.01 cells from the wall of a branch, with 10 links on walls, blew up (density -0.08, speed five times
@@ -322,10 +323,10 @@ reference speed (`setup.transitTime`).
 All reported means (forces, flow rates, fields, streamlines of the mean field) are over the **last completed window**.
 
 The standard error of each window mean is estimated by batch means (the window split into eight batches). A bluff body
-sheds vortices, so its drag oscillates; with windows of 0.75 to 1.5 transits holding one to a few shedding periods, the
-window means of drag differ by a few percent however long the run is, and a tolerance of 1% was never met: the
-skyscraper, cooling-tower, Titanic and locomotive studies of the apex app all stopped at their transit limit. The
-stationary criterion stops such a run once two windows agree to within their noise, and reports the noise.
+sheds vortices, so its drag oscillates and two window means differ by about their noise however long the run is; the
+stationary criterion stops such a run once two windows agree to within it, and reports it (`run.standardErrors`). See
+[The apex external studies](#the-apex-external-studies) for what that did to the six studies that stopped at their
+limit or read Cp above 1.
 
 A **laminar internal flow** (no sub-grid model) settles on the viscous time of its bore, `(D/2)² / (5.78 nu)`, which
 at a high Reynolds number is many transits: the windows would agree while the profile still creeps. When that time is
@@ -443,7 +444,7 @@ exports `FLOW_SOURCE_COMMIT`. Copy it with its sha256 sum.
 | External: inflow in any horizontal direction, ground at a height fixed / moving / slip, geometry below removed, margins in multiples of a reference length | yes | `external` |
 | Internal: round openings with outward normal and radius; inlet by flow rate or mean velocity, uniform or parabolic ("developed"); outlet by gauge pressure or flow rate | yes | `internal.inlets` / `outlets` (one outlet must be by pressure) |
 | Max surface Cp; mean pressure and flow per opening; peak velocity on a section; mass imbalance; streamlines with speed; axis-plane slices; surface pressure per part; convergence history; solver id, version and source commit | yes | `surface[].cpMax`, `extremes`; `flow.patches`; `flow.sections[].maxNormalSpeed`; `flow.massBalance`; `streamlines`; `slices`; `surface`; `convergence`; `solver` |
-| Laminar pipe flow (Hagen–Poiseuille within 10% at Re 1107), a sharp-edged building (Cd 1.0–1.7) | **building yes, pipe at Re 1107 no** | the building: Cd and Cp within the bands. The pipe: a periodic pipe at Re 1107 holds within 0.3% for 8 viscous times at 64 cells across, not at 48 (−15%) or fewer; through its openings +23% at 60 cells across, +16% for the app's riser at 16 cells ([Laminar pipes](#laminar-pipes-at-high-cell-reynolds-numbers)) |
+| Laminar pipe flow (Hagen–Poiseuille within 10% at Re 1107), a sharp-edged building (Cd 1.0–1.7) | **building yes; the riser at 24 cells across** | the building: Cd and Cp within the bands. The app's riser at Re 1107: +8.0% at 24 cells across (+16% at 16); a periodic pipe holds within 0.3% for 8 viscous times at 64 cells, not at 48 ([Laminar pipes](#laminar-pipes-at-high-cell-reynolds-numbers)) |
 | Node-importable single-file bundle and the CLI | yes | `flow-bundle`, `box3d-flow` |
 
 ## Drawing results with three.js
@@ -468,10 +469,10 @@ Hagen-Poiseuille (float64: 1.8%). The study runner does not use the GPU. Details
 
 ## Validation
 
-40 cases in the validation registry (`validation/domains/flow.mjs`, [`VALIDATION.md`](VALIDATION.md)), asserted with the
+51 cases in the validation registry (`validation/domains/flow.mjs`, [`VALIDATION.md`](VALIDATION.md)), asserted with the
 same bands by `packages/box3d-kit/test/v24-flow.test.mjs`; the set-ups are in `packages/box3d-kit/test/flow-scenarios.mjs`.
 Every measured number below was produced by running the solver (`node scripts/validation-report.mjs --only flow`, all
-40 pass). Bands were chosen from the resolution of each case and are stated before the result; a case that misses its
+51 pass; the rows of round two were measured on 24 November with the machine shared with the app's runs). Bands were chosen from the resolution of each case and are stated before the result; a case that misses its
 band is listed under "Measured, not in the registry" instead of having its band widened. The cylinder references were
 read from the tables of Cui et al. (2019); Williamson's Strouhal fit, the Schiller-Naumann correlation, Hoerner's drag
 coefficients and Armaly's reattachment length are from memory, not checked against a source opened while writing. Wall times are of single runs
@@ -488,6 +489,12 @@ on a 4-core machine shared with two other jobs (load 8 to 11); an idle machine w
 | Pipe through openings, Re 100: pressure drop over 2 D | `128 mu L Q / (pi D⁴)` = 0.64 Pa | 0.6709 Pa | +4.82% | ±5% | 12.6 cells across | 17 s |
 | Pipe through openings, Re 100: peak / mean speed | 2 | 2.0126 | +0.63% | ±3% | same | |
 | Pipe through openings, Re 100: mass balance | 0 | 7.1e-8 | | ±1e-4 | same | |
+| Periodic laminar pipe, Re 500, 8 viscous times: flow rate | Hagen-Poiseuille | | -1.45% | ±3% | 20 cells across, cell Reynolds number 50 |  |
+| Same, Re 1000, 3 viscous times | same | | -0.26% | ±3% | 48 cells, cell Reynolds number 41.7, lattice speed 0.12 |  |
+| Same, Re 1500, 2 viscous times | same | | -0.26% | ±3% | 64 cells, cell Reynolds number 46.9, lattice speed 0.12 |  |
+| Same, Re 1000, 16 cells: the Flow warns | warning given | given | | exact | cell Reynolds number 125 | |
+| Sparse against dense storage, an L of pipes: populations / field cells that differ | 0 | 0 / 0 | | exact | 100,860 box cells, 58,880 stored | |
+| Sparse storage, a long L: box over the dense limit; mass ledger | above 1; 0 | 2.95; -1.1e-12 m³ | | ; ±1e-6 | 99 M box cells, 1.92 M stored |  |
 | Cylinder Re 20: Cd | 2.091 (Wu & Shu; 2.11, 2.144 elsewhere) | 2.182 | +4.36% | ±8% | 8 cells, blockage 4.2% | 76 s |
 | Cylinder Re 20: recirculation length / D | 0.93 | 0.933 | +0.33% | ±8% | same | |
 | Cylinder Re 40: Cd | 1.539 (1.56, 1.589) | 1.640 | +6.54% | ±10% | same | 85 s |
@@ -498,14 +505,17 @@ on a 4-core machine shared with two other jobs (load 8 to 11); an idle machine w
 | Sphere Re 100: Cd | Schiller-Naumann 1.092 | 1.265 | +15.8% | ±20% | 8 cells, blockage 3.1% | 131 s |
 | Cube face-on, Re 1e5: Cd | Hoerner 1.05 | 0.914 | -13.0% | ±15% | 8 cells, blockage 4% | 198 s |
 | Square plate, Re 1e5: Cd | Hoerner 1.17 | 1.039 | -11.2% | ±15% | 8 cells, plate grown to 1.44 cells | 181 s |
-| Building 12 x 30 x 20 m on fixed ground, study runner defaults: Cd | apex band 1.0 to 1.7 | 1.107 | in band | 1.35 ± 0.35 | 8.2 cells across, blockage 2.9% | 114 s |
-| Same: largest surface Cp | 1 | 1.163 | +0.163 | ±0.2 | same | |
+| Building 12 x 30 x 20 m on fixed ground, study runner defaults: Cd | apex band 1.0 to 1.7 | 1.041 | in band | 1.35 ± 0.35 | 8.2 cells across, blockage 2.9% (free-stream inlet; 1.107 before) | 114 s |
+| Same: largest surface Cp | 1 | 1.161 | | ±0.2 | same | |
+| Same: largest resolved surface Cp | 1 | 1.161 | | ±0.2 | same | |
+| Cube face-on in a free stream, Re 1e4, study runner: largest resolved surface Cp | 1 | 1.040 | | ±0.1 | 6.7 cells across |  |
+| Sphere in a free stream, Re 1e4, study runner: largest resolved surface Cp | 1 | 0.957 | | ±0.1 | 6.7 cells across |  |
 | Backward-facing step, Re 100: x_r / S | Armaly et al. (1983), from memory: 3.0 | 2.758 | -8.1% | ±12% | 16 cells over the inlet channel | 29 s |
-| Sudden expansion D2 = 2 D1, Re 5e4: pressure rise | Borda-Carnot 0.1875 rho U1² | 0.1995 | +6.39% | ±15% | 7.6 cells across D1, LES | 75 s |
-| Symmetric tee: split to one arm | 1/2 | 0.4821 | -0.018 | ±0.03 | about 8 cells across, LES | 21 s |
+| Sudden expansion D2 = 2 D1, Re 5e4: pressure rise | Borda-Carnot 0.1875 rho U1² | 0.2006 | +7.01% | ±15% | 7.6 cells across D1, LES | 75 s |
+| Symmetric tee: split to one arm | 1/2 | 0.4819 | -0.018 | ±0.03 | about 8 cells across, LES | 21 s |
 | Symmetric tee: mass balance | 0 | 9.0e-5 | | ±1e-3 | same | |
-| Tank, three inlets and one outlet: mass balance | 0 | -2.0e-4 | | ±1e-3 | 10,300 fluid cells, LES | 11 s |
-| Tank: flow at the inlets against the flow given | 0 | 1.5e-4 | | ≤ 1e-3 | same | |
+| Tank, three inlets and one outlet: mass balance | 0 | -3.4e-4 | | ±1e-3 | 10,300 fluid cells, LES | 11 s |
+| Tank: flow at the inlets against the flow given | 0 | 1.1e-4 | | ≤ 1e-3 | same | |
 | Stokes drag, 2.4 cells per radius | Hasimoto (1959) | -6.98% | | ±10% | 16³, Re 0.1 | |
 | Stokes: drag / body force on the fluid - 1 | 0 | -2.1e-7 | | ±1e-6 | same | |
 | Mass through openings and walls (200 steps) | 0 | -3.0e-15 | | ±1e-12 | tunnel with two bodies | 5 s |
@@ -528,14 +538,31 @@ The whole domain runs in about 17 minutes on that machine (10 CPU minutes).
 | Same | | +35% (peak / mean 1.95) | +35% | 41 cells across, 3 D long |
 | Same | | +23% (peak / mean 1.97) | +23% | 60 cells across, 3 D long |
 | The app's riser (`hydraulic-press-riser-laminar`, 16 D long, sections 12 D apart), solver of 24 November | | +16% (peak / mean 1.97) | +16% | 16 cells across |
+| Same, this solver | | +8.0% (peak / mean 1.92), inside the gate | +8.0% | 24 cells across, step cap reached |
 | Same with the two-relaxation-time collision | | diverged | | 12.6 cells |
 | Periodic laminar pipe, Re 500, 12 / 16 cells: flow rate after 8 viscous times | Hagen-Poiseuille | | −19.6% / −4.8% (3 viscous times) | cell Reynolds number 83 / 63 |
 | Periodic laminar pipe, Re 1000, 12 / 16 / 20 cells | same | | −30% / −25% / −5.4% with a secondary flow of 14% (3 viscous times) | cell Reynolds number 167 / 125 / 100 |
 | Periodic laminar pipe, Re 1500, 12 / 16 / 20 cells | same | | −35% / −28% / −43% (3 viscous times) | cell Reynolds number 250 / 188 / 150 |
 | Periodic laminar pipe, Re 1107, 24 / 36 / 40 / 44 / 48 cells | same | | −29% / −24% / −22.5% / −18.5% / −15% (8 viscous times) | cell Reynolds number 92 to 46; at 48 cells −0.3% after 3 viscous times |
 | Aligned square duct, Re 1108, 24 cells (no staircase) | series solution | | −22% with a secondary flow of 2.8% | the loss is not the staircase wall |
-| Sphere, Re 1e4: Cd | about 0.40 (standard drag curve) | 0.728 | +82% | 8 cells, LES |
+| Sphere, Re 1e4: Cd | about 0.40 (standard drag curve) | 0.728 | +82% | 8 cells, LES, tunnel 5 D square (blockage 3.1%) |
+| Same, tunnel 4 D square (blockage 4.9%), 15 D/U settled, 10 averaged | | 0.784 / 0.578 / 0.526 | +96% / +45% / +32% | 8 / 12 / 16 cells across |
+| Same with the wall function allowed on the sphere (curvature limit 0.3 instead of 0.05) | | 0.784 / 0.435 / 0.233 | +96% / +9% / −42% | 8 / 12 / 16 cells (at 8 cells the limit still keeps it off) |
 | Cube on fixed ground, 8.5 cells, wall function next to edges allowed (an earlier curvature limit of 0.5) | about 1.0 to 1.2 | 0.81 | | the reason for the limit of 0.05 |
+
+### The sphere at Re 1e4
+
+The drag of a smooth sphere at Re 1e4 depends on where its boundary layer separates, which the grid does not resolve.
+Three causes were looked at. **Blockage**: 3.1% and 4.9% tunnels differ by a few percent, not by the 80% miss.
+**Resolution**: with the default rules the drag falls from 0.78 (8 cells across) to 0.58 (12) and 0.53 (16), +32%
+against about 0.40 at 16 cells, and has not settled. **The wall-function curvature switch**: the wall function is
+used only where the Laplacian of the wall distance is under 0.05 per cell, which keeps it off on every sphere under
+about 80 cells across (a sphere of radius R cells reads about 2 / R); with the limit at 0.3 it is on at 12 and 16 cells,
+and the drag is 0.435 at 12 cells but 0.233 at 16: the slipping wall keeps the flow attached too long, more so the
+finer the grid. That is not a fix, so the limit stays at 0.05 (it was set on the cube, whose drag fell to 0.53 at 0.5).
+**The sub-grid model** is on in every run (cell Reynolds number above 10, Re above 2000). The sphere at Re 1e4 is
+therefore a documented miss; 16 cells across and more (about 2 M cells at 20, 3.5 M at 24, an hour or more of CPU
+each) were not run.
 
 ### Laminar pipes at high cell Reynolds numbers
 
@@ -561,15 +588,49 @@ the run is. At Re 500, 20 cells (cell Reynolds number 50) hold within 1.5% for 8
 (46) hold for 3 viscous times and lose 15% by 8; 64 cells (35) hold within 0.3% for 8. The registry rows are those
 that hold ([Validation](#validation)); the Flow warns above a cell Reynolds number of 50 (`FLOW_LAMINAR_CELL_REYNOLDS`).
 
-**The smallest resolution at which Re 1107 lands within ±10%, and the riser budget.** None that was measured through
-openings. A periodic pipe (the flow rate under the Hagen-Poiseuille gradient) needs 64 cells across to hold within
-±10% over a long run (48 cells: within 0.3% after 3 viscous times, −15% after 8). A pipe driven through its openings
-(a developed inlet, a pressure outlet) misses sooner, within a few transits: +63% at 12.6 cells (6 D long), +35% at 41
-and +23% at 60 cells (3 D long, sections 1 D apart); the app's own riser (16 D long, sections 12 D apart) +16% at 16
-cells. The error falls with the cell count but had not reached 10% at 60 cells. A straight riser 16 D long at 64 cells
-across would hold 3.3 M fluid cells in a box of 4.5 M cells: it does not fit the app's budget of 2 M cells (64 cells
-fit a riser of about 7 D), and it would cost about 10¹¹ cell updates, ten-odd CPU hours here. The Re 1107 riser gate
-is therefore not met; at Re 500 a periodic pipe of 20 cells holds within 1.5% (the registry row).
+**The smallest resolution at which Re 1107 lands within ±10%, and the riser budget.** On the app's own riser study
+(`hydraulic-press-riser-laminar`: a straight riser 16 D long, a developed inlet, a pressure outlet, the drop between
+sections 2.3 D and 14 D from the inlet; run with the app's command line on this solver): 24 cells across lands at
++8.0% (1,252 Pa against 1,159; peak / mean 1.92; 266,344 box cells, 175,616 fluid; 40,000 steps, its step cap, in
+1,336 s; one averaging window, not converged to its tolerance of 0.001), and 16 cells at +16% (the app's run of
+24 November). 24 cells fit the app's budget of 2 M cells with room to spare (a riser up to about 120 D long at 24
+cells). Shorter pipes with the sections close to the ends miss by more (+35% at 41 cells and +23% at 60 cells across in
+a pipe 3 D long, sections 1 D apart), and a periodic pipe drifts over long runs (48 cells: within 0.3% after 3
+viscous times, −15% after 8; 64 cells within 0.3% after 8), so the 24-cell result holds for the app's riser and its run
+length, not as a general rule.
+
+### The apex external studies
+
+The six external studies of the apex flow skill whose stagnation Cp read above 1 (`examples/*.study.json` of the
+skill, run with its command line and this solver in place of the vendored one; read-only copies, nothing of the app
+changed). "Before" is the app's run of 24 November (solver b963b9a); "after" is this solver. Cp max is the largest
+surface coefficient as the app reads it (`surface[].cpMax`); resolved leaves out the samples flagged as on sharp edges,
+in gaps and within three cells of a side of the box (the ground).
+
+| Study | Before: Cd, Cp max, run | After: Cd, Cp max, resolved, run |
+|---|---|---|
+| skyscraper-wind-normal (blockage 9.1%) | 1.81, 1.58, stopped at 15,000 steps | 1.53, 1.23, 1.23, converged (tolerance) at 13,860 steps |
+| cooling-tower-wind (9.3%) | 0.80, 1.36, stopped at 14,100 | 0.77, 1.36, 1.36, converged (stationary) at 9,440 |
+| apex-302-level-flight (3.0%) | 0.316, 1.60, converged at 7,128 | 0.309, 1.51, 1.51, converged (tolerance) at 7,128 |
+| bess-container-wind-long-face (8.9%) | 2.00, 1.83, converged at 11,000 | 1.82, 1.84, 1.66, stopped at 12,000 (still settling: window means 4% and 1.1% apart, standard error 0.3%) |
+| titanic-beam-wind (8.9%) | 1.32, 3.74, stopped at 10,950 | 0.98, 3.40, 1.47, stopped at 10,950 (standard error of Cd 2.4% of it, over the 2% the criterion accepts) |
+| steam-loco-running (5.4%, moving ground) | 1.39, 5.16, stopped at 14,900 | 1.37, 5.18, 1.29, converged (stationary) at 10,044 |
+
+What changed: the free-stream inlet and the surface read bring the canonical bodies to 1 ± 0.1 (the cube 1.04, the
+sphere 0.96, the building 1.01 at 11.5 cells across; registry rows). The locomotive's 5.2 and the Titanic's 3.4 are
+contact lines with the ground (wheel treads on the moving belt, the hull at the sea surface): flagged, not resolved
+values. What remains above 1.1 among the resolved samples sits on elements thinner than a cell that the grid grows to
+1.44 cells (floor slabs at the top of the tower, the cooling tower's shell panels near its rim, the Titanic's decks,
+the container's corner structure, the aircraft's engine nacelle): there the sample 1.5 cells out along the wall normal
+lands among other thin elements, and these studies also run at blockages of 5 to 9%, above the 5% the runner warns
+at. That is not fixed: treat the resolved maximum of such geometry as an upper estimate, and read the surface map.
+
+Convergence: four of the six now stop on their own (two by the stationary criterion). The Titanic's window means of Cd
+were 1.07, 0.95 and 0.97 (the last two 1.2% apart) with a standard error of 2.4% of the mean, above the 2% the
+criterion accepts at a tolerance of 0.01: windows of about 2.2 transits instead of 1.5 (about 8 transits in all, with
+three windows after the first transit), or a tolerance of 0.012. The container's were 1.92, 1.84 and 1.82 with a
+standard error of 0.3%: it was still settling, the last two 1.1% apart against 1%; one more window, about 7.5
+transits in all, against the 6 the study allows. Neither needs a looser monitor.
 
 ## Cost
 

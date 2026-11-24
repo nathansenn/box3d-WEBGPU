@@ -1195,6 +1195,14 @@
      "type": "number",
      "exclusiveMinimum": 0,
      "description": "Reference speed in cells per step. Default 0.06."
+    },
+    "storage": {
+     "enum": [
+      "auto",
+      "dense",
+      "sparse"
+     ],
+     "description": "auto (default): sparse when an internal study of cavities needs a box of more than 2^25 cells, else dense. sparse: only tiles of 8^3 cells near the cavities are stored (the box may then span up to 2^31 - 1 cells, at most 2^25 stored); the same bits as dense."
     }
    },
    "additionalProperties": false

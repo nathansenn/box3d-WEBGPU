@@ -5,8 +5,8 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 816,
-  "passed": 816,
+  "cases": 827,
+  "passed": 827,
   "failed": 0,
   "domains": 24
  },
@@ -271,21 +271,21 @@
   {
    "id": "flow",
    "title": "Flow around and through geometry: ducts, pipes, bluff bodies, buildings, internal networks",
-   "summary": "Plane Poiseuille, a square duct and a round pipe drawn as meshes and as primitives, a finer pipe, and the force on the walls; a pipe through its openings (pressure drop, developed profile, mass balance); the cylinder at Re 20, 40, 100 and 200; a sphere at Re 100; a cube and a square plate at Re 1e5; a building on the ground through the study runner (drag and stagnation pressure); the backward-facing step; the sudden expansion against Borda-Carnot; a symmetric tee; a tank with three inlets; Stokes drag against Hasimoto; conservation of mass; repeatability and resume; meshes against primitives, imperfect meshes and thin walls; the streamline tracer.",
-   "solver": "`box3d-webgpu-kit/flow`: weakly compressible lattice-Boltzmann, D3Q19, two-relaxation-time collision for laminar flow and regularised collision with a Smagorinsky sub-grid model and a power-law wall function above a cell Reynolds number of 10, interpolated bounce-back walls from a signed distance of primitives and meshes, float64, deterministic",
+   "summary": "Plane Poiseuille, a square duct and a round pipe drawn as meshes and as primitives, a finer pipe, and the force on the walls; laminar round pipes at Re 500, 1000 and 1500 and the warning below the resolution that holds them; a pipe through its openings (pressure drop, developed profile, mass balance); the cylinder at Re 20, 40, 100 and 200; a sphere at Re 100; a cube and a square plate at Re 1e5; a building on the ground through the study runner (drag and stagnation pressure); the backward-facing step; the sudden expansion against Borda-Carnot; a symmetric tee; a tank with three inlets; Stokes drag against Hasimoto; conservation of mass; repeatability and resume; meshes against primitives, imperfect meshes and thin walls; the streamline tracer.",
+   "solver": "`box3d-webgpu-kit/flow`: weakly compressible lattice-Boltzmann, D3Q19, regularised collision (two-relaxation-time on request for laminar flow) with a Smagorinsky sub-grid model and a power-law wall function above a cell Reynolds number of 10, interpolated bounce-back walls from a signed distance of primitives and meshes, float64, deterministic",
    "docs": [
     "docs/FLOW.md"
    ],
    "notValidated": [
-    "High Reynolds numbers on smooth bodies: there is no resolved boundary layer, and the wall function is used only on flat and gently curved walls. A sphere at Re 1e4 (8 cells across) gave Cd 0.73 against about 0.40; the drag crisis is not predicted. Only sharp-edged bodies have rows above Re 200.",
-    "Laminar flow at small relaxation times: a pipe at Re 1107 (12.6 and 17.9 cells across, relaxation time 0.501 to 0.5015) loses 63% and 42% too much pressure with the regularised collision, which moves a bounce-back wall on a staircase; the two-relaxation-time collision that does not diverged there. The pipe row is at Re 100.",
+    "High Reynolds numbers on smooth bodies: there is no resolved boundary layer, and the wall function is used only on flat and gently curved walls. A sphere at Re 1e4 gave Cd 0.78, 0.58 and 0.53 at 8, 12 and 16 cells across (blockage 4.9%) against about 0.40; letting the wall function act on the sphere gave 0.435 at 12 cells but 0.233 at 16, so it is not used. The drag crisis is not predicted. Only sharp-edged bodies have rows above Re 200.",
+    "Laminar ducts at high cell Reynolds numbers: above a cell Reynolds number of about 50 (peak speed) a laminar pipe, and a square duct aligned with the grid, grow a steady secondary flow that takes 15 to 45% of the flow rate (a periodic pipe at Re 1000 to 1500, 12 to 20 cells across: -25 to -43%; a pipe through its openings at Re 1107: +63% pressure drop at 12.6 cells, +35% at 41 cells). Below it the loss is slower, not absent (Re 1107, 48 cells: -0.3% after 3 viscous times, -15% after 8). The rows hold periodic pipes for 2 to 8 viscous times; the regularised collision, interpolated and half-way walls, the two-relaxation-time and recursive collisions and a hybrid finite-difference stress were tried and did not remove it at affordable resolution. The Flow warns above FLOW_LAMINAR_CELL_REYNOLDS.",
     "Bodies are 8 to 10 cells across and the tunnels bounded (blockage 3 to 6%, not corrected): drag is within 15 to 20%, not better. Lift, moments, surface pressure distributions other than the stagnation value, and wake lengths of three-dimensional bodies have no row.",
     "Turbulence statistics (spectra, Reynolds stresses), skin friction on bodies and heat transfer have no row. The wall function was checked on a tunnel floor only (Cf 0.0055).",
     "Reference values: the cylinder rows use the computations tabulated by Cui et al. (2019), whose tables were read; Williamson's Strouhal fit, the Schiller-Naumann correlation, Hoerner's drag coefficients (1.05, 1.17) and Armaly's reattachment length (about 3.0 at Re 100) are from memory, not checked against a source opened while writing.",
     "Cost: one JavaScript thread; a study of 400,000 cells runs for minutes. The WebGPU step compiles and encodes on Dawn and its float32 reference follows the float64 solver; the shader has not been run on a device (docs/GPU_COMPUTE.md)."
    ],
-   "cases": 40,
-   "passed": 40
+   "cases": 51,
+   "passed": 51
   },
   {
    "id": "shallow-water",
@@ -14184,6 +14184,230 @@
    }
   },
   {
+   "id": "flow.laminar-pipe.re500",
+   "domain": "flow",
+   "title": "Laminar round pipe, Re 500, 20 cells across",
+   "quantity": "flow rate through a periodic pipe 20 cells across (cell Reynolds number 50, peak speed) after 8 viscous times R^2 / (5.78 nu), started from the exact parabola",
+   "unit": "m^3/s",
+   "formula": "Q = pi R^4 G / (8 mu) (Hagen-Poiseuille)",
+   "reference": 0.785398163,
+   "measured": 0.774037687,
+   "error": -0.0113604764,
+   "relativeError": -0.0144646078,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a laminar round pipe at Re 500 to 1500, periodic, started from the exact parabola: the flow rate against Hagen-Poiseuille, and the warning below the resolution that holds it",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.7853982 m^3/s",
+    "measured": "0.7740377",
+    "error": "-1.45%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "flow.laminar-pipe.re1000",
+   "domain": "flow",
+   "title": "Laminar round pipe, Re 1000, 48 cells across",
+   "quantity": "flow rate through a periodic pipe 48 cells across (cell Reynolds number 41.7, peak speed) after 3 viscous times R^2 / (5.78 nu), started from the exact parabola, lattice speed 0.12",
+   "unit": "m^3/s",
+   "formula": "Q = pi R^4 G / (8 mu) (Hagen-Poiseuille)",
+   "reference": 0.785398163,
+   "measured": 0.783325166,
+   "error": -0.00207299738,
+   "relativeError": -0.00263942223,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a laminar round pipe at Re 500 to 1500, periodic, started from the exact parabola: the flow rate against Hagen-Poiseuille, and the warning below the resolution that holds it",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.7853982 m^3/s",
+    "measured": "0.7833252",
+    "error": "-0.264%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "flow.laminar-pipe.re1500",
+   "domain": "flow",
+   "title": "Laminar round pipe, Re 1500, 64 cells across",
+   "quantity": "flow rate through a periodic pipe 64 cells across (cell Reynolds number 46.9, peak speed) after 2 viscous times R^2 / (5.78 nu), started from the exact parabola, lattice speed 0.12",
+   "unit": "m^3/s",
+   "formula": "Q = pi R^4 G / (8 mu) (Hagen-Poiseuille)",
+   "reference": 0.785398163,
+   "measured": 0.783366075,
+   "error": -0.00203208825,
+   "relativeError": -0.00258733512,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a laminar round pipe at Re 500 to 1500, periodic, started from the exact parabola: the flow rate against Hagen-Poiseuille, and the warning below the resolution that holds it",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.7853982 m^3/s",
+    "measured": "0.7833661",
+    "error": "-0.259%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "flow.laminar-pipe.coarse-warning",
+   "domain": "flow",
+   "title": "Laminar round pipe, Re 1000, 16 cells across: the warning",
+   "quantity": "whether the Flow warns about the cell Reynolds number (125) at which the pipe loses a quarter of its flow rate",
+   "unit": "1",
+   "formula": "the warning is given above FLOW_LAMINAR_CELL_REYNOLDS = 50",
+   "reference": 1,
+   "measured": 1,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a laminar round pipe at Re 500 to 1500, periodic, started from the exact parabola: the flow rate against Hagen-Poiseuille, and the warning below the resolution that holds it",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "flow.sparse.populations",
+   "domain": "flow",
+   "title": "Sparse storage against dense: populations",
+   "quantity": "populations that differ in bits after 300 steps of an L of two pipes (a sphere at the corner, a baffle, a parabolic inlet, a pressure outlet, Smagorinsky), stored as 8^3 tiles and as a dense box",
+   "unit": "values",
+   "formula": "the same lattice, numbered in the order of the cell index",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "sparse storage: the same bits as dense storage on an L of pipes, and a long L whose box is three times the dense limit",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 values",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "flow.sparse.fields",
+   "domain": "flow",
+   "title": "Sparse storage against dense: fields",
+   "quantity": "cells of the box whose fluid flag, velocity, pressure or distance differ in bits",
+   "unit": "cells",
+   "formula": "identical fields",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "sparse storage: the same bits as dense storage on an L of pipes, and a long L whose box is three times the dense limit",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 cells",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "flow.sparse.large-box",
+   "domain": "flow",
+   "title": "Sparse storage: a box three times the dense limit",
+   "quantity": "box cells of a long thin L of pipes (legs 3000 cells, radius 2.6 cells) over the dense limit 2^25",
+   "unit": "1",
+   "formula": "more than the dense limit",
+   "reference": 1,
+   "measured": 2.95436513,
+   "error": 1.95436513,
+   "relativeError": 1.95436513,
+   "tolerance": {
+    "kind": "lower",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "sparse storage: the same bits as dense storage on an L of pipes, and a long L whose box is three times the dense limit",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "2.954365",
+    "error": "+1.95",
+    "tolerance": "not below the reference"
+   }
+  },
+  {
+   "id": "flow.sparse.large-box-mass",
+   "domain": "flow",
+   "title": "Sparse storage, long L: mass ledger",
+   "quantity": "volume the box gained over 400 steps minus the volume through the openings and walls",
+   "unit": "m^3",
+   "formula": "conservation of mass",
+   "reference": 0,
+   "measured": -1.12265752e-12,
+   "error": -1.12265752e-12,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "sparse storage: the same bits as dense storage on an L of pipes, and a long L whose box is three times the dense limit",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 m^3",
+    "measured": "-1.122658e-12",
+    "error": "-1.12e-12",
+    "tolerance": "±1e-6"
+   }
+  },
+  {
    "id": "flow.pipe-study.pressure-drop",
    "domain": "flow",
    "title": "Pipe through its openings, Re 100: pressure drop",
@@ -14559,9 +14783,9 @@
    "unit": "1",
    "formula": "the band of the apex building studies: 1.0 to 1.7 (sharp-edged rectangular buildings)",
    "reference": 1.35,
-   "measured": 1.10690224,
-   "error": -0.243097755,
-   "relativeError": -0.180072411,
+   "measured": 1.0409824,
+   "error": -0.309017602,
+   "relativeError": -0.228901928,
    "tolerance": {
     "kind": "absolute",
     "value": 0.35
@@ -14574,8 +14798,8 @@
    },
    "text": {
     "reference": "1.35",
-    "measured": "1.106902",
-    "error": "-0.243",
+    "measured": "1.040982",
+    "error": "-0.309",
     "tolerance": "±0.35"
    }
   },
@@ -14587,9 +14811,9 @@
    "unit": "1",
    "formula": "stagnation: Cp = 1",
    "reference": 1,
-   "measured": 1.16333211,
-   "error": 0.163332106,
-   "relativeError": 0.163332106,
+   "measured": 1.16070085,
+   "error": 0.160700852,
+   "relativeError": 0.160700852,
    "tolerance": {
     "kind": "absolute",
     "value": 0.2
@@ -14602,9 +14826,93 @@
    },
    "text": {
     "reference": "1",
-    "measured": "1.163332",
-    "error": "+0.163",
+    "measured": "1.160701",
+    "error": "+0.161",
     "tolerance": "±0.2"
+   }
+  },
+  {
+   "id": "flow.building.cp-max-resolved",
+   "domain": "flow",
+   "title": "Building on fixed ground: largest resolved surface Cp",
+   "quantity": "largest pressure coefficient over the surface samples not flagged as on a sharp edge or in a gap under three cells",
+   "unit": "1",
+   "formula": "stagnation: Cp = 1",
+   "reference": 1,
+   "measured": 1.16070085,
+   "error": 0.160700852,
+   "relativeError": 0.160700852,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.2
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a rectangular building on fixed ground through the study runner: drag coefficient and the largest surface pressure coefficient",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.160701",
+    "error": "+0.161",
+    "tolerance": "±0.2"
+   }
+  },
+  {
+   "id": "flow.stagnation.cube",
+   "domain": "flow",
+   "title": "Cube in a free stream: stagnation Cp",
+   "quantity": "largest resolved surface pressure coefficient of a cube face-on, Re 1e4, about 6.7 cells across, study runner (free-stream inlet, reference the mean inlet pressure)",
+   "unit": "1",
+   "formula": "incompressible stagnation point: Cp = 1",
+   "reference": 1,
+   "measured": 1.04040203,
+   "error": 0.0404020309,
+   "relativeError": 0.0404020309,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.1
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the stagnation pressure coefficient of a cube and a sphere in a free stream through the study runner is 1 within 0.1",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.040402",
+    "error": "+0.0404",
+    "tolerance": "±0.1"
+   }
+  },
+  {
+   "id": "flow.stagnation.sphere",
+   "domain": "flow",
+   "title": "Sphere in a free stream: stagnation Cp",
+   "quantity": "largest resolved surface pressure coefficient of a sphere, Re 1e4, about 6.7 cells across, study runner",
+   "unit": "1",
+   "formula": "incompressible stagnation point: Cp = 1",
+   "reference": 1,
+   "measured": 0.956754684,
+   "error": -0.0432453156,
+   "relativeError": -0.0432453156,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.1
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the stagnation pressure coefficient of a cube and a sphere in a free stream through the study runner is 1 within 0.1",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.9567547",
+    "error": "-0.0432",
+    "tolerance": "±0.1"
    }
   },
   {
@@ -14643,9 +14951,9 @@
    "unit": "Pa",
    "formula": "Borda-Carnot: rho U1^2 s (1 - s), s = A1 / A2",
    "reference": 0.1875,
-   "measured": 0.199478766,
-   "error": 0.0119787659,
-   "relativeError": 0.0638867512,
+   "measured": 0.200640754,
+   "error": 0.0131407544,
+   "relativeError": 0.0700840237,
    "tolerance": {
     "kind": "relative",
     "value": 0.15
@@ -14658,8 +14966,8 @@
    },
    "text": {
     "reference": "0.1875 Pa",
-    "measured": "0.1994788",
-    "error": "+6.39%",
+    "measured": "0.2006408",
+    "error": "+7.01%",
     "tolerance": "±15%"
    }
   },
@@ -14671,9 +14979,9 @@
    "unit": "1",
    "formula": "symmetry: 1/2",
    "reference": 0.5,
-   "measured": 0.482074605,
-   "error": -0.0179253953,
-   "relativeError": -0.0358507905,
+   "measured": 0.481918733,
+   "error": -0.0180812674,
+   "relativeError": -0.0361625349,
    "tolerance": {
     "kind": "absolute",
     "value": 0.03
@@ -14687,8 +14995,8 @@
    },
    "text": {
     "reference": "0.5",
-    "measured": "0.4820746",
-    "error": "-0.0179",
+    "measured": "0.4819187",
+    "error": "-0.0181",
     "tolerance": "±0.03"
    }
   },
@@ -14700,8 +15008,8 @@
    "unit": "1",
    "formula": "conservation of mass",
    "reference": 0,
-   "measured": 0.0000898764374,
-   "error": 0.0000898764374,
+   "measured": 0.000089714444,
+   "error": 0.000089714444,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
@@ -14715,8 +15023,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "8.987644e-5",
-    "error": "+8.99e-5",
+    "measured": "8.971444e-5",
+    "error": "+8.97e-5",
     "tolerance": "±0.001"
    }
   },
@@ -14728,8 +15036,8 @@
    "unit": "1",
    "formula": "conservation of mass",
    "reference": 0,
-   "measured": -0.000203854705,
-   "error": -0.000203854705,
+   "measured": -0.000336776909,
+   "error": -0.000336776909,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
@@ -14743,8 +15051,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "-0.0002038547",
-    "error": "-0.000204",
+    "measured": "-0.0003367769",
+    "error": "-0.000337",
     "tolerance": "±0.001"
    }
   },
@@ -14756,8 +15064,8 @@
    "unit": "1",
    "formula": "the flow rate given",
    "reference": 0,
-   "measured": 0.000149476992,
-   "error": 0.000149476992,
+   "measured": 0.000109700531,
+   "error": 0.000109700531,
    "relativeError": null,
    "tolerance": {
     "kind": "upper",
@@ -14771,8 +15079,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "0.000149477",
-    "error": "+0.000149",
+    "measured": "0.0001097005",
+    "error": "+0.00011",
     "tolerance": "at most 0.001 above the reference"
    }
   },

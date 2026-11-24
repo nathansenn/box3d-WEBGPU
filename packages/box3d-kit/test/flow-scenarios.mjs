@@ -318,8 +318,8 @@ function meanDrag(K, flow, {settle, average, area}) {
   return {cd: mean(cd), wetted};
 }
 /** A sphere of diameter D at Reynolds number `re`: the drag coefficient. */
-export function sphere(K, {re = 100, n = 8, settle = 25, average = 15, length = 10, width = 5} = {}) {
-  const flow = tunnel3d(K, {n, re, length, width, geometry: [{kind: 'sphere', center: [0, 0, 0], radius: 0.5, part: 'sphere'}]});
+export function sphere(K, {re = 100, n = 8, settle = 25, average = 15, length = 10, width = 5, up = 3, model = {}} = {}) {
+  const flow = tunnel3d(K, {n, re, length, width, up, model, geometry: [{kind: 'sphere', center: [0, 0, 0], radius: 0.5, part: 'sphere'}]});
   const {cd} = meanDrag(K, flow, {settle, average, area: Math.PI / 4});
   return {re, n, cd, blockage: Math.PI / 4 / (width * width), turbulence: flow.turbulence, steps: flow.stepCount, cells: flow.fluidCells};
 }
@@ -412,7 +412,7 @@ export function building(K, {cells = 120000, transits = 3} = {}) {
 /** The largest resolved surface pressure coefficient (samples on sharp edges and in gaps left out) of a body in a free
  * stream through the study runner: a cube face-on, a sphere, both at Re 1e4 (D = 1 m, U = 10 m/s, air-like fluid);
  * for the building see building(). In incompressible flow it is 1 at the stagnation point. */
-export function stagnation(K, {shape = 'cube', cells = 120000, transits = 4} = {}) {
+export function stagnation(K, {shape = 'cube', cells = 120000, transits = 3} = {}) {
   const geometry = [shape === 'sphere' ? {kind: 'sphere', center: [0, 0, 0], radius: 0.5, part: shape} : {kind: 'box', center: [0, 0, 0], size: [1, 1, 1], part: shape}];
   const study = {format: 'box3d-flow-study/1', name: shape, fluid: {density: 1.2, viscosity: 1e-3}, mode: 'external', geometry,
     external: {speed: 10, direction: [1, 0, 0], referenceLength: 1}, resolution: {cells}, run: {transits, windowTransits: 0.75, startupTransits: 1},

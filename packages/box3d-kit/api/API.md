@@ -13168,6 +13168,7 @@ The flow solver in SI units: a lattice-Boltzmann flow around and through voxelis
 export declare class Flow {
   readonly grid: FlowGrid;
   readonly lattice: FlowLattice;
+  readonly tiles: FlowTiles | null;
   readonly fluid: FlowFluid;
   readonly dt: number;
   readonly cell: number;
@@ -13242,6 +13243,15 @@ z components of the D3Q19 velocities.
 export declare const FLOW_CZ: readonly number[];
 ```
 
+### FLOW_EDGE_CURVATURE · const
+
+Laplacian of the wall distance times the cell size, one cell out, above which a sample is FLOW_SAMPLE_EDGE: 0 on a
+plane, about 1 next to a sharp edge, 2 at a corner, 0.4 on a sphere 8 cells across.
+
+```ts
+export declare const FLOW_EDGE_CURVATURE = 0.6;
+```
+
 ### FLOW_FLUID · const
 
 Cell kind: fluid.
@@ -13256,6 +13266,24 @@ Air and water at 20 C and 1 atm: the density and dynamic viscosity of the materi
 
 ```ts
 export declare const FLOW_FLUIDS: Readonly<Record<'air' | 'water', FlowFluid>>;
+```
+
+### FLOW_GAP_CELLS · const
+
+Fluid depth in front of a surface sample below which it is flagged FLOW_SAMPLE_GAP, cells.
+
+```ts
+export declare const FLOW_GAP_CELLS = 3;
+```
+
+### FLOW_LAMINAR_CELL_REYNOLDS · const
+
+Cell Reynolds number (peak speed x cell / viscosity) above which a laminar Flow with walls warns: above it a laminar
+pipe or duct loses its developed profile within three viscous times (docs/FLOW.md, laminar pipe). Below it the loss
+is slower, not absent: at 46 a pipe held within 0.3% for three viscous times and lost 15% by eight.
+
+```ts
+export declare const FLOW_LAMINAR_CELL_REYNOLDS = 50;
 ```
 
 ### FLOW_LATTICE_ID · const
@@ -13295,6 +13323,14 @@ Most cells of the box (fluid or not). The box costs about 15 bytes per cell, the
 export declare const FLOW_MAX_CELLS: number;
 ```
 
+### FLOW_MAX_SPARSE_CELLS · const
+
+Most cells a box stored as tiles (FlowTiles) may span: the cell index i + nx (j + ny k) is a 32-bit integer.
+
+```ts
+export declare const FLOW_MAX_SPARSE_CELLS = 2147483647;
+```
+
 ### FLOW_OPPOSITE · const
 
 Index of the velocity opposite to each D3Q19 velocity.
@@ -13317,6 +13353,22 @@ The format string of a result document.
 
 ```ts
 export declare const FLOW_RESULT_FORMAT = "box3d-flow-result/1";
+```
+
+### FLOW_SAMPLE_EDGE · const
+
+Surface sample flag (FlowSurfaceField.flags): on a sharp convex edge or corner.
+
+```ts
+export declare const FLOW_SAMPLE_EDGE = 1;
+```
+
+### FLOW_SAMPLE_GAP · const
+
+Surface sample flag (FlowSurfaceField.flags): under FLOW_GAP_CELLS cells of fluid in front (a gap, a contact line).
+
+```ts
+export declare const FLOW_SAMPLE_GAP = 2;
 ```
 
 ### FLOW_SIDES · const
@@ -13351,6 +13403,24 @@ The version of the solver written to results (`solver.version`).
 export declare const FLOW_SOLVER_VERSION = "1.0.0";
 ```
 
+### FLOW_SQUEEZED_LINKS · const
+
+Boundary links (of 18) from which a fluid cell keeps its walls half-way instead of interpolated, in a run with a
+sub-grid model whose relaxation time is under FLOW_SQUEEZED_TAU.
+
+```ts
+export declare const FLOW_SQUEEZED_LINKS = 10;
+```
+
+### FLOW_SQUEEZED_TAU · const
+
+Relaxation time under which, with a sub-grid model, the cells with FLOW_SQUEEZED_LINKS or more boundary links keep
+half-way walls.
+
+```ts
+export declare const FLOW_SQUEEZED_TAU = 0.51;
+```
+
 ### FLOW_STATEMENT · const
 
 What the solver is, in one paragraph (`solver.statement` of a result).
@@ -13373,6 +13443,14 @@ The thinnest wall the lattice is certain to see, in cells (see the header).
 
 ```ts
 export declare const FLOW_THIN_CELLS = 1.44;
+```
+
+### FLOW_TILE · const
+
+Edge of a tile of FlowTiles, cells.
+
+```ts
+export declare const FLOW_TILE = 8;
 ```
 
 ### FLOW_VELOCITY · const
@@ -13508,6 +13586,14 @@ export interface FlowCylinder extends ItemBase, AxisPlacement {
 }
 ```
 
+### flowEachCell · function
+
+Visit every cell of a box, dense (`tiles` null: the slot is the cell index) or tiled.
+
+```ts
+export declare function flowEachCell(nx: number, ny: number, nz: number, tiles: FlowTiles | null, f: (i: number, j: number, k: number, c: number, s: number) => void): void;
+```
+
 ### FlowField · interface
 
 Fields of the flow in SI units on the lattice (the fluid box plus its boundary layers).
@@ -13522,6 +13608,7 @@ export interface FlowField {
     readonly pressure: Float32Array;
     readonly distance: Float32Array;
     readonly opening?: Int16Array;
+    readonly tiles?: FlowTiles | null;
 }
 ```
 
@@ -13641,6 +13728,8 @@ export declare class FlowLattice {
   readonly fluidCells: number;
   readonly cellOf: Int32Array;
   readonly activeOf: Int32Array;
+  readonly tiles: FlowTiles | null;
+  readonly squeezedCells: number;
   f: Float64Array;
   readonly density: Float64Array;
   readonly ux: Float64Array;
@@ -13677,6 +13766,7 @@ export interface FlowLatticeOptions {
     readonly nx: number;
     readonly ny: number;
     readonly nz: number;
+    readonly tiles?: FlowTiles | null;
     readonly periodic?: readonly [boolean, boolean, boolean];
     readonly kind: Uint8Array;
     readonly owner?: Int16Array | Int32Array;
@@ -13721,6 +13811,7 @@ An inlet (a velocity) or an outlet (a density) in lattice units.
 export interface FlowLatticePatch {
     readonly velocity?: readonly [number, number, number];
     readonly density?: number;
+    readonly totalPressure?: boolean;
 }
 ```
 
@@ -13813,6 +13904,7 @@ export interface FlowOptions {
     readonly band?: number;
     readonly surfaces?: boolean;
     readonly thicken?: boolean;
+    readonly storage?: 'auto' | 'dense' | 'sparse';
 }
 ```
 
@@ -14017,6 +14109,7 @@ export type FlowSide = 'wall' | 'slip' | 'periodic'
     readonly kind: 'velocity';
     readonly velocity: FlowVec3 | ((x: number, y: number, z: number) => FlowVec3);
     readonly name?: string;
+    readonly freeStream?: boolean;
 }
 | {
     readonly kind: 'pressure';
@@ -14235,15 +14328,45 @@ export interface FlowSurfaceField {
     readonly positions: Float32Array;
     readonly indices: Uint32Array;
     readonly pressure: Float32Array;
+    readonly flags: Uint8Array;
 }
 ```
 
 ### flowSurfacePressure · function
 
-Pressure on the surfaces of the parts.
+Pressure on the surfaces of the parts. With `density` (kg/m^3) the read is carried to the wall along the normal by
+Bernoulli: p + rho (u . n)^2 / 2, the pressure the normal component of the velocity there would give stagnating at the
+wall (exact on the stagnation streamline of an inviscid flow; small where the flow runs along the wall).
 
 ```ts
-export declare function flowSurfacePressure(field: FlowField, surfaces: readonly FlowSurface[]): FlowSurfaceField[];
+export declare function flowSurfacePressure(field: FlowField, surfaces: readonly FlowSurface[], density?: number): FlowSurfaceField[];
+```
+
+### FlowTiles · class
+
+Sparse storage of a box of cells: tiles of FLOW_TILE^3 cells, of which only those listed hold storage ("blocks");
+every other tile reads as block 0, which the owner of an array fills with what lies far from the fluid (solid). The
+slot of cell (i, j, k) is block * 512 + its place in the tile; an array of the box has `slots` entries. Loops over
+the box visit the blocks (`blockTile`), not the box. Dense storage is `tiles` null: the slot is the cell index.
+
+```ts
+export declare class FlowTiles {
+  readonly nx: number;
+  readonly ny: number;
+  readonly nz: number;
+  readonly tx: number;
+  readonly ty: number;
+  readonly tz: number;
+  readonly block: Int32Array;
+  readonly blockTile: Int32Array;
+  readonly blocks: number;
+  readonly slots: number;
+  slot(i: number, j: number, k: number): number;
+  slotOf(c: number): number;
+  stored(i: number, j: number, k: number): boolean;
+  forEach(f: (i: number, j: number, k: number, c: number, s: number) => void): void;
+  get storedCells(): number;
+}
 ```
 
 ### FlowTube · interface
@@ -14310,6 +14433,7 @@ export interface FlowVoxelizeOptions {
     readonly surfaceSize?: number;
     readonly surfaces?: boolean;
     readonly thicken?: boolean;
+    readonly sparse?: boolean;
 }
 ```
 
@@ -14327,6 +14451,7 @@ export interface FlowVoxels {
     readonly items: readonly FlowItemReport[];
     readonly warnings: readonly string[];
     readonly solidCells: number;
+    readonly tiles?: FlowTiles | null;
 }
 ```
 
@@ -14437,6 +14562,7 @@ export interface FlowResultLike {
         readonly indices: ArrayLike<number>;
         readonly pressure: ArrayLike<number>;
         readonly cp: ArrayLike<number>;
+        readonly flags?: ArrayLike<number>;
     }[];
     readonly slices?: readonly {
         readonly axis: string;
@@ -14501,6 +14627,7 @@ export interface FlowViewOptions {
     readonly range?: readonly [number, number];
     readonly colormap?: FlowColormap;
     readonly surface?: 'plain' | 'cp' | false;
+    readonly flaggedColor?: number | null;
     readonly surfaceColor?: number;
     readonly surfaceOpacity?: number;
     readonly cpRange?: readonly [number, number];

@@ -29,7 +29,7 @@ for (let i = 0; i <= 12; i++) { const a = Math.PI / 2 * i / 12; bendPath.push([-
 const feed: Vec3[] = [[-0.15, -0.6, 0], [-0.15, -0.15, 0]];
 
 export const DEMO_STUDIES: readonly DemoStudy[] = [
-  {id: 'car', title: 'Car-like body on a ground plane', caption: 'Air at 30 m/s around a 4.2 m body on its wheels over a moving ground (a rolling road). Streamlines from a rake ahead of the body, coloured by speed; the body by pressure coefficient.',
+  {id: 'car', title: 'Car-like body on a ground plane', caption: 'Air at 30 m/s around a 4.2 m body on its wheels over a moving ground (a rolling road). Streamlines from a rake ahead of the body, coloured by speed; the body by pressure coefficient, dark grey where a sample is not resolved (sharp edges, the gap under the body).',
     camera: {position: [-1.6, 3.4, 4.7], target: [2.3, 0.5, 0]}, surface: 'cp',
     study: {format: 'box3d-flow-study/1', name: 'car-like body', fluid: 'air', mode: 'external',
       geometry: [{kind: 'mesh', ...prism(carProfile, -0.9, 0.9), part: 'body'}, ...wheels],

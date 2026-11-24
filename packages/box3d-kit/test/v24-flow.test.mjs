@@ -70,8 +70,8 @@ test('a pipe drawn as a fluid cylinder, through its openings: Hagen-Poiseuille p
 });
 
 test('a laminar round pipe at Re 500 to 1500, periodic, started from the exact parabola: the flow rate against Hagen-Poiseuille, and the warning below the resolution that holds it', () => {
-  for (const [re, n, viscousTimes] of [[500, 20, 8], [1000, 48, 3], [1500, 64, 2]]) {
-    const r = S.laminarPipe(K, {re, n, viscousTimes});
+  for (const [re, n, viscousTimes, latticeSpeed] of [[500, 20, 8, 0.06], [1000, 48, 3, 0.12], [1500, 64, 2, 0.12]]) {
+    const r = S.laminarPipe(K, {re, n, viscousTimes, latticeSpeed});
     within(r.flowRate, r.exact, 0.03, `flow rate at Re ${re}, ${n} cells across`);
     assert.ok(r.secondary < 0.01, `secondary flow at Re ${re}: ${r.secondary}`);
     assert.equal(r.warned, false);

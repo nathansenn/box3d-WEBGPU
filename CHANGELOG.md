@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — 2026-11-24 — Flow, round two: sparse networks, stagnation pressure, convergence, laminar pipes
+
+- **Sparse storage (`FlowTiles`, `FlowOptions.storage`, study `resolution.storage`):** tiles of 8³ cells near the cavities of a network; boxes up to 2³¹ − 1 cells, at most 2²⁵ stored; dense and sparse give the same bits (registry rows `flow.sparse.*`; a 99 M-cell L of pipes: 1.92 M cells stored, 75 MB of box arrays against 3.9 GB dense). The dense path is bit-identical to the previous release.
+- **Stagnation pressure:** free-stream inlets for external studies (even total pressure across the inlet); surface pressure read 1.5 cells out and carried to the wall by Bernoulli; samples on sharp edges, in gaps and next to the ground flagged (`surface[].flags`, `cpMaxResolved`, `extremes.pressureMaxResolved`); a cube 1.04 and a sphere 0.96 (rows at 1 ± 0.1). The viewer greys flagged samples.
+- **Convergence:** windows also agree within twice their standard error (`run.criterion: 'stationary'`, `run.standardErrors`).
+- **Robustness:** with a sub-grid model at relaxation times under 0.51, cells with 10 or more wall links keep half-way walls (the pipe-rack header divergence).
+- **Laminar pipes:** registry rows at Re 500, 1000 and 1500 and a warning above a cell Reynolds number of 50; the app's riser at Re 1107 lands at +8.0% with 24 cells across (+16% at 16). The sphere at Re 1e4 stays a documented miss (0.78 / 0.58 / 0.53 at 8 / 12 / 16 cells).
+- **Changes of behaviour:** external surface pressures, Cp and forces move (inlet and read); runs may stop earlier (stationary criterion); checkpoints from before do not restore. docs/FLOW.md.
+
 ## Unreleased — 2026-11-24 — Flow around and through geometry (`box3d-webgpu-kit/flow`)
 
 - **New solver (`src/engine/flow-lattice.ts`, `flow-geometry.ts`, `flow.ts`, `flow-post.ts`, `flow-study.ts`; kit `./flow`, `./flow-bundle`, `./flow-three`; command `box3d-flow`):** a weakly compressible lattice-Boltzmann solver (D3Q19, regularised collision, Smagorinsky sub-grid model with a power-law wall function next to smooth walls, interpolated bounce-back walls from a signed distance), float64, deterministic, with populations stored for fluid cells only. Above a cell Reynolds number of 10 it is an under-resolved large-eddy simulation: an engineering estimate, not certified CFD. The existing `Fluid` is unchanged.

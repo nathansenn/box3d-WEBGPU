@@ -628,13 +628,13 @@ export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowS
     // extremes of the averaged field over the fluid cells
     {
       let pMax=-Infinity,pMin=Infinity,vMax=0;const at=(c:number):number[]=>[r6(g.origin[0]+(c%g.nx+0.5)*h),r6(g.origin[1]+(Math.floor(c/g.nx)%g.ny+0.5)*h),r6(g.origin[2]+(Math.floor(c/(g.nx*g.ny))+0.5)*h)];
-      let cMax=0,cMin=0,cV=0,rMax=-Infinity,rMin=Infinity,crMax=-1,crMin=-1;
+      let cMax=0,cMin=0,cV=0,rMax=-Infinity,rMin=Infinity,crMax=-1,crMin=-1;const li=L.program().linkIndex;
       for(let a=0;a<L.fluidCells;a++){
         const c=L.cellOf[a],sc=flow.tiles?flow.tiles.slotOf(c):c,p=field.pressure[sc],sq=field.ux[sc]*field.ux[sc]+field.uy[sc]*field.uy[sc]+field.uz[sc]*field.uz[sc];
         if(p>pMax){pMax=p;cMax=c;}if(p<pMin){pMin=p;cMin=c;}if(sq>vMax){vMax=sq;cV=c;}
-        // the same over the cells a cell or more from the geometry (the first layer, cut by the wall, is singular at
-        // sharp edges and in gaps)
-        if(field.distance[sc]>=h){if(p>rMax){rMax=p;crMax=c;}if(p<rMin){rMin=p;crMin=c;}}
+        // the same over the cells a cell or more from the geometry and with no boundary link (the first layer, cut by a
+        // wall, a ground or a side, is singular at sharp edges, contact lines and in gaps)
+        if(field.distance[sc]>=h&&li[a]<0){if(p>rMax){rMax=p;crMax=c;}if(p<rMin){rMin=p;crMin=c;}}
       }
       out.extremes={pressureMax:{value:pMax,cp:pMax/dynamicPressure,at:at(cMax)},pressureMin:{value:pMin,cp:pMin/dynamicPressure,at:at(cMin)},speedMax:{value:Math.sqrt(vMax),at:at(cV)},dynamicPressure,
         pressureMaxResolved:crMax<0?null:{value:rMax,cp:rMax/dynamicPressure,at:at(crMax)},pressureMinResolved:crMin<0?null:{value:rMin,cp:rMin/dynamicPressure,at:at(crMin)}};

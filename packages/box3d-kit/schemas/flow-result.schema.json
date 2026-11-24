@@ -904,6 +904,41 @@
     "windows": {
      "type": "integer"
     },
+    "criterion": {
+     "anyOf": [
+      {
+       "enum": [
+        "tolerance",
+        "stationary"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "description": "How the last two windows agreed: within the tolerance, or within twice their combined standard error (an unsteady wake whose means are known to that error, the error under twice the tolerance). null when the run did not converge."
+    },
+    "standardErrors": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       }
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "description": "Standard error of each monitored mean of the last window (batch means): external cd, cl, cs; internal the flow rate and pressure of each opening, then the bulk speed. null for a window too short to split."
+    },
     "averaged": {
      "anyOf": [
       {
@@ -1197,6 +1232,28 @@
     "dynamicPressure": {
      "type": "number",
      "description": "Pa: rho U^2 / 2 of the reference speed; cp = pressure / dynamicPressure."
+    },
+    "pressureMaxResolved": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/extreme"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "description": "pressureMax over the fluid cells a cell or more from the geometry (the first layer is singular at sharp edges and in gaps)."
+    },
+    "pressureMinResolved": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/extreme"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "description": "pressureMin over the same cells."
     }
    },
    "required": [
@@ -1722,6 +1779,42 @@
      },
      "cpMax": {
       "type": "number"
+     },
+     "flags": {
+      "type": "array",
+      "items": {
+       "type": "integer",
+       "minimum": 0,
+       "maximum": 3
+      },
+      "description": "Per vertex: 0 a resolved sample; 1 on a sharp convex edge or corner (singular); 2 less than 3 cells of fluid in front (a gap, a contact line with the ground): under-resolved. Draw flagged samples greyed out."
+     },
+     "flagged": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Vertices with a flag."
+     },
+     "cpMinResolved": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "cpMin over the vertices with no flag; null when every vertex has one."
+     },
+     "cpMaxResolved": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "cpMax over the vertices with no flag; null when every vertex has one."
      }
     },
     "required": [

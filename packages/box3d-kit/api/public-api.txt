@@ -1345,6 +1345,7 @@ export declare class EnvelopeMatrix {
 }
 
 // ==== core/flow-geometry.d.ts ====
+import { FlowTiles } from './flow-lattice.js';
 export type FlowVec3 = readonly [number, number, number];
 export type FlowQuat = readonly [number, number, number, number];
 export declare const FLOW_THIN_CELLS = 1.44;
@@ -1452,6 +1453,7 @@ export interface FlowVoxels {
     readonly items: readonly FlowItemReport[];
     readonly warnings: readonly string[];
     readonly solidCells: number;
+    readonly tiles?: FlowTiles | null;
 }
 export interface FlowSurface {
     readonly part: string;
@@ -1467,6 +1469,7 @@ export interface FlowVoxelizeOptions {
     readonly surfaceSize?: number;
     readonly surfaces?: boolean;
     readonly thicken?: boolean;
+    readonly sparse?: boolean;
 }
 export interface FlowVoxelization extends FlowVoxels {
     readonly surfaces: readonly FlowSurface[];
@@ -1496,6 +1499,29 @@ export {};
 import { type StateObject, type StateValue } from './checkpoint.js';
 export declare const FLOW_LATTICE_ID = "flow-lbm-d3q19-regularized-les-js-f64-v1";
 export declare const FLOW_MAX_CELLS: number;
+export declare const FLOW_MAX_SPARSE_CELLS = 2147483647;
+export declare const FLOW_SQUEEZED_LINKS = 10;
+export declare const FLOW_SQUEEZED_TAU = 0.51;
+export declare const FLOW_TILE = 8;
+export declare class FlowTiles {
+    readonly nx: number;
+    readonly ny: number;
+    readonly nz: number;
+    readonly tx: number;
+    readonly ty: number;
+    readonly tz: number;
+    readonly block: Int32Array;
+    readonly blockTile: Int32Array;
+    readonly blocks: number;
+    readonly slots: number;
+    constructor(nx: number, ny: number, nz: number, marked: Uint8Array);
+    slot(i: number, j: number, k: number): number;
+    slotOf(c: number): number;
+    stored(i: number, j: number, k: number): boolean;
+    forEach(f: (i: number, j: number, k: number, c: number, s: number) => void): void;
+    get storedCells(): number;
+}
+export declare function flowEachCell(nx: number, ny: number, nz: number, tiles: FlowTiles | null, f: (i: number, j: number, k: number, c: number, s: number) => void): void;
 export declare const FLOW_FLUID = 0;
 export declare const FLOW_WALL = 1;
 export declare const FLOW_VELOCITY = 2;
@@ -1514,11 +1540,13 @@ export interface FlowLatticePart {
 export interface FlowLatticePatch {
     readonly velocity?: readonly [number, number, number];
     readonly density?: number;
+    readonly totalPressure?: boolean;
 }
 export interface FlowLatticeOptions {
     readonly nx: number;
     readonly ny: number;
     readonly nz: number;
+    readonly tiles?: FlowTiles | null;
     readonly periodic?: readonly [boolean, boolean, boolean];
     readonly kind: Uint8Array;
     readonly owner?: Int16Array | Int32Array;
@@ -1560,6 +1588,8 @@ export declare class FlowLattice {
     readonly fluidCells: number;
     readonly cellOf: Int32Array;
     readonly activeOf: Int32Array;
+    readonly tiles: FlowTiles | null;
+    readonly squeezedCells: number;
     f: Float64Array;
     private next;
     readonly density: Float64Array;
@@ -1586,6 +1616,10 @@ export declare class FlowLattice {
     private readonly linkAux;
     private readonly linkArm;
     private readonly linkAbsorb;
+    private readonly linkTotal;
+    private readonly inletMean;
+    private readonly inletDeviation;
+    private readonly totalRate;
     private readonly absorbRate;
     readonly wallFunction: boolean;
     private readonly wallDistance;
@@ -1674,8 +1708,13 @@ export interface FlowSurfaceField {
     readonly positions: Float32Array;
     readonly indices: Uint32Array;
     readonly pressure: Float32Array;
+    readonly flags: Uint8Array;
 }
-export declare function flowSurfacePressure(field: FlowField, surfaces: readonly FlowSurface[]): FlowSurfaceField[];
+export declare const FLOW_SAMPLE_EDGE = 1;
+export declare const FLOW_SAMPLE_GAP = 2;
+export declare const FLOW_GAP_CELLS = 3;
+export declare const FLOW_EDGE_CURVATURE = 0.6;
+export declare function flowSurfacePressure(field: FlowField, surfaces: readonly FlowSurface[], density?: number): FlowSurfaceField[];
 export interface FlowLine {
     readonly from: FlowVec3;
     readonly to: FlowVec3;
@@ -1828,12 +1867,13 @@ export {};
 
 // ==== core/flow.d.ts ====
 import { type StateObject, type StateValue } from './checkpoint.js';
-import { FlowLattice, FLOW_FLUID, FLOW_WALL, FLOW_VELOCITY, FLOW_PRESSURE, FLOW_SLIP, FLOW_MAX_CELLS } from './flow-lattice.js';
+import { FlowLattice, FlowTiles, FLOW_MAX_SPARSE_CELLS, FLOW_FLUID, FLOW_WALL, FLOW_VELOCITY, FLOW_PRESSURE, FLOW_SLIP, FLOW_MAX_CELLS } from './flow-lattice.js';
 import { type FlowGrid, type FlowItem, type FlowItemReport, type FlowSurface, type FlowVec3 } from './flow-geometry.js';
 export declare const FLOW_SOLVER_ID = "flow-lbm-d3q19-regularized-les-js-f64-v1";
 export declare const FLOW_SOLVER_VERSION = "1.0.0";
 export declare const FLOW_AUTO_MODEL: 'smagorinsky' | 'wale';
-export { FLOW_MAX_CELLS };
+export declare const FLOW_LAMINAR_CELL_REYNOLDS = 50;
+export { FLOW_MAX_CELLS, FLOW_MAX_SPARSE_CELLS };
 export interface FlowFluid {
     readonly density: number;
     readonly viscosity: number;
@@ -1851,6 +1891,7 @@ export type FlowSide = 'wall' | 'slip' | 'periodic'
     readonly kind: 'velocity';
     readonly velocity: FlowVec3 | ((x: number, y: number, z: number) => FlowVec3);
     readonly name?: string;
+    readonly freeStream?: boolean;
 }
  | {
     readonly kind: 'pressure';
@@ -1928,6 +1969,7 @@ export interface FlowOptions {
     readonly band?: number;
     readonly surfaces?: boolean;
     readonly thicken?: boolean;
+    readonly storage?: 'auto' | 'dense' | 'sparse';
 }
 export interface FlowPatchInfo {
     readonly name: string;
@@ -1947,10 +1989,12 @@ export interface FlowField {
     readonly pressure: Float32Array;
     readonly distance: Float32Array;
     readonly opening?: Int16Array;
+    readonly tiles?: FlowTiles | null;
 }
 export declare class Flow {
     readonly grid: FlowGrid;
     readonly lattice: FlowLattice;
+    readonly tiles: FlowTiles | null;
     readonly fluid: FlowFluid;
     readonly dt: number;
     readonly cell: number;
@@ -9449,6 +9493,7 @@ export interface FlowResultLike {
         readonly indices: ArrayLike<number>;
         readonly pressure: ArrayLike<number>;
         readonly cp: ArrayLike<number>;
+        readonly flags?: ArrayLike<number>;
     }[];
     readonly slices?: readonly {
         readonly axis: string;
@@ -9474,6 +9519,7 @@ export interface FlowViewOptions {
     readonly range?: readonly [number, number];
     readonly colormap?: FlowColormap;
     readonly surface?: 'plain' | 'cp' | false;
+    readonly flaggedColor?: number | null;
     readonly surfaceColor?: number;
     readonly surfaceOpacity?: number;
     readonly cpRange?: readonly [number, number];
