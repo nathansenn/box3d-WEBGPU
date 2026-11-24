@@ -103,8 +103,11 @@ Lattice units below: cell 1, step 1, reference density 1. `src/engine/flow-latti
   layer's). A fluid cell next to a **smooth** wall therefore treats its wall as slipping with the cell's own tangential
   velocity and takes the wall shear stress of a power law, `u+ = 8.3 (y+)^(1/7)` (Werner & Wengle 1991), with the
   viscous law below it (measured: `Cf` = 0.0055 on the same floor). "Smooth" means `h` times the Laplacian of the
-  signed distance (the convex curvature) is under 0.5: next to a sharp convex edge the wall is plain no-slip
-  bounce-back, so the geometry fixes the separation. `model.wallFunction: false` switches it off.
+  signed distance (the convex curvature) is under 0.05, a convex radius of 20 cells: flat walls, large surfaces and the
+  inside of pipes take the wall function; the cells within a few cells of a sharp convex edge, and round a small body,
+  are plain no-slip bounce-back, so the geometry fixes the separation. (With the limit at 0.5 the free cube's drag
+  coefficient was 0.53; at 0.05 it is 0.91, without the wall function 0.94: the slip next to an edge kept the flow
+  attached.) `model.wallFunction: false` switches it off.
 - **Inlets** are walls that "move" with the inlet velocity (velocity bounce-back): the mass that enters per link is
   exactly `rho c . u`. An inlet also gives way to sound: its velocity is lowered by `(rho - <rho>) / sqrt(3)` with `rho`
   the mean density on the inlet and `<rho>` its slow average, so start-up pressure waves leave through the inlet and a

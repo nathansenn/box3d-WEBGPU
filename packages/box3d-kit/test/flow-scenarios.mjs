@@ -348,3 +348,61 @@ export function backwardStep(K, {re = 100, n = 16, upstream = 3, downstream = 30
   while (flow.stepCount < maxSteps) { flow.step(every); x = reattachment(); if (Math.abs(x - last) < tolerance * S) break; last = x; }
   return {re, n, reattachment: x / S, steps: flow.stepCount, cells: flow.fluidCells};
 }
+
+/** Sudden expansion of a round pipe, D2 = 2 D1, at Re 50,000 (sub-grid model on): the static pressure rise from just
+ * before the step to 8 D2 after it, against Borda-Carnot, rho U1^2 s (1 - s) with s = A1 / A2; and the mass balance. */
+export function suddenExpansion(K, {cells = 16000, transits = 3, re = 5e4} = {}) {
+  const D1 = 0.5, D2 = 1, U1 = 1, nu = U1 * D1 / re, up = 1.5 * D1, down = 9 * D2, x0 = up, s = (D1 / D2) ** 2;
+  const along = [0, 0, -Math.SQRT1_2, Math.SQRT1_2]; // local +y to world +x
+  const study = {format: 'box3d-flow-study/1', name: 'sudden expansion', fluid: {density: 1, viscosity: nu}, mode: 'internal',
+    geometry: [{kind: 'cylinder', center: [up / 2, 0, 0], length: up, rotation: along, radius: D1 / 2, role: 'cavity', part: 'small'},
+      {kind: 'cylinder', center: [up + down / 2, 0, 0], length: down, rotation: along, radius: D2 / 2, role: 'cavity', part: 'large'}],
+    internal: {inlets: [{name: 'in', shape: {kind: 'disc', center: [0, 0, 0], normal: [-1, 0, 0], radius: D1 / 2}, speed: U1}],
+      outlets: [{name: 'out', shape: {kind: 'disc', center: [up + down, 0, 0], normal: [1, 0, 0], radius: D2 / 2}}]},
+    resolution: {cells}, run: {transits, windowTransits: 0.75, startupTransits: 1.5, tolerance: 0.01},
+    outputs: {sections: [{name: 'before', axis: 'x', position: x0 - 0.5 * D1}, {name: 'after', axis: 'x', position: x0 + 8 * D2}], history: false}};
+  const r = K.runFlowStudy(study), [a, b] = r.flow.sections;
+  const rise = b.meanPressure - a.meanPressure, exact = U1 * U1 * s * (1 - s);
+  return {re, cells: r.setup.lattice.fluidCells, cellsAcross: D1 / r.setup.grid.cell, rise, exact, error: rise / exact - 1, massBalance: r.flow.massBalance, steps: r.run.steps, turbulence: r.setup.turbulence.model};
+}
+/** A symmetric tee: a stem from below splits into two equal arms open at the same pressure. Each arm takes half by
+ * symmetry; what enters leaves. */
+export function teeSplit(K, {cells = 12000, transits = 4} = {}) {
+  const D = 0.2, L = 0.6;
+  const study = {format: 'box3d-flow-study/1', name: 'tee', fluid: 'water', mode: 'internal',
+    geometry: [{kind: 'cylinder', from: [0, -L, 0], to: [0, 0, 0], radius: D / 2, role: 'cavity', part: 'stem'},
+      {kind: 'cylinder', from: [-L, 0, 0], to: [L, 0, 0], radius: D / 2, role: 'cavity', part: 'run'}],
+    internal: {inlets: [{name: 'stem', shape: {kind: 'disc', center: [0, -L, 0], normal: [0, -1, 0], radius: D / 2}, flowRate: 0.01, profile: 'developed'}],
+      outlets: [{name: 'left', shape: {kind: 'disc', center: [-L, 0, 0], normal: [-1, 0, 0], radius: D / 2}}, {name: 'right', shape: {kind: 'disc', center: [L, 0, 0], normal: [1, 0, 0], radius: D / 2}}]},
+    resolution: {cells}, run: {transits, windowTransits: 1}, outputs: {history: false}};
+  const r = K.runFlowStudy(study), split = Object.fromEntries(r.flow.splits.map(sp => [sp.name, sp.fraction]));
+  return {cells: r.setup.lattice.fluidCells, left: split.left, right: split.right, massBalance: r.flow.massBalance, steps: r.run.steps, turbulence: r.setup.turbulence.model};
+}
+/** A tank with three inlets at different flow rates and one outlet by pressure: the outflow against the sum of the
+ * inflows, and the flow of each inlet against the one given. */
+export function tank(K, {cells = 15000, transits = 3} = {}) {
+  const study = {format: 'box3d-flow-study/1', name: 'tank', fluid: 'water', mode: 'internal',
+    geometry: [{kind: 'box', center: [0.5, 0.3, 0.3], size: [1, 0.6, 0.6], role: 'cavity', part: 'tank'},
+      {kind: 'cylinder', from: [0.15, 0.6, 0.3], to: [0.15, 0.8, 0.3], radius: 0.06, role: 'cavity', part: 'a'},
+      {kind: 'cylinder', from: [-0.2, 0.45, 0.15], to: [0, 0.45, 0.15], radius: 0.06, role: 'cavity', part: 'b'},
+      {kind: 'cylinder', from: [0.55, 0.42, 0.8], to: [0.55, 0.42, 0.6], radius: 0.06, role: 'cavity', part: 'c'},
+      {kind: 'cylinder', from: [1, 0.1, 0.4], to: [1.2, 0.1, 0.4], radius: 0.08, role: 'cavity', part: 'out'}],
+    internal: {inlets: [{name: 'a', shape: {kind: 'disc', center: [0.15, 0.8, 0.3], normal: [0, 1, 0], radius: 0.06}, flowRate: 0.006},
+      {name: 'b', shape: {kind: 'disc', center: [-0.2, 0.45, 0.15], normal: [-1, 0, 0], radius: 0.06}, flowRate: 0.004},
+      {name: 'c', shape: {kind: 'disc', center: [0.55, 0.42, 0.8], normal: [0, 0, 1], radius: 0.06}, flowRate: 0.003}],
+      outlets: [{name: 'out', shape: {kind: 'disc', center: [1.2, 0.1, 0.4], normal: [1, 0, 0], radius: 0.08}}]},
+    resolution: {cells}, run: {transits, windowTransits: 1}, outputs: {history: false}};
+  const r = K.runFlowStudy(study), flows = Object.fromEntries(r.flow.patches.map(p => [p.name, p.flowRate]));
+  return {cells: r.setup.lattice.fluidCells, inflow: r.flow.inflow, outflow: r.flow.outflow, massBalance: r.flow.massBalance, inletError: Math.max(Math.abs(flows.a / 0.006 - 1), Math.abs(flows.b / 0.004 - 1), Math.abs(flows.c / 0.003 - 1)), steps: r.run.steps};
+}
+/** A rectangular building 20 m x 30 m x 12 m (height 30) on fixed ground in a 20 m/s wind normal to its wide face, by
+ * the study runner with its defaults: drag coefficient on the frontal area and the largest surface pressure coefficient. */
+export function building(K, {cells = 120000, transits = 3} = {}) {
+  const study = {format: 'box3d-flow-study/1', name: 'building', fluid: 'air', mode: 'external',
+    geometry: [{kind: 'box', center: [0, 15, 0], size: [12, 30, 20], part: 'building'}],
+    external: {speed: 20, direction: [1, 0, 0], ground: {height: 0, type: 'fixed'}, referenceArea: 20 * 30},
+    resolution: {cells}, run: {transits, windowTransits: 0.75, startupTransits: 1}, outputs: {surface: true, history: false}};
+  const r = K.runFlowStudy(study), c = r.forces.coefficients;
+  return {cells: r.setup.lattice.fluidCells, bodyCells: r.setup.external.bodyCells, blockage: r.setup.external.blockage, cd: c.cd, cl: c.cl, cpMax: r.surface[0].cpMax,
+    referencePressure: r.setup.external.referencePressure.value / c.dynamicPressure, steps: r.run.steps, turbulence: r.setup.turbulence.model, reynolds: r.setup.reynolds};
+}

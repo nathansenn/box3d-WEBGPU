@@ -211,7 +211,7 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
     latticeSpeed:res.latticeSpeed===undefined?undefined:num(res.latticeSpeed,'resolution.latticeSpeed',0,true),
     spongeCells:model.spongeCells===undefined?undefined:num(model.spongeCells,'model.spongeCells',0)};
 
-  let flowOptions:FlowOptions,referenceSpeed:number,referenceLength:number,referenceLengthSource:string,flowLength:number;
+  let reynoldsSpeed=0,flowOptions:FlowOptions,referenceSpeed:number,referenceLength:number,referenceLengthSource:string,flowLength:number;
   let external:FlowStudySetup['external']=null,internal:FlowStudySetup['internal']=null;
   if(mode==='external'){
     if(s.internal!==undefined)fail('an external study must not have an "internal" section.');
@@ -276,7 +276,7 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
       else{sides[loName]='slip';sides[hiName]='slip';}
     }
     if(geometry.some(g=>g.part==='ground')&&ground&&ground.type!=='slip')fail('the part name "ground" is taken by the ground plane; rename the item.');
-    referenceSpeed=speed;
+    referenceSpeed=speed;reynoldsSpeed=speed;
     referenceLength=e.referenceLength===undefined?Math.max(ext[0],ext[1],ext[2]):num(e.referenceLength,'external.referenceLength',0,true);
     referenceLengthSource=e.referenceLength===undefined?'largest extent of the bounding box of the geometry'+(ground?' above the ground':''):'given';
     flowLength=Math.abs(dir[0])*grid.nx*grid.cell+Math.abs(dir[1])*grid.ny*grid.cell+Math.abs(dir[2])*grid.nz*grid.cell;
@@ -293,7 +293,7 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
     known(n,'internal',['inlets','outlets','domain','padding','referenceLength','referenceSpeed','acceleration','periodic','initialVelocity']);
     const inletsIn=n.inlets===undefined?[]:Array.isArray(n.inlets)?n.inlets as unknown[]:fail('internal.inlets must be an array.');
     const outletsIn=n.outlets===undefined?[]:Array.isArray(n.outlets)?n.outlets as unknown[]:fail('internal.outlets must be an array.');
-    const patches:FlowPatch[]=[];let fastest=0,inflow=0,firstInletArea=0,smallestPressureOutlet=Infinity,pressureOutlets=0;
+    const patches:FlowPatch[]=[];let fastest=0,inflow=0,firstInletArea=0,firstInletSpeed=0,smallestPressureOutlet=Infinity,pressureOutlets=0;
     inletsIn.forEach((raw,i)=>{
       if(!isObject(raw))fail(`internal.inlets[${i}] must be an object.`);
       const o={...raw as Json};known(o,`internal.inlets[${i}]`,['name','shape','flowRate','speed','velocity','profile']);
@@ -307,7 +307,7 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
       const peak=patch.profile==='parabolic'?2:1,sp=peak*(patch.flowRate!==undefined?patch.flowRate/area:patch.speed!==undefined?patch.speed:Math.hypot(...patch.velocity!));
       if(sp>fastest)fastest=sp;
       inflow+=sp/peak*area;
-      if(i===0)firstInletArea=area;
+      if(i===0){firstInletArea=area;firstInletSpeed=sp/peak;}
       patches.push(patch);
     });
     outletsIn.forEach((raw,i)=>{
@@ -362,12 +362,15 @@ export function flowStudySetup(study:unknown,options:FlowStudyOptions={}):FlowSt
     if(n.referenceLength!==undefined){referenceLength=num(n.referenceLength,'internal.referenceLength',0,true);referenceLengthSource='given';}
     else if(firstInletArea>0){referenceLength=Math.sqrt(4*firstInletArea/Math.PI);referenceLengthSource='diameter of the circle with the area of the first inlet';}
     else{referenceLength=Math.min(hi[0]-lo[0],hi[1]-lo[1],hi[2]-lo[2]);referenceLengthSource='smallest extent of the box';}
+    reynoldsSpeed=firstInletSpeed>0?firstInletSpeed:referenceSpeed;
     flowLength=Math.max(grid.nx,grid.ny,grid.nz)*grid.cell;
     internal={inlets:patches.filter(p=>p.kind==='inlet').map(p=>p.name),outlets:patches.filter(p=>p.kind==='outlet').map(p=>p.name),fluidFraction};
     flowOptions={...common,grid,geometry,sides,patches,referenceSpeed,acceleration,initialVelocity:n.initialVelocity===undefined?undefined:vec3(n.initialVelocity,'internal.initialVelocity')};
   }
   // the Reynolds number of the flow: for the internal case with the mean speed of the first inlet when it is known
-  const reynolds=referenceSpeed*referenceLength/fluid.viscosity;
+  // the Reynolds number: external, of the free stream; internal, of the mean speed of the first inlet (else the
+  // reference speed) and the reference length
+  const reynolds=reynoldsSpeed*referenceLength/fluid.viscosity;
   flowOptions={...flowOptions,reynolds};
   const grid=flowOptions.grid,dt=(common.latticeSpeed??0.06)*grid.cell/referenceSpeed,transitTime=flowLength/referenceSpeed,transitSteps=transitTime/dt;
   const transits=runIn.transits===undefined?(mode==='external'?8:12):num(runIn.transits,'run.transits',0,true);

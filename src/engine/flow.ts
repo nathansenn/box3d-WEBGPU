@@ -121,7 +121,8 @@ export interface FlowOptions {
   readonly wallFunction?:boolean;
   /** The wall function is used only next to smooth walls: where h times the Laplacian of the signed distance (the
    * curvature of the wall, convex positive) is below this. Next to sharper convex edges the wall is plain bounce-back,
-   * so the geometry fixes the separation. Default 0.5 (a convex radius of two cells). */
+   * so the geometry fixes the separation. Default 0.05 (a convex radius of 20 cells: flat walls, large surfaces and the
+   * inside of pipes take it; the cells near an edge or round a small body do not). */
   readonly wallFunctionCurvature?:number;
   /** 'interpolated' (default): the wall is where the geometry puts it on every link; 'halfway': half-way, mass-exact. */
   readonly walls?:'interpolated'|'halfway';
@@ -484,7 +485,7 @@ export class Flow {
     // where the wall function may be used: next to walls whose convex curvature is under wallFunctionCurvature / h
     let wfMask:Uint8Array|undefined;
     if(hasGeometry&&this.turbulence!=='none'&&options.wallFunction!==false){
-      const limit=options.wallFunctionCurvature??0.5;wfMask=new Uint8Array(cells).fill(1);
+      const limit=options.wallFunctionCurvature??0.05;wfMask=new Uint8Array(cells).fill(1);
       for(let k=0,c=0;k<nz;k++)for(let j=0;j<ny;j++)for(let i=0;i<nx;i++,c++){
         if(kind[c]!==FLOW_FLUID)continue;
         const d=distance[c];if(!(d<2*h))continue;
