@@ -24,6 +24,7 @@
  */
 import {EngineError} from './contracts.ts';
 
+/** A point or vector [x, y, z], metres in SI frames. */
 export type FlowVec3=readonly [number,number,number];
 /** Quaternion x, y, z, w. */
 export type FlowQuat=readonly [number,number,number,number];
@@ -46,8 +47,11 @@ interface AxisPlacement {
 }
 /** A box: `halfExtents`, or the full `size`, along its local x, y, z. */
 export interface FlowBox extends ItemBase {readonly kind:'box';readonly center:FlowVec3;readonly halfExtents?:FlowVec3;readonly size?:FlowVec3;readonly rotation?:FlowQuat}
+/** A sphere: centre and radius. */
 export interface FlowSphere extends ItemBase {readonly kind:'sphere';readonly center:FlowVec3;readonly radius:number}
+/** A flat-ended cylinder along its axis (from and to, or centre, rotation and full length along local +y). */
 export interface FlowCylinder extends ItemBase,AxisPlacement {readonly kind:'cylinder';readonly radius:number}
+/** A capsule: a segment (from and to, or centre, rotation and full length along local +y) swept by a sphere of `radius`. */
 export interface FlowCapsule extends ItemBase,AxisPlacement {readonly kind:'capsule';readonly radius:number}
 /** A cone frustum: `radius` at `from` (the -Y end), `radiusTop` at `to`. */
 export interface FlowCone extends ItemBase,AxisPlacement {readonly kind:'cone';readonly radius:number;readonly radiusTop:number}
@@ -59,6 +63,7 @@ export interface FlowBeam extends ItemBase {
   readonly kind:'beam';readonly from:FlowVec3;readonly to:FlowVec3;readonly up?:FlowVec3;
   readonly section?:'rect'|'i';readonly width:number;readonly depth:number;readonly flange?:number;readonly web?:number;
 }
+/** A triangle mesh: closed components are solids, open ones surfaces of a thickness; `elements` give per-run flags. */
 export interface FlowMesh extends ItemBase {
   readonly kind:'mesh';
   /** x, y, z per vertex. */
@@ -73,6 +78,7 @@ export interface FlowMesh extends ItemBase {
    * Triangles in no run take the mesh's own `thickness`. Same layout as an `apex-flow-geometry/1` mesh. */
   readonly elements?:readonly FlowMeshElement[];
 }
+/** A run of triangles of one model element, closed (a solid) or open (a surface of a thickness). */
 export interface FlowMeshElement {
   readonly element?:string|number;
   /** First triangle and number of triangles (three indices each). */
@@ -111,10 +117,14 @@ function splitElements(item:FlowMesh):FlowMesh[]{
   }
   return out;
 }
+/** Any primitive item of the geometry. */
 export type FlowPrimitive=FlowBox|FlowSphere|FlowCylinder|FlowCapsule|FlowCone|FlowTube|FlowBeam;
+/** An item of the geometry: a primitive or a mesh, solid or cavity. */
 export type FlowItem=FlowPrimitive|FlowMesh;
 
+/** A box of cubic cells: origin (its minimum corner), cell size and cell counts. */
 export interface FlowGrid {readonly origin:FlowVec3;readonly cell:number;readonly nx:number;readonly ny:number;readonly nz:number}
+/** What the grid did to one item: its smallest dimension, what was added so that it does not leak, its surface and how much of it is unresolved. */
 export interface FlowItemReport {
   readonly index:number;readonly id?:string|number;readonly kind:string;readonly part:string;readonly role:'solid'|'cavity';
   /** Metres added to the thin dimension of a plate-like item so that it does not leak (0: nothing), and for a closed
@@ -127,6 +137,7 @@ export interface FlowItemReport {
   /** Area of the item's surface inside the grid, and the fraction of it with no cell of the item within 1.25 cells. */
   readonly surfaceArea:number;readonly unresolvedFraction:number;
 }
+/** The voxelised geometry: signed distance per cell, the part of each cell, the report and the warnings. */
 export interface FlowVoxels {
   readonly grid:FlowGrid;
   /** Signed distance to the solid at the cell centres, metres, positive in the fluid, limited to +-band cells. */
@@ -582,6 +593,7 @@ export function flowPrimitiveSurface(item:FlowPrimitive,size:number):{positions:
 // ---------------------------------------------------------------------------------------------------------------------
 // Voxelisation
 // ---------------------------------------------------------------------------------------------------------------------
+/** Options of `flowVoxelize`: band, surface sampling and thickening. */
 export interface FlowVoxelizeOptions {
   /** Half width of the band in which distances are exact, cells. Default 4. */
   readonly band?:number;
@@ -592,6 +604,7 @@ export interface FlowVoxelizeOptions {
   /** Grow thin walls so that they do not leak (see the header). Default true. */
   readonly thicken?:boolean;
 }
+/** The voxelisation with the surfaces of the parts and the thickening counts. */
 export interface FlowVoxelization extends FlowVoxels {
   /** Surface triangles per part (meshes as given, primitives tessellated); empty when `surfaces` is false. */
   readonly surfaces:readonly FlowSurface[];

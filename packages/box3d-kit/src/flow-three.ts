@@ -38,6 +38,7 @@ export interface FlowResultLike {
     readonly speed: ArrayLike<number>; readonly pressure: ArrayLike<number>; readonly fluid: ArrayLike<number>}[];
 }
 
+/** The colour maps of the streamlines, slices and surfaces. */
 export type FlowColormap = 'rainbow' | 'turbo' | 'viridis' | 'coolwarm';
 const MAPS: Record<FlowColormap, readonly (readonly [number, number, number])[]> = {
   // the classic blue-cyan-green-yellow-red scale of CFD pictures
@@ -56,6 +57,7 @@ export function flowColormap(name: FlowColormap = 'rainbow'): (t: number) => [nu
   };
 }
 
+/** Options of `createFlowView`: what to draw, the styles and the colour ranges. */
 export interface FlowViewOptions {
   /** Draw the streamlines. Default true. */
   readonly streamlines?: boolean;
@@ -81,6 +83,7 @@ export interface FlowViewOptions {
   readonly slices?: boolean;
   readonly sliceOpacity?: number;
 }
+/** The three.js objects of a result: a group, the streamlines, surfaces and slices, the colour range, and `dispose()`. */
 export interface FlowView {
   readonly group: any;
   readonly streamlines: any | null;
@@ -230,6 +233,7 @@ export interface FlowLegendContext {
   strokeRect(x: number, y: number, w: number, h: number): void;
   fillText(text: string, x: number, y: number): void;
 }
+/** Options of `flowLegend`: the range, title, unit, colour map and placement. */
 export interface FlowLegendOptions {
   readonly min: number; readonly max: number;
   readonly title?: string; readonly unit?: string;

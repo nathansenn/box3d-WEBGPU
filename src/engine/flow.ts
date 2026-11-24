@@ -26,12 +26,15 @@ import {captureFields,restoreFields,type FieldOptions,type StateObject,type Stat
 import {FlowLattice,FLOW_FLUID,FLOW_WALL,FLOW_VELOCITY,FLOW_PRESSURE,FLOW_SLIP,FLOW_CX,FLOW_CY,FLOW_CZ,FLOW_WEIGHT,FLOW_LATTICE_ID,FLOW_MAX_CELLS,type FlowLatticePart,type FlowLatticePatch} from './flow-lattice.ts';
 import {flowVoxelize,type FlowGrid,type FlowItem,type FlowItemReport,type FlowSurface,type FlowVec3} from './flow-geometry.ts';
 
+/** The solver id written to results (`solver.id`). */
 export const FLOW_SOLVER_ID=FLOW_LATTICE_ID;
+/** The version of the solver written to results (`solver.version`). */
 export const FLOW_SOLVER_VERSION='1.0.0';
 /** The sub-grid model `turbulence: 'auto'` picks above its thresholds. */
 export const FLOW_AUTO_MODEL:'smagorinsky'|'wale'='smagorinsky';
 export {FLOW_MAX_CELLS};
 
+/** A Newtonian fluid of constant properties. */
 export interface FlowFluid {
   /** kg/m^3 */
   readonly density:number;
@@ -44,8 +47,11 @@ export const FLOW_FLUIDS:Readonly<Record<'air'|'water',FlowFluid>>=Object.freeze
   water:Object.freeze({density:998.207,viscosity:1.0016e-3/998.207}),
 });
 
+/** Names of the six sides of the box. */
 export type FlowSideName='xMin'|'xMax'|'yMin'|'yMax'|'zMin'|'zMax';
+/** The six sides of the box, in the order of their indices. */
 export const FLOW_SIDES:readonly FlowSideName[]=Object.freeze(['xMin','xMax','yMin','yMax','zMin','zMax']) as readonly FlowSideName[];
+/** What closes a side of the box: a wall, a slip plane, periodic, a velocity inlet or a pressure outlet. */
 export type FlowSide=
   |'wall'|'slip'|'periodic'
   /** A no-slip wall, which may slide in its own plane (a moving ground). `part` names it in the force report. */
@@ -54,10 +60,12 @@ export type FlowSide=
   |{readonly kind:'velocity';readonly velocity:FlowVec3|((x:number,y:number,z:number)=>FlowVec3);readonly name?:string}
   /** A given gauge pressure on the whole side (an outflow). */
   |{readonly kind:'pressure';readonly pressure?:number;readonly name?:string};
+/** The shape of an opening: a disc or a rectangle in a plane, with the outward normal of the fluid. */
 export type FlowPatchShape=
   /** `normal` points OUT of the fluid, through the opening (the outward normal of the fluid domain). */
   |{readonly kind:'disc';readonly center:FlowVec3;readonly normal:FlowVec3;readonly radius:number}
   |{readonly kind:'rect';readonly center:FlowVec3;readonly normal:FlowVec3;readonly up?:FlowVec3;readonly halfWidth:number;readonly halfHeight:number};
+/** An opening of an internal flow: an inlet by flow rate, speed or velocity, or an outlet by pressure or flow rate. */
 export interface FlowPatch {
   readonly name:string;
   readonly kind:'inlet'|'outlet';
@@ -91,7 +99,9 @@ export interface FlowActuator {
   /** Force on the fluid, N; or the pressure rise across the disc, Pa (force = pressureJump pi radius^2). One of the two. */
   readonly force?:number;readonly pressureJump?:number;
 }
+/** An actuator disc as set up: its cells, force, axis and area. */
 export interface FlowActuatorInfo {readonly name:string;readonly cells:number;readonly force:number;readonly axis:FlowVec3;readonly area:number}
+/** Options of `Flow`: the grid, geometry, fluid, sides, openings, motion, actuators, model and run settings, SI units. */
 export interface FlowOptions {
   /** The box of fluid cells: origin (its minimum corner), cell size and counts. */
   readonly grid:FlowGrid;
@@ -148,6 +158,7 @@ export interface FlowOptions {
   /** Grow walls thinner than 1.44 cells so that they do not leak. Default true. */
   readonly thicken?:boolean;
 }
+/** An opening as set up on the lattice: its area, outward normal and what is imposed. */
 export interface FlowPatchInfo {
   readonly name:string;readonly kind:'inlet'|'outlet';
   /** Area the lattice gives the patch along its normal, m^2, and the outward normal (out of the fluid). */
@@ -179,6 +190,7 @@ const vec=(v:unknown,name:string):FlowVec3=>isVec(v)?v:fail(`${name} must be thr
 const FLOW_FIELDS:FieldOptions={label:'Flow',skip:['grid','lattice','fluid','dt','cell','latticeSpeed','referenceSpeed','turbulence','smagorinsky','wale','cellReynolds','relaxationTime','parts','patches','voxels','warnings','surfaces','items','solidCells','fluidCells','enclosedCells','forceScale','momentScale','flowScale','pressureScale','velocityScale','rampSteps','kinds','inletVelocity','actuators','actuatorCells','geometryParts','thickening'],
   nested:{}};
 
+/** The flow solver in SI units: a lattice-Boltzmann flow around and through voxelised geometry, with forces per part, flow rates through openings, time averages, fields and exact checkpoints. */
 export class Flow {
   /** The lattice: the fluid box plus one layer of boundary cells on every side that is not periodic. */
   readonly grid:FlowGrid;

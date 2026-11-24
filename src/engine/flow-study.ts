@@ -12,11 +12,15 @@ import {Flow,FLOW_AUTO_MODEL,FLOW_FLUIDS,FLOW_SOLVER_ID,FLOW_SOLVER_VERSION,FLOW
 import {flowGeometryBounds,flowItemsFromApexGeometry,flowVoxelize,FLOW_THIN_CELLS,type FlowItem,type FlowMesh,type FlowVec3,type FlowGrid} from './flow-geometry.ts';
 import {flowFrequency,flowLine,flowProjectedArea,flowRake,flowSection,flowSeedPlane,flowSlice,flowStreamlines,flowSurfacePressure} from './flow-post.ts';
 
+/** The format string of a study document. */
 export const FLOW_STUDY_FORMAT='box3d-flow-study/1';
+/** The format string of a result document. */
 export const FLOW_RESULT_FORMAT='box3d-flow-result/1';
 /** Default margins of an external study, in multiples of `margins.length`. */
 export const FLOW_MARGINS=Object.freeze({upstream:3,downstream:6,side:2.5,top:2.5});
+/** What the solver is, in one paragraph (`solver.statement` of a result). */
 export const FLOW_STATEMENT='Weakly compressible lattice-Boltzmann (D3Q19, regularised collision) with a Smagorinsky sub-grid model and a power-law wall function on smooth walls, on a uniform grid of cubic cells, float64, deterministic. Above a cell Reynolds number of about 10 it is an under-resolved large-eddy simulation: an engineering estimate, not certified CFD.';
+/** The standing limits of the solver (`limits` of a result). */
 export const FLOW_LIMITS:readonly string[]=Object.freeze([
   'Boundary layers are not resolved: friction comes from a wall function, and the separation from smooth curved surfaces (spheres, cylinders, streamlined bodies, wings, hulls) is an estimate; the drag crisis is not predicted. Sharp-edged bodies, whose separation the geometry fixes, are predicted better.',
   'Incompressible flow only. The lattice Mach number of the reference speed is sqrt(3) * latticeSpeed (0.10 by default); the physical flow should be below Mach 0.3. No shocks, no heating by compression.',
@@ -46,6 +50,7 @@ const r6=(v:number):number=>Number.isFinite(v)?Number(v.toPrecision(6)):0;
 const list=(a:ArrayLike<number>):number[]=>{const out=new Array<number>(a.length);for(let i=0;i<a.length;i++)out[i]=r6(a[i]);return out;};
 
 
+/** Options of `runFlowStudy`, `createFlowStudy` and `flowStudySetup`: progress, file loaders, clock, provenance. */
 export interface FlowStudyOptions {
   /** Called after every monitor interval. */
   readonly onProgress?:(progress:FlowProgress)=>void;
@@ -58,6 +63,7 @@ export interface FlowStudyOptions {
   /** Copied to `solver.provenance` of the result: where the solver came from (a commit, a package version, a bundle hash). */
   readonly provenance?:Readonly<Record<string,string|number|boolean|null>>;
 }
+/** Progress reported after every monitor interval of a study. */
 export interface FlowProgress {
   readonly step:number;readonly maxSteps:number;readonly time:number;
   /** Fraction of the largest run length done. */
@@ -415,6 +421,7 @@ export interface FlowStudyRun {
   result():Json;
 }
 
+/** Set up a study and return a run to advance one monitor interval at a time (`advance()`) and to read (`result()`). */
 export function createFlowStudy(study:unknown,options:FlowStudyOptions={}):FlowStudyRun{
   const now=options.now??(()=>Date.now()),started=now();
   const setup=flowStudySetup(study,options),flow=new Flow(setup.options),run=setup.run,ext=setup.external;

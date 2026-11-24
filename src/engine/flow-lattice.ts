@@ -74,23 +74,37 @@
 import {EngineError} from './contracts.ts';
 import {captureFields,restoreFields,type FieldOptions,type StateObject,type StateValue} from './checkpoint.ts';
 
+/** The solver id of the lattice-Boltzmann kernel (D3Q19, regularised collision, sub-grid model, float64). */
 export const FLOW_LATTICE_ID='flow-lbm-d3q19-regularized-les-js-f64-v1';
 /** Most cells of the box (fluid or not). The box costs about 15 bytes per cell, the fluid about 420 bytes per fluid cell. */
 export const FLOW_MAX_CELLS=1<<25;
 
-/** Cell kinds of the lattice. */
-export const FLOW_FLUID=0,FLOW_WALL=1,FLOW_VELOCITY=2,FLOW_PRESSURE=3,FLOW_SLIP=4;
+/** Cell kind: fluid. */
+export const FLOW_FLUID=0;
+/** Cell kind: a wall (geometry, or a wall side of the box). */
+export const FLOW_WALL=1;
+/** Cell kind: a velocity inlet. */
+export const FLOW_VELOCITY=2;
+/** Cell kind: a pressure outlet. */
+export const FLOW_PRESSURE=3;
+/** Cell kind: a slip (specular) side. */
+export const FLOW_SLIP=4;
 
 /** D3Q19 velocities, opposite directions and weights. */
 export const FLOW_CX=Object.freeze([0,1,-1,0,0,0,0,1,-1,1,-1,1,-1,1,-1,0,0,0,0]);
+/** y components of the D3Q19 velocities. */
 export const FLOW_CY=Object.freeze([0,0,0,1,-1,0,0,1,-1,-1,1,0,0,0,0,1,-1,1,-1]);
+/** z components of the D3Q19 velocities. */
 export const FLOW_CZ=Object.freeze([0,0,0,0,0,1,-1,0,0,0,0,1,-1,-1,1,1,-1,-1,1]);
+/** Index of the velocity opposite to each D3Q19 velocity. */
 export const FLOW_OPPOSITE=Object.freeze([0,2,1,4,3,6,5,8,7,10,9,12,11,14,13,16,15,18,17]);
+/** Weights of the D3Q19 velocities: 1/3, 1/18 (axis), 1/36 (edge). */
 export const FLOW_WEIGHT=Object.freeze([1/3,1/18,1/18,1/18,1/18,1/18,1/18,1/36,1/36,1/36,1/36,1/36,1/36,1/36,1/36,1/36,1/36,1/36,1/36]);
 const Q=19;
 /** The TRT "magic" product (tau - 1/2)(tau_odd - 1/2): 3/16 makes the half-way bounce-back exact for Poiseuille flow. */
 const TRT_MAGIC=3/16;
 
+/** A part of the walls in lattice units: its velocity and angular velocity (a moving ground, a frozen rotor). */
 export interface FlowLatticePart {
   /** Velocity of the wall, cells per step (a moving ground, a belt). Default 0. */
   readonly velocity?:readonly [number,number,number];
@@ -98,12 +112,14 @@ export interface FlowLatticePart {
   readonly angularVelocity?:readonly [number,number,number];
   readonly centre?:readonly [number,number,number];
 }
+/** An inlet (a velocity) or an outlet (a density) in lattice units. */
 export interface FlowLatticePatch {
   /** FLOW_VELOCITY cells: the velocity that is imposed half-way to the cell, cells per step. */
   readonly velocity?:readonly [number,number,number];
   /** FLOW_PRESSURE cells: the density imposed (pressure = (density - 1) / 3). Default 1. */
   readonly density?:number;
 }
+/** Options of `FlowLattice`: the box of cells, their kinds and owners, the walls and the fluid, in lattice units. */
 export interface FlowLatticeOptions {
   readonly nx:number;readonly ny:number;readonly nz:number;
   /** Axes whose two sides are joined. An axis that is not periodic must be closed by non-fluid cells. */
@@ -164,6 +180,7 @@ const fail=(message:string):never=>{throw new EngineError('INVALID_ARGUMENT',`Fl
 const LINK_WALL=0,LINK_PRESSURE=1,LINK_SLIP=2;
 const LATTICE_FIELDS:FieldOptions={label:'FlowLattice',skip:['nx','ny','nz','cells','periodic','kind','owner','walls','viscosity','smagorinsky','wale','eddy','collision','openCell','bulkRelaxation','extraViscosity','cellOf','activeOf','linkIndex','boundaryCell','source','linkStart','linkDir','linkKind','linkQ','linkAdd','linkOwner','linkAux','linkArm','linkAbsorb','absorbRate','wallDistance','wallVelocity','wallNormal','wallPart','wallFunction','inletCell','inletPatch','inletCount','inletOver','forceCells','forceValues','partCount','patchCount','fluidCells','partForce','partMoment','patchMass','scratch']};
 
+/** The lattice-Boltzmann kernel in lattice units (cell 1, step 1, density 1): streaming, boundary links, collision and the sums of forces and flow rates. `Flow` builds one from SI options. */
 export class FlowLattice {
   readonly nx:number;readonly ny:number;readonly nz:number;readonly cells:number;
   readonly periodic:readonly [boolean,boolean,boolean];

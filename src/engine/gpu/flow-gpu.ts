@@ -18,6 +18,7 @@ import {EngineError} from '../contracts.ts';
 import {FLOW_CX,FLOW_CY,FLOW_CZ,FLOW_OPPOSITE,FLOW_WEIGHT,type FlowLattice} from '../flow-lattice.ts';
 import type {GpuCompute} from './compute.ts';
 
+/** The solver id of the flow step on WebGPU (float32). */
 export const FLOW_GPU_SOLVER_ID='flow-lbm-d3q19-regularized-les-webgpu-f32-v1';
 const Q=19,NONE=0xffffffff,WORKGROUP=64;
 const F=Math.fround;
@@ -38,6 +39,7 @@ export interface FlowGpuTables {
   readonly linkCode:Uint32Array;readonly linkQ:Float32Array;readonly linkAdd:Float32Array;readonly linkAux:Uint32Array;
   readonly tau0:number;readonly smagorinskyK:number;readonly bulk:number;
 }
+/** The tables of a lattice in the shader's layout; throws when the lattice uses a feature the kernel does not have. */
 export function flowGpuTables(lattice:FlowLattice):FlowGpuTables{
   const p=lattice.program();
   if(p.features.length)throw new EngineError('INVALID_ARGUMENT',`FlowGpu: this lattice uses ${p.features.join(', ')}, which the GPU kernel does not have. Build the Flow with wallFunction: false, absorbSteps: 0 and collision: 'regularized', without sponges or actuators.`);
@@ -54,6 +56,7 @@ export function flowGpuTables(lattice:FlowLattice):FlowGpuTables{
 // ---------------------------------------------------------------------------------------------------------------------
 const f32=(x:number):string=>{const v=F(x);const t=v.toPrecision(9);return t.includes('.')||t.includes('e')?t:t+'.0';};
 const W0=F(1/3),W1=F(1/18),W2=F(1/36);
+/** The WGSL of the flow step: one dispatch per step, one invocation per fluid cell. */
 export const FLOW_WGSL=/* wgsl */`
 // flow-gpu.ts: one lattice-Boltzmann step per dispatch, one invocation per fluid cell.
 struct Params { cells: u32, les: u32, oIndex: u32, oStart: u32, oCode: u32, oAux: u32, pad0: u32, pad1: u32, tau0: f32, K: f32, bulk: f32, ramp: f32, fx: f32, fy: f32, fz: f32, pad2: f32 }

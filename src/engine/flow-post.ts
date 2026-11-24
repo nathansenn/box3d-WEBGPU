@@ -11,6 +11,7 @@ const fail=(message:string):never=>{throw new EngineError('INVALID_ARGUMENT',`fl
 // ---------------------------------------------------------------------------------------------------------------------
 // Streamlines
 // ---------------------------------------------------------------------------------------------------------------------
+/** Options of `flowStreamlines`: step, stride, length, direction and the speed below which a line stops. */
 export interface FlowStreamlineOptions {
   /** Arc length of an integration step, in cells. Default 0.5. */
   readonly step?:number;
@@ -23,6 +24,7 @@ export interface FlowStreamlineOptions {
   /** A line ends where the speed falls below this, m/s. Default 1e-4 of the largest speed of the field. */
   readonly minSpeed?:number;
 }
+/** One streamline: points, speed and pressure per point, and why it ended. */
 export interface FlowStreamline {
   readonly seed:FlowVec3;
   /** x, y, z per point, metres. */
@@ -105,6 +107,7 @@ export function flowSeedPlane(origin:FlowVec3,u:FlowVec3,v:FlowVec3,nu:number,nv
 // ---------------------------------------------------------------------------------------------------------------------
 // Slices
 // ---------------------------------------------------------------------------------------------------------------------
+/** The fields on a plane normal to an axis, sampled at the cell centres. */
 export interface FlowSlice {
   readonly axis:'x'|'y'|'z';
   /** Coordinate of the plane along `axis`, metres. */
@@ -138,6 +141,7 @@ export function flowSlice(field:FlowField,axis:'x'|'y'|'z',position:number):Flow
 // ---------------------------------------------------------------------------------------------------------------------
 // Surface pressure
 // ---------------------------------------------------------------------------------------------------------------------
+/** Pressure at the vertices of the surface of one part. */
 export interface FlowSurfaceField {
   readonly part:string;readonly positions:Float32Array;readonly indices:Uint32Array;
   /** Gauge pressure at each vertex, Pa, read one cell out from the wall along the gradient of the wall distance. */
@@ -168,6 +172,7 @@ export function flowSurfacePressure(field:FlowField,surfaces:readonly FlowSurfac
 // ---------------------------------------------------------------------------------------------------------------------
 // Lines and sections
 // ---------------------------------------------------------------------------------------------------------------------
+/** The fields along a line, and where a velocity component changes sign. */
 export interface FlowLine {
   readonly from:FlowVec3;readonly to:FlowVec3;
   /** Distance from `from`, m; velocity, speed, pressure and wall distance at each sample. */
@@ -192,6 +197,7 @@ export function flowLine(field:FlowField,from:FlowVec3,to:FlowVec3,samples=101,a
   for(let i=1;i<samples;i++)if(comp[i-1]!==0&&comp[i]!==0&&(comp[i-1]<0)!==(comp[i]<0))zeroCrossings.push(s[i-1]+(s[i]-s[i-1])*comp[i-1]/(comp[i-1]-comp[i]));
   return {from,to,s,ux,uy,uz,speed,pressure,distance,zeroCrossings};
 }
+/** Integrals over one layer of cells: area, flow rate, mean and peak speeds, mean pressures, momentum factor. */
 export interface FlowSection {
   readonly axis:'x'|'y'|'z';readonly position:number;
   /** Fluid area of the section, m^2; volume flow rate along +axis, m^3/s; the mean speed |Q| / area. */
