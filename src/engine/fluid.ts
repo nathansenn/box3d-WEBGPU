@@ -1992,7 +1992,15 @@ export class FluidCoupling<B> {
   /** Mean force (N) and torque about the centre of mass (N m) of the last rigid step. Live arrays. */
   force(body:B):Float64Array {return this.entry(body).force;}
   torque(body:B):Float64Array {return this.entry(body).torque;}
-  step():void {
+  step():void {const plan=this.plan();while(!plan.next().done)this.fluid.step(1);}
+  /**
+   * `step()` with the fluid's steps taken by `advance` (a backend that mirrors this fluid, src/engine/gpu: it reads the
+   * obstacles' band from the fluid before each step and sets their forces after it). The same code as `step()`, so a
+   * backend that gives the float64 solver's steps gives its bits.
+   */
+  async stepAsync(advance:(count:number)=>Promise<void>):Promise<void> {const plan=this.plan();while(!plan.next().done)await advance(1);}
+  /** The coupling step, yielding where the fluid takes one of its steps. */
+  private *plan():Generator<void,void,void> {
     const world=this.world,fluid=this.fluid,h=fluid.dt,n=this.substeps,out=this.out;
     const states:{x:number[];q:number[];v:number[];w:number[]}[]=[];
     for(const e of this.list){
@@ -2011,7 +2019,7 @@ export class FluidCoupling<B> {
         const q=k===0?s.q:integrateQuaternion(s.q,s.w,t);
         fluid.setObstacleState(e.index,{position:x,rotation:q,linearVelocity:s.v,angularVelocity:s.w});
       }
-      fluid.step(1);
+      yield;
       for(const e of this.list){const F=fluid.obstacleForce(e.index),T=fluid.obstacleTorque(e.index);for(let c=0;c<3;c++){e.force[c]+=F[c]/n;e.torque[c]+=T[c]/n;}}
     }
     for(const e of this.list){

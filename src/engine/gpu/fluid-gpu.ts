@@ -20,12 +20,14 @@ import {GpuCompute,GpuProgram} from './compute.ts';
 import {FLUID_PASS,FLUID_WGSL,KERNELS,type KernelName} from './fluid-kernels.ts';
 import {BLOCK_STRIDE,FLUID_SCALARS,FluidProgram,fluidProgramSource,fluidStepStats,MAX_BLOCKS,readFluidProgramCheckpoint,writeFluidProgramCheckpoint,type FluidBackendOptions,type FluidCommand,type FluidProgramSource} from './fluid-program.ts';
 
+/** The solver id of the flow on WebGPU compute (float32). */
 export const FLUID_GPU_SOLVER_ID='fluid-mac-projection-jacobi-pcg-webgpu-f32-v1';
 /** Bytes of the three buffers a fluid of this description needs (the largest must fit one storage binding). */
 export function fluidMemory(source:Fluid|FluidProgramSource):{data:number;indices:number} {
   const p=new FluidProgram(source).plan;return {data:4*p.floats,indices:4*p.words};
 }
 
+/** Incompressible flow on the MAC grid on WebGPU compute, in float32, with fixed and moving obstacles (geometry on the host). */
 export class GpuFluid {
   readonly solver=FLUID_GPU_SOLVER_ID;
   readonly compute:GpuCompute;readonly program:FluidProgram;

@@ -4,7 +4,7 @@ import {PlateBody,type PlateFragment} from '../../engine/plate';
 import {materialProperty,contactPair} from '../../engine/materials';
 import {GLASS_RIG,glassBobPosition,glassBobTangent} from './glass-rig';
 import {LabModel,DT,random,type V3} from './lab-model';
-import {GlassFragmentWorld,type FragmentRelease} from './glass-fragments';
+import {GlassFragmentWorld,eulerQuaternion,tilePrism,boxPrism,prismOverlap,nearestOnTile,widenOutline,padColliders,HELD_MARGIN,FRAGMENT_MARGIN,type FragmentRelease} from './glass-fragments';
 import type {NativeWorldPool} from '../../engine/native-world';
 import type {LabSettings} from './catalog';
 
@@ -26,6 +26,9 @@ export function glassLines(refine:GlassRefinement,x:number,y:number):{x:number[]
   };
   return {x:line(GLASS_CELLS[0],GLASS_RIG.panelWidth,x),y:line(GLASS_CELLS[1],GLASS_RIG.panelHeight,y)};
 }
+/** On the refined grid the bending terms of cells narrower than this are implicit (PlateBody `implicitCells`): the 0.05 m cells
+ * no longer set the time step, which stays that of the 0.1 m cells. */
+export const IMPLICIT_CELLS=.075;
 /** Nominal PVB interlayer of a laminate, m (Stratobel xx.2, AGC sheet). */
 export const PVB_THICKNESS=.76e-3;
 /** Wired glass: a square steel wire mesh of 1/2 inch (12.7 mm), as AGC's wired patterned glass sheet states ("The
@@ -40,6 +43,10 @@ export const DICING_SPEED=1466;
 export const FRAGMENTS_PER_MPA=1;
 /** Rubber of the clamp pads (natural rubber, library) and their geometry from the rig: 24 mm thick, 210 mm tall, 55 mm over the pane edge. */
 const PAD={thickness:.024,height:.21,overlap:.055};
+/** A fragment whose collision hulls overlap a clamp's (pad or held glass) by more than this at release starts inside it, m (a
+ * rounding tolerance): it collides with the clamps only once clear of them. A shard released along a crack does, through the
+ * outline margins. */
+export const CLAMP_TOUCH=1e-6;
 /** Mass damping of the plate, 1/s: about 0.6% of critical at the first mode of the 8 mm pane. Assumed, not measured (unverified). */
 export const PLATE_DAMPING=.6;
 
@@ -118,6 +125,16 @@ export class GlassModel extends LabModel {
   releaseError={linear:0,angular:0};
   /** True until the bob first touches the pane. */
   private still=true;
+  /** With the Box3D world: the generalized impulse the fragments gave the pendulum (N m s), summed with its sign and in absolute
+   * value, and the largest angular momentum of the pendulum about its pivot (I |speed|, N m s), to judge its size. */
+  bobImpulse={net:0,total:0,largest:0};
+  /** Fragments handed off in this tick, waiting for their Box3D bodies (made once every piece of the tick has left the plate). */
+  private pending:{fragment:RigidFragment;piece:PlateFragment}[]=[];
+  /** Held tiles that followed the plate in the last tick (nodes near a fragment), by node; and the pane's largest deflection. */
+  private near=new Uint8Array(0);private nearNext=new Uint8Array(0);
+  /** Fragments moved out of the bob at release (their flat tiles cut the sphere where the bob pressed the glass) and the
+   * largest such move, m; fragments released inside a clamp. */
+  releaseShift={count:0,largest:0};startedInClamp=0;
   private friction:number;private touching:number[]=[];private bonds=0;private checked=0;private tile:{x:number;y:number}[];
   /** `refine`: a finer grid around the impact (GlassRefinement); default none. */
   readonly refine:GlassRefinement|null;
@@ -131,7 +148,7 @@ export class GlassModel extends LabModel {
     const lines=this.refine?glassLines(this.refine,this.impactX+r.panelWidth/2,r.panelHeight/2):undefined;
     const cells:[number,number]=lines?[lines.x.length-1,lines.y.length-1]:options.cells??GLASS_CELLS;
     this.plate=new PlateBody({size:[r.panelWidth,r.panelHeight],cells,membrane:options.membrane??true,thickness:this.thickness,origin:[-r.panelWidth/2,r.panelCenterY-r.panelHeight/2],
-      ...(lines?{lines}:{}),material:{youngModulus:spec.youngModulus,poissonRatio:spec.poissonRatio,density:spec.density},addedArealMass:spec.addedArealMass,massDamping:PLATE_DAMPING,
+      ...(lines?{lines,implicitCells:IMPLICIT_CELLS}:{}),material:{youngModulus:spec.youngModulus,poissonRatio:spec.poissonRatio,density:spec.density},addedArealMass:spec.addedArealMass,massDamping:PLATE_DAMPING,
       fracture:{strength:spec.strength,prestress:spec.prestress,dicingSpeed:spec.dicing?DICING_SPEED:0,tie:spec.tie}});
     const plate=this.plate,pads:number[]=[];
     // Rubber pads on both faces at x = +-1.32 m, y = 1.6, 2.45, 3.3 m: two springs E A / t in parallel per pad, shared by the nodes under it.
@@ -235,7 +252,7 @@ export class GlassModel extends LabModel {
     if(!Number.isFinite(dt)||dt<=0||dt>.25)throw new Error('Glass step must be in (0, 0.25] seconds');
     // Equal sub-steps: symplectic Euler gains energy when its step length changes from one step to the next,
     // so the step is set once per tick and only shortened (for the rest of the tick) when a crack lowers the limit.
-    const plate=this.plate,start=this.frame.time;this.reach(dt);let left=dt,h=dt/Math.ceil(dt/(.9*plate.stableTimeStep()));
+    const plate=this.plate,start=this.frame.time,angle0=this.angle;this.reach(dt);let left=dt,h=dt/Math.ceil(dt/(.9*plate.stableTimeStep()));
     while(left>1e-12){
       if(h>.9*plate.stableTimeStep())h=left/Math.ceil(left/(.9*plate.stableTimeStep()));
       h=Math.min(h,left);
@@ -243,17 +260,25 @@ export class GlassModel extends LabModel {
       // Gravity on the bob: potential m g y(angle), so the generalized force is -m g dy/dangle.
       const spring=this.contact(),tangentZ=glassBobTangent(this.angle)[2];
       // Until the bob first touches it the pane is exactly at rest (no load reaches w): its step would change nothing but its clock.
-      if(this.still&&!this.touching.length)plate.time+=h;else{this.still=false;this.bonds+=plate.advance(h);}
+      if(this.still&&!this.touching.length)plate.time+=h;
+      else{
+        this.still=false;
+        // The step is chosen from the stiffness of the last evaluation; if this one finds the plate stiffer (a membrane
+        // tightening within a step), the plate refuses the step without changing its state, and the rest of the tick is
+        // split again from the new limit.
+        try{this.bonds+=plate.advance(h);}
+        catch(error){if((error as {code?:string}).code!=='UNSTABLE_TIME_STEP')throw error;h=left/Math.ceil(left/(.9*plate.stableTimeStep()));continue;}
+      }
       this.substeps++;
       // The dashpots' force is the one the plate saw over the step, from the nodes' new velocities.
       let damper=0;for(const n of this.touching)damper+=plate.drag[n]*(plate.dragVelocity[n]-plate.v[n]);
       this.force=Math.max(0,this.force-damper);
       this.speed+=h*(spring-damper*tangentZ-this.pendulumMass*G*tangent[1])/this.pendulumInertia;this.angle+=h*this.speed;
-      left-=h;this.peakForce=Math.max(this.peakForce,this.force);
+      left-=h;this.peakForce=Math.max(this.peakForce,this.force);this.bobImpulse.largest=Math.max(this.bobImpulse.largest,this.pendulumInertia*Math.abs(this.speed));
     }
     this.frame.time=start+dt;
-    if(this.bonds!==this.checked){this.checked=this.bonds;this.detachFragments();}
-    this.stepFragments(dt);
+    if(this.bonds!==this.checked){this.checked=this.bonds;this.detachFragments();this.flushRigid();}
+    this.stepFragments(dt,angle0);
     this.peakStress=plate.peakStress;
     this.sync();
   }
@@ -291,13 +316,13 @@ export class GlassModel extends LabModel {
     let reach=0;for(let k=0;k<corners.length;k+=3)reach=Math.max(reach,Math.hypot(corners[k],corners[k+1],corners[k+2]));
     const fragment:RigidFragment={reach,nodes:piece.nodes,mass:piece.mass,x:[...piece.center] as V3,v:[0,0,piece.velocity],q:[0,0,0,1],
       w:[piece.angularVelocity[0],piece.angularVelocity[1],0],inertia:[ixx,iyy,izz],offsets,corners:Float64Array.from(corners),resting:0,body:-1};
-    if(this.rigid)fragment.body=this.toRigid(piece,offsets);
+    if(this.rigid)this.pending.push({fragment,piece});
     plate.detach(piece);this.fragments.push(fragment);
   }
   /** Hands a piece to the Box3D world: its mass, centre and full inertia tensor (each node's point mass plus its cell as a
    * thin lamina), its velocity, and the spin that carries the plate's angular momentum about the centre, I^-1 L; its tiles
    * as hulls. Records how far Box3D's body (float32) differs from the plate in linear and angular momentum. */
-  private toRigid(piece:PlateFragment,offsets:Float64Array):number {
+  private toRigid(piece:PlateFragment,offsets:Float64Array,fragment:RigidFragment):number {
     const plate=this.plate,n=piece.nodes.length,I=[0,0,0,0,0,0],L=[0,0,0],tiles:Float64Array[]=[];let p=0;
     for(let k=0;k<n;k++){
       const node=piece.nodes[k],m=plate.mass[node],ox=offsets[3*k],oy=offsets[3*k+1],oz=offsets[3*k+2],v=plate.v[node];
@@ -309,7 +334,10 @@ export class GlassModel extends LabModel {
       const tile=new Float64Array(12);this.pieces[node].vertices.forEach((c,i)=>{tile[3*i]=ox+c[0];tile[3*i+1]=oy+c[1];tile[3*i+2]=oz;});tiles.push(tile);
     }
     const spin=solve3(I,L),release:FragmentRelease={mass:piece.mass,center:[...piece.center],velocity:[0,0,piece.velocity],angularVelocity:spin,inertia:I as FragmentRelease['inertia'],tiles,thickness:this.thickness};
-    const rigid=this.rigid!,index=rigid.add(release),state=rigid.state(index),held=rigid.world.bodyMassData(rigid.handle(index)).inertia;
+    const rigid=this.rigid!,shift=this.outOfBob(release);
+    if(shift>0){fragment.x=[...release.center] as V3;this.releaseShift.count++;this.releaseShift.largest=Math.max(this.releaseShift.largest,shift);}
+    const inside=this.clampOverlap(release.center,[0,0,0,1],release.tiles.map(t=>t),null)>CLAMP_TOUCH;if(inside)this.startedInClamp++;
+    const index=rigid.add(release,!inside),state=rigid.state(index),held=rigid.world.bodyMassData(rigid.handle(index)).inertia;
     const pb=[state.mass*state.linearVelocity[0],state.mass*state.linearVelocity[1],state.mass*state.linearVelocity[2]],w=state.angularVelocity;
     const Lb=[held[0]*w[0]+held[3]*w[1]+held[4]*w[2],held[3]*w[0]+held[1]*w[1]+held[5]*w[2],held[4]*w[0]+held[5]*w[1]+held[2]*w[2]];
     const scaleP=Math.max(Math.abs(p),piece.mass*1e-3),scaleL=Math.max(Math.hypot(...L),Math.max(I[0],I[1],I[2])*1e-3);
@@ -317,14 +345,115 @@ export class GlassModel extends LabModel {
     this.releaseError.angular=Math.max(this.releaseError.angular,Math.hypot(Lb[0]-L[0],Lb[1]-L[1],Lb[2]-L[2])/scaleL);
     return index;
   }
+  /** Makes the Box3D bodies of the pieces handed off in this tick. At the first release the glass still held in the frame
+   * (every active node's tile) and the bob enter the world; a released node's held tile leaves it. */
+  private flushRigid():void {
+    const rigid=this.rigid;if(!rigid||!this.pending.length)return;const plate=this.plate;
+    if(!rigid.hasBob){
+      rigid.addBob(this.pendulumMass,GLASS_RIG.bobRadius,this.bob);
+      for(let n=0;n<plate.nodeCount;n++)if(plate.active[n]){const pose=this.tilePose(n);rigid.holdTile(n,this.tileCorners(n),pose.position,pose.rotation);}
+      this.near=new Uint8Array(plate.nodeCount);this.nearNext=new Uint8Array(plate.nodeCount);
+    }
+    for(const {piece} of this.pending)for(const n of piece.nodes){rigid.dropTile(n);this.near[n]=0;}
+    for(const {fragment,piece} of this.pending)fragment.body=this.toRigid(piece,fragment.offsets,fragment);
+    this.pending.length=0;
+  }
+  /** Slopes [w_x, w_y] at node n (central differences inside, one-sided at the edges), as the tiles are drawn. */
+  private slope(n:number):[number,number] {
+    const plate=this.plate,i=n%plate.nx,j=Math.floor(n/plate.nx),w=plate.w,X=plate.xs,Y=plate.ys,f=!this.refine;
+    const gx=i>0&&i<plate.cx?(w[n+1]-w[n-1])/(f?2*plate.hx:X[i+1]-X[i-1]):i===0?(w[n+1]-w[n])/(f?plate.hx:X[1]-X[0]):(w[n]-w[n-1])/(f?plate.hx:X[i]-X[i-1]);
+    const gy=j>0&&j<plate.cy?(w[n+plate.nx]-w[n-plate.nx])/(f?2*plate.hy:Y[j+1]-Y[j-1]):j===0?(w[n+plate.nx]-w[n])/(f?plate.hy:Y[1]-Y[0]):(w[n]-w[n-plate.nx])/(f?plate.hy:Y[j]-Y[j-1]);
+    return [gx,gy];
+  }
+  /** Pose of the drawn tile of a node of the plate: at (x, y, w), turned by its slopes (XYZ Euler angles w_y, -w_x, 0). */
+  tilePose(n:number):{position:[number,number,number];rotation:[number,number,number,number]} {
+    const [gx,gy]=this.slope(n);return {position:[this.tile[n].x,this.tile[n].y,this.plate.w[n]],rotation:eulerQuaternion(gy,-gx,0)};
+  }
+  /** The four outline corners of a node's tile relative to its node, flat (12 numbers). */
+  tileCorners(n:number):Float64Array {const out=new Float64Array(12);this.pieces[n].vertices.forEach((v,k)=>{out[3*k]=v[0];out[3*k+1]=v[1];out[3*k+2]=v[2];});return out;}
+  /** Nodes whose tiles lie within `margin` of the box [lo, hi] in x and y (pane coordinates are node offsets plus the origin). */
+  private nodesNear(lo:number[],hi:number[],margin:number,visit:(n:number)=>void):void {
+    const plate=this.plate,below=(lines:Float64Array,v:number)=>{let a=0,b=lines.length-1;if(v<=lines[0])return 0;while(a<b){const m=(a+b+1)>>1;if(lines[m]<=v)a=m;else b=m-1;}return a;};
+    const i0=below(plate.xs,lo[0]-margin-plate.origin[0]),i1=Math.min(plate.cx,below(plate.xs,hi[0]+margin-plate.origin[0])+1);
+    const j0=below(plate.ys,lo[1]-margin-plate.origin[1]),j1=Math.min(plate.cy,below(plate.ys,hi[1]+margin-plate.origin[1])+1);
+    for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++)visit(j*plate.nx+i);
+  }
+  /** Largest overlap of a fragment's collision hulls (its tiles at a pose, widened by FRAGMENT_MARGIN, `hull` thick) with the
+   * clamp pads and the held glass's hulls, m. */
+  private clampOverlap(center:readonly number[],rotation:readonly number[],tiles:Float64Array[]|null,fragment:RigidFragment|null):number {
+    const rigid=this.rigid!,half=rigid.hull/2,prisms:ReturnType<typeof tilePrism>[]=[];
+    if(tiles)for(const t of tiles)prisms.push(tilePrism(widenOutline(t,FRAGMENT_MARGIN),0,center,rotation,half));
+    else if(fragment)for(let k=0;k<fragment.nodes.length;k++)prisms.push(tilePrism(widenOutline(fragment.corners.subarray(12*k,12*k+12),FRAGMENT_MARGIN),0,center,rotation,half));
+    let worst=0;const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];
+    for(const P of prisms)for(const p of P)for(let a=0;a<3;a++){lo[a]=Math.min(lo[a],p[a]);hi[a]=Math.max(hi[a],p[a]);}
+    for(const pad of this.pads){
+      if(pad.lo.some((v,a)=>v>hi[a])||pad.hi.some((v,a)=>v<lo[a]))continue;
+      for(const P of prisms)worst=Math.max(worst,prismOverlap(P,pad.prism));
+    }
+    const plate=this.plate;
+    this.nodesNear(lo,hi,.12,n=>{
+      if(!plate.active[n]||!rigid.isHeld(n))return;const z=plate.w[n];if(z-.06>hi[2]||z+.06<lo[2])return;
+      const pose=this.tilePose(n),H=tilePrism(widenOutline(this.tileCorners(n),HELD_MARGIN),0,pose.position,pose.rotation,half);
+      for(const P of prisms)worst=Math.max(worst,prismOverlap(P,H));
+    });
+    return worst;
+  }
+  private readonly pads=padColliders(this.thickness0()).map(f=>({prism:boxPrism(f.halfExtents,f.position),lo:f.position.map((c,a)=>c-f.halfExtents[a]),hi:f.position.map((c,a)=>c+f.halfExtents[a])}));
+  private thickness0():number {return this.settings.size/1000;}
+  /** Moves a fragment about to enter the world out of the bob's sphere (where the bob pressed the glass, the fragment's flat
+   * tiles cut its curve): along the line from the bob's centre to the nearest point of the deepest tile (the shortest move
+   * that clears it), until every hull is clear. Returns the distance moved, m (0: it was clear). Positions only: momentum is unchanged. */
+  private outOfBob(release:FragmentRelease):number {
+    const c=this.bob,R=GLASS_RIG.bobRadius,half=this.rigid!.hull/2,start=[...release.center];
+    for(let iteration=0;iteration<12;iteration++){
+      let deepest=0,dir=[0,0,-1];
+      for(const t of release.tiles){
+        const near=nearestOnTile(c,tilePrism(t,0,release.center,[0,0,0,1],half));
+        if(R-near.distance>deepest){deepest=R-near.distance;dir=near.distance>1e-9?[0,1,2].map(a=>(near.point[a]-c[a])/near.distance):[0,0,-1];}
+      }
+      if(deepest<=0)break;
+      for(let a=0;a<3;a++)release.center[a]+=dir[a]*(deepest+5e-4);
+    }
+    return Math.hypot(release.center[0]-start[0],release.center[1]-start[1],release.center[2]-start[2]);
+  }
+  /** The held tiles near a fragment that may move this tick follow the plate (a kinematic body reaching the plate's pose at
+   * the end of the tick); a tile that comes near is first put at its pose; one that is no longer near stops. */
+  private followPlate(dt:number):void {
+    const rigid=this.rigid!,plate=this.plate,next=this.nearNext;next.fill(0);let slab=0;
+    for(let n=0;n<plate.nodeCount;n++)if(plate.active[n])slab=Math.max(slab,Math.abs(plate.w[n]));slab+=rigid.hull+.05;
+    for(const f of this.fragments){
+      if(f.resting>.5)continue;const r=f.reach+rigid.hull+Math.hypot(f.v[0],f.v[1],f.v[2])*dt+.05;
+      if(f.x[2]-r>slab||f.x[2]+r<-slab)continue;
+      this.nodesNear([f.x[0]-r,f.x[1]-r],[f.x[0]+r,f.x[1]+r],0,n=>{if(plate.active[n])next[n]=1;});
+    }
+    for(let n=0;n<plate.nodeCount;n++){
+      if(!next[n]){if(this.near[n])rigid.stopTile(n);continue;}
+      const pose=this.tilePose(n);rigid.moveTile(n,pose.position,pose.rotation,this.near[n]?dt:0);
+    }
+    this.near.set(next);
+  }
+  /** The fragments' generalized impulse on the pendulum (N m s) from what they did to the bob in its world: Q = J . t - L_x,
+   * the work of the impulse J through the bob's centre on the tangent t = dr/dangle, and of the angular impulse about x on the
+   * bob's turn (-1 per unit angle). */
+  static generalizedImpulse(reaction:{impulse:readonly number[];angularX:number},angle:number):number {
+    const t=glassBobTangent(angle);return reaction.impulse[0]*t[0]+reaction.impulse[1]*t[1]+reaction.impulse[2]*t[2]-reaction.angularX;
+  }
   /** With a Box3D world (`options.fragments`) the fragments are its bodies: it steps them and they are read back. Without one
    * they fall as rigid bodies onto the tray or the floor (impulses at the deepest corner, Coulomb friction, no bounce) and do
    * not collide with each other, the frame or the pendulum. */
-  private stepFragments(dt:number):void {
+  private stepFragments(dt:number,angle0:number):void {
     if(this.rigid){
-      const rigid=this.rigid;rigid.step(dt);
+      const rigid=this.rigid;if(!rigid.count)return;
+      this.followPlate(dt);
+      // The bob goes from its pose at the start of the tick to its pose now, as the pendulum went, turning with the arm.
+      const a=glassBobPosition(angle0,this.impactX),b=this.bob;
+      rigid.driveBob(a,[(b[0]-a[0])/dt,(b[1]-a[1])/dt,(b[2]-a[2])/dt],-(this.angle-angle0)/dt);
+      rigid.step(dt);
+      const Q=GlassModel.generalizedImpulse(rigid.bobReaction(),.5*(angle0+this.angle));
+      this.speed+=Q/this.pendulumInertia;this.bobImpulse.net+=Q;this.bobImpulse.total+=Math.abs(Q);
       for(const f of this.fragments){
         const s=rigid.state(f.body);f.x=s.position;f.q=s.rotation;f.v=s.linearVelocity;f.w=s.angularVelocity;f.resting=s.awake?0:1;
+        if(rigid.ignoring.has(f.body)&&this.clampOverlap(f.x,f.q,null,f)<=CLAMP_TOUCH)rigid.collideWithClamps(f.body);
       }
       return;
     }
@@ -360,10 +489,7 @@ export class GlassModel extends LabModel {
   private sync():void {
     const f=this.frame,plate=this.plate,pos=f.positions,rot=f.rotations,d=f.damage;let travel=0;
     for(let n=0;n<plate.nodeCount;n++){
-      if(!plate.active[n])continue;const i=n%plate.nx,j=Math.floor(n/plate.nx),w=plate.w;
-      const X=plate.xs,Y=plate.ys,f=!this.refine;
-      const gx=i>0&&i<plate.cx?(w[n+1]-w[n-1])/(f?2*plate.hx:X[i+1]-X[i-1]):i===0?(w[n+1]-w[n])/(f?plate.hx:X[1]-X[0]):(w[n]-w[n-1])/(f?plate.hx:X[i]-X[i-1]);
-      const gy=j>0&&j<plate.cy?(w[n+plate.nx]-w[n-plate.nx])/(f?2*plate.hy:Y[j+1]-Y[j-1]):j===0?(w[n+plate.nx]-w[n])/(f?plate.hy:Y[1]-Y[0]):(w[n]-w[n-plate.nx])/(f?plate.hy:Y[j]-Y[j-1]);
+      if(!plate.active[n])continue;const w=plate.w,[gx,gy]=this.slope(n);
       pos[3*n]=this.tile[n].x;pos[3*n+1]=this.tile[n].y;pos[3*n+2]=w[n];rot[3*n]=gy;rot[3*n+1]=-gx;rot[3*n+2]=0;travel=Math.max(travel,Math.abs(w[n]));
     }
     const out=[0,0,0];let throwDistance=0,held=0;

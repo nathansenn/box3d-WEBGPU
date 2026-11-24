@@ -6718,6 +6718,7 @@ export interface SceneFluid {
     readonly diffusion?: 'explicit' | 'crank-nicolson' | 'backward-euler';
     readonly velocity?: SceneVec3;
     readonly bodies?: readonly SceneFluidBody[];
+    readonly backend?: 'cpu' | 'gpu';
     readonly u?: readonly number[];
     readonly v?: readonly number[];
     readonly w?: readonly number[];
@@ -8562,6 +8563,7 @@ export interface SceneFluid {
     readonly diffusion?: 'explicit' | 'crank-nicolson' | 'backward-euler';
     readonly velocity?: SceneVec3;
     readonly bodies?: readonly SceneFluidBody[];
+    readonly backend?: 'cpu' | 'gpu';
     readonly u?: readonly number[];
     readonly v?: readonly number[];
     readonly w?: readonly number[];
@@ -9625,7 +9627,7 @@ in `world`, and return them with a ready Simulation. `loadScene` of
 `box3d-webgpu-kit/scene` does the same and returns the kit's SceneBuilder.
 
 ```ts
-export declare function loadSimulationScene(world: PhysicsWorld, scene: unknown): LoadedSimulationScene;
+export declare function loadSimulationScene(world: PhysicsWorld, scene: unknown, options?: SceneSimulationOptions): LoadedSimulationScene;
 ```
 
 ### ReactionLoad · interface
@@ -9683,7 +9685,7 @@ Resume a simulation checkpoint (`simulation.checkpoint()`) in `world`, in this p
 carries is loaded (the world is reset to it) and the checkpoint restored, so the run continues bit-identically.
 
 ```ts
-export declare function resumeSimulation(world: PhysicsWorld, bytes: Uint8Array): LoadedSimulationScene;
+export declare function resumeSimulation(world: PhysicsWorld, bytes: Uint8Array, options?: SceneSimulationOptions): LoadedSimulationScene;
 ```
 
 ### resumeSimulationScene · function
@@ -9713,7 +9715,7 @@ export type SceneFluidRuntime<B> = {
 
 ### SceneGpuBackends · interface
 
-The subsystems of the scene sections that say `backend: 'gpu'` (shallow water, grains). The GPU backends live in
+The subsystems of the scene sections that say `backend: 'gpu'` (shallow water, grains, flows). The GPU backends live in
 src/engine/gpu (scene-backends.ts `gpuSceneBackends(compute)`); this module only calls them, so it does not depend on
 WebGPU. A scene with such a section loaded without them is refused.
 
@@ -9725,6 +9727,11 @@ export interface SceneGpuBackends<W = any, B = any> {
         stale(): boolean;
     };
     grains(coupling: GranularCoupling<B>, info: {
+        readonly id: string;
+    }): Subsystem<W, B> & {
+        stale(): boolean;
+    };
+    fluid?(target: Fluid | FluidCoupling<B>, info: {
         readonly id: string;
     }): Subsystem<W, B> & {
         stale(): boolean;
@@ -12291,6 +12298,7 @@ export declare class FluidCoupling<B> {
   force(body: B): Float64Array;
   torque(body: B): Float64Array;
   step(): void;
+  stepAsync(advance: (count: number) => Promise<void>): Promise<void>;
   diagnostics(): FluidCouplingDiagnostics;
 }
 ```
@@ -13142,6 +13150,1492 @@ Thacker's angular frequency sqrt(8 g h0) / a, rad/s.
 export declare const thackerFrequency: (h0: number, a: number, gravity?: number) => number;
 ```
 
+## `box3d-webgpu-kit/flow`
+
+### createFlowStudy · function
+
+Set up a study and return a run to advance one monitor interval at a time (`advance()`) and to read (`result()`).
+
+```ts
+export declare function createFlowStudy(study: unknown, options?: FlowStudyOptions): FlowStudyRun;
+```
+
+### Flow · class
+
+The flow solver in SI units: a lattice-Boltzmann flow around and through voxelised geometry, with forces per part, flow rates through openings, time averages, fields and exact checkpoints.
+
+```ts
+export declare class Flow {
+  readonly grid: FlowGrid;
+  readonly lattice: FlowLattice;
+  readonly tiles: FlowTiles | null;
+  readonly fluid: FlowFluid;
+  readonly dt: number;
+  readonly cell: number;
+  readonly latticeSpeed: number;
+  readonly referenceSpeed: number;
+  readonly turbulence: 'none' | 'smagorinsky' | 'wale';
+  readonly smagorinsky: number;
+  readonly wale: number;
+  readonly cellReynolds: number;
+  readonly relaxationTime: number;
+  readonly parts: readonly string[];
+  readonly geometryParts: number;
+  readonly thickening: { readonly items: number; readonly largest: number; readonly closedCells: number; readonly slender: number; };
+  readonly patches: readonly FlowPatchInfo[];
+  readonly actuators: readonly FlowActuatorInfo[];
+  readonly actuatorCells: readonly Int32Array[];
+  readonly surfaces: readonly FlowSurface[];
+  readonly items: readonly FlowItemReport[];
+  readonly warnings: readonly string[];
+  readonly solidCells: number;
+  readonly fluidCells: number;
+  readonly enclosedCells: number;
+  time: number;
+  meanSamples: number;
+  get stepCount(): number;
+  get distance(): Float32Array;
+  step(steps?: number): void;
+  setViscosityScale(k: number): void;
+  pressureArea(about?: FlowVec3): { name: string; force: [number, number, number]; moment: [number, number, number]; }[];
+  forces(about?: FlowVec3): { name: string; force: [number, number, number]; moment: [number, number, number]; }[];
+  takeSums(about?: FlowVec3): { steps: number; parts: { name: string; force: [number, number, number]; moment: [number, number, number]; }[]; flowRates: number[]; wallFlowRate: number; };
+  excessVolume(): number;
+  maxSpeed(): number;
+  healthy(): boolean;
+  accumulate(): void;
+  resetMean(): void;
+  field(mean?: boolean): FlowField;
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
+}
+```
+
+### FLOW_AUTO_MODEL · const
+
+The sub-grid model `turbulence: 'auto'` picks above its thresholds.
+
+```ts
+export declare const FLOW_AUTO_MODEL: 'smagorinsky' | 'wale';
+```
+
+### FLOW_CX · const
+
+D3Q19 velocities, opposite directions and weights.
+
+```ts
+export declare const FLOW_CX: readonly number[];
+```
+
+### FLOW_CY · const
+
+y components of the D3Q19 velocities.
+
+```ts
+export declare const FLOW_CY: readonly number[];
+```
+
+### FLOW_CZ · const
+
+z components of the D3Q19 velocities.
+
+```ts
+export declare const FLOW_CZ: readonly number[];
+```
+
+### FLOW_EDGE_CURVATURE · const
+
+Laplacian of the wall distance times the cell size, one cell out, above which a sample is FLOW_SAMPLE_EDGE: 0 on a
+plane, about 1 next to a sharp edge, 2 at a corner, 0.4 on a sphere 8 cells across.
+
+```ts
+export declare const FLOW_EDGE_CURVATURE = 0.6;
+```
+
+### FLOW_FLUID · const
+
+Cell kind: fluid.
+
+```ts
+export declare const FLOW_FLUID = 0;
+```
+
+### FLOW_FLUIDS · const
+
+Air and water at 20 C and 1 atm: the density and dynamic viscosity of the material library (docs/MATERIALS.md).
+
+```ts
+export declare const FLOW_FLUIDS: Readonly<Record<'air' | 'water', FlowFluid>>;
+```
+
+### FLOW_GAP_CELLS · const
+
+Fluid depth in front of a surface sample below which it is flagged FLOW_SAMPLE_GAP, cells.
+
+```ts
+export declare const FLOW_GAP_CELLS = 3;
+```
+
+### FLOW_LAMINAR_CELL_REYNOLDS · const
+
+Cell Reynolds number (peak speed x cell / viscosity) above which a laminar Flow with walls warns: above it a laminar
+pipe or duct loses its developed profile within three viscous times (docs/FLOW.md, laminar pipe). Below it the loss
+is slower, not absent: at 46 a pipe held within 0.3% for three viscous times and lost 15% by eight.
+
+```ts
+export declare const FLOW_LAMINAR_CELL_REYNOLDS = 50;
+```
+
+### FLOW_LATTICE_ID · const
+
+The solver id of the lattice-Boltzmann kernel (D3Q19, regularised collision, sub-grid model, float64).
+
+```ts
+export declare const FLOW_LATTICE_ID = "flow-lbm-d3q19-regularized-les-js-f64-v1";
+```
+
+### FLOW_LIMITS · const
+
+The standing limits of the solver (`limits` of a result).
+
+```ts
+export declare const FLOW_LIMITS: readonly string[];
+```
+
+### FLOW_MARGINS · const
+
+Default margins of an external study, in multiples of `margins.length`.
+
+```ts
+export declare const FLOW_MARGINS: Readonly<{
+    upstream: 3;
+    downstream: 6;
+    side: 2.5;
+    top: 2.5;
+}>;
+```
+
+### FLOW_MAX_CELLS · const
+
+Most cells of the box (fluid or not). The box costs about 15 bytes per cell, the fluid about 420 bytes per fluid cell.
+
+```ts
+export declare const FLOW_MAX_CELLS: number;
+```
+
+### FLOW_MAX_SPARSE_CELLS · const
+
+Most cells a box stored as tiles (FlowTiles) may span: the cell index i + nx (j + ny k) is a 32-bit integer.
+
+```ts
+export declare const FLOW_MAX_SPARSE_CELLS = 2147483647;
+```
+
+### FLOW_OPPOSITE · const
+
+Index of the velocity opposite to each D3Q19 velocity.
+
+```ts
+export declare const FLOW_OPPOSITE: readonly number[];
+```
+
+### FLOW_PRESSURE · const
+
+Cell kind: a pressure outlet.
+
+```ts
+export declare const FLOW_PRESSURE = 3;
+```
+
+### FLOW_RESULT_FORMAT · const
+
+The format string of a result document.
+
+```ts
+export declare const FLOW_RESULT_FORMAT = "box3d-flow-result/1";
+```
+
+### FLOW_SAMPLE_EDGE · const
+
+Surface sample flag (FlowSurfaceField.flags): on a sharp convex edge or corner.
+
+```ts
+export declare const FLOW_SAMPLE_EDGE = 1;
+```
+
+### FLOW_SAMPLE_GAP · const
+
+Surface sample flag (FlowSurfaceField.flags): under FLOW_GAP_CELLS cells of fluid in front (a gap, a contact line).
+
+```ts
+export declare const FLOW_SAMPLE_GAP = 2;
+```
+
+### FLOW_SIDES · const
+
+The six sides of the box, in the order of their indices.
+
+```ts
+export declare const FLOW_SIDES: readonly FlowSideName[];
+```
+
+### FLOW_SLIP · const
+
+Cell kind: a slip (specular) side.
+
+```ts
+export declare const FLOW_SLIP = 4;
+```
+
+### FLOW_SOLVER_ID · const
+
+The solver id written to results (`solver.id`).
+
+```ts
+export declare const FLOW_SOLVER_ID = "flow-lbm-d3q19-regularized-les-js-f64-v1";
+```
+
+### FLOW_SOLVER_VERSION · const
+
+The version of the solver written to results (`solver.version`).
+
+```ts
+export declare const FLOW_SOLVER_VERSION = "1.0.0";
+```
+
+### FLOW_SQUEEZED_LINKS · const
+
+Boundary links (of 18) from which a fluid cell keeps its walls half-way instead of interpolated, in a run with a
+sub-grid model whose relaxation time is under FLOW_SQUEEZED_TAU.
+
+```ts
+export declare const FLOW_SQUEEZED_LINKS = 10;
+```
+
+### FLOW_SQUEEZED_TAU · const
+
+Relaxation time under which, with a sub-grid model, the cells with FLOW_SQUEEZED_LINKS or more boundary links keep
+half-way walls.
+
+```ts
+export declare const FLOW_SQUEEZED_TAU = 0.51;
+```
+
+### FLOW_STATEMENT · const
+
+What the solver is, in one paragraph (`solver.statement` of a result).
+
+```ts
+export declare const FLOW_STATEMENT = "Weakly compressible lattice-Boltzmann (D3Q19, regularised collision) with a Smagorinsky sub-grid model and a power-law wall function on smooth walls, on a uniform grid of cubic cells, float64, deterministic. Above a cell Reynolds number of about 10 it is an under-resolved large-eddy simulation: an engineering estimate, not certified CFD.";
+```
+
+### FLOW_STUDY_FORMAT · const
+
+The format string of a study document.
+
+```ts
+export declare const FLOW_STUDY_FORMAT = "box3d-flow-study/1";
+```
+
+### FLOW_THIN_CELLS · const
+
+The thinnest wall the lattice is certain to see, in cells (see the header).
+
+```ts
+export declare const FLOW_THIN_CELLS = 1.44;
+```
+
+### FLOW_TILE · const
+
+Edge of a tile of FlowTiles, cells.
+
+```ts
+export declare const FLOW_TILE = 8;
+```
+
+### FLOW_VELOCITY · const
+
+Cell kind: a velocity inlet.
+
+```ts
+export declare const FLOW_VELOCITY = 2;
+```
+
+### FLOW_WALL · const
+
+Cell kind: a wall (geometry, or a wall side of the box).
+
+```ts
+export declare const FLOW_WALL = 1;
+```
+
+### FLOW_WEIGHT · const
+
+Weights of the D3Q19 velocities: 1/3, 1/18 (axis), 1/36 (edge).
+
+```ts
+export declare const FLOW_WEIGHT: readonly number[];
+```
+
+### FlowActuator · interface
+
+An actuator disc: a momentum source spread over the fluid cells of a disc (a fan, a propeller, a turbine as drag).
+
+```ts
+export interface FlowActuator {
+    readonly name: string;
+    readonly center: FlowVec3;
+    readonly axis: FlowVec3;
+    readonly radius: number;
+    readonly thickness?: number;
+    readonly force?: number;
+    readonly pressureJump?: number;
+}
+```
+
+### FlowActuatorInfo · interface
+
+An actuator disc as set up: its cells, force, axis and area.
+
+```ts
+export interface FlowActuatorInfo {
+    readonly name: string;
+    readonly cells: number;
+    readonly force: number;
+    readonly axis: FlowVec3;
+    readonly area: number;
+}
+```
+
+### FlowApexOptions · interface
+
+Options of `flowItemsFromApexGeometry`.
+
+```ts
+export interface FlowApexOptions {
+    readonly role?: 'solid' | 'cavity';
+    readonly partName?: 'id' | 'name';
+    readonly parts?: readonly number[];
+}
+```
+
+### FlowBeam · interface
+
+A straight member from `from` to `to`. `depth` is measured along `up`, `width` across. An I section has two flanges
+of thickness `flange` and a web of thickness `web`.
+
+```ts
+export interface FlowBeam extends ItemBase {
+    readonly kind: 'beam';
+    readonly from: FlowVec3;
+    readonly to: FlowVec3;
+    readonly up?: FlowVec3;
+    readonly section?: 'rect' | 'i';
+    readonly width: number;
+    readonly depth: number;
+    readonly flange?: number;
+    readonly web?: number;
+}
+```
+
+### FlowBox · interface
+
+A box: `halfExtents`, or the full `size`, along its local x, y, z.
+
+```ts
+export interface FlowBox extends ItemBase {
+    readonly kind: 'box';
+    readonly center: FlowVec3;
+    readonly halfExtents?: FlowVec3;
+    readonly size?: FlowVec3;
+    readonly rotation?: FlowQuat;
+}
+```
+
+### FlowCapsule · interface
+
+A capsule: a segment (from and to, or centre, rotation and full length along local +y) swept by a sphere of `radius`.
+
+```ts
+export interface FlowCapsule extends ItemBase, AxisPlacement {
+    readonly kind: 'capsule';
+    readonly radius: number;
+}
+```
+
+### FlowCone · interface
+
+A cone frustum: `radius` at `from` (the -Y end), `radiusTop` at `to`.
+
+```ts
+export interface FlowCone extends ItemBase, AxisPlacement {
+    readonly kind: 'cone';
+    readonly radius: number;
+    readonly radiusTop: number;
+}
+```
+
+### FlowCylinder · interface
+
+A flat-ended cylinder along its axis (from and to, or centre, rotation and full length along local +y).
+
+```ts
+export interface FlowCylinder extends ItemBase, AxisPlacement {
+    readonly kind: 'cylinder';
+    readonly radius: number;
+}
+```
+
+### flowEachCell · function
+
+Visit every cell of a box, dense (`tiles` null: the slot is the cell index) or tiled.
+
+```ts
+export declare function flowEachCell(nx: number, ny: number, nz: number, tiles: FlowTiles | null, f: (i: number, j: number, k: number, c: number, s: number) => void): void;
+```
+
+### FlowField · interface
+
+Fields of the flow in SI units on the lattice (the fluid box plus its boundary layers).
+
+```ts
+export interface FlowField {
+    readonly grid: FlowGrid;
+    readonly fluid: Uint8Array;
+    readonly ux: Float32Array;
+    readonly uy: Float32Array;
+    readonly uz: Float32Array;
+    readonly pressure: Float32Array;
+    readonly distance: Float32Array;
+    readonly opening?: Int16Array;
+    readonly tiles?: FlowTiles | null;
+}
+```
+
+### FlowFluid · interface
+
+A Newtonian fluid of constant properties.
+
+```ts
+export interface FlowFluid {
+    readonly density: number;
+    readonly viscosity: number;
+}
+```
+
+### flowFrequency · function
+
+Frequency of an oscillating history sampled every `dt`: from the upward crossings of its mean, with linear
+interpolation. Returns null when there are fewer than three crossings. `amplitude` is the root mean square about the mean.
+
+```ts
+export declare function flowFrequency(samples: ArrayLike<number>, dt: number): {
+    frequency: number;
+    amplitude: number;
+    mean: number;
+    periods: number;
+} | null;
+```
+
+### flowGeometryBounds · function
+
+Bounds of a list of items: [min, max]. Cavities and solids alike.
+
+```ts
+export declare function flowGeometryBounds(items: readonly FlowItem[]): {
+    min: [number, number, number];
+    max: [number, number, number];
+};
+```
+
+### FlowGrid · interface
+
+A box of cubic cells: origin (its minimum corner), cell size and cell counts.
+
+```ts
+export interface FlowGrid {
+    readonly origin: FlowVec3;
+    readonly cell: number;
+    readonly nx: number;
+    readonly ny: number;
+    readonly nz: number;
+}
+```
+
+### FlowItem · type
+
+An item of the geometry: a primitive or a mesh, solid or cavity.
+
+```ts
+export type FlowItem = FlowPrimitive | FlowMesh;
+```
+
+### FlowItemReport · interface
+
+What the grid did to one item: its smallest dimension, what was added so that it does not leak, its surface and how much of it is unresolved.
+
+```ts
+export interface FlowItemReport {
+    readonly index: number;
+    readonly id?: string | number;
+    readonly kind: string;
+    readonly part: string;
+    readonly role: 'solid' | 'cavity';
+    readonly thickened: number;
+    readonly thickenedCells?: number;
+    readonly smallestDimension: number | null;
+    readonly triangles?: number;
+    readonly components?: number;
+    readonly closedComponents?: number;
+    readonly surfaceArea: number;
+    readonly unresolvedFraction: number;
+}
+```
+
+### flowItemsFromApexGeometry · function
+
+The items of an `apex-flow-geometry/1` document (metres, +y up, right-handed, quaternions x, y, z, w, not recentred):
+a box has its FULL extents in `size` along its local axes; a cylinder (flat ends) and a capsule lie along their local
++y with the full `length` (for a capsule, the segment between the centres of its end spheres); a mesh keeps its
+per-element closed / open flags and thicknesses. Every item carries its element id as `id` and its layer as `part`.
+The units and axes are those of this solver: nothing is converted.
+
+```ts
+export declare function flowItemsFromApexGeometry(document: unknown, options?: FlowApexOptions): FlowItem[];
+```
+
+### FlowLattice · class
+
+The lattice-Boltzmann kernel in lattice units (cell 1, step 1, density 1): streaming, boundary links, collision and the sums of forces and flow rates. `Flow` builds one from SI options.
+
+```ts
+export declare class FlowLattice {
+  readonly nx: number;
+  readonly ny: number;
+  readonly nz: number;
+  readonly cells: number;
+  readonly periodic: readonly [boolean, boolean, boolean];
+  readonly kind: Uint8Array;
+  readonly owner: Int16Array | Int32Array;
+  readonly walls: 'interpolated' | 'halfway';
+  readonly viscosity: number;
+  readonly smagorinsky: number;
+  readonly wale: number;
+  readonly bulkRelaxation: number;
+  readonly collision: 'regularized' | 'trt';
+  readonly partCount: number;
+  readonly patchCount: number;
+  readonly fluidCells: number;
+  readonly cellOf: Int32Array;
+  readonly activeOf: Int32Array;
+  readonly tiles: FlowTiles | null;
+  readonly squeezedCells: number;
+  f: Float64Array;
+  readonly density: Float64Array;
+  readonly ux: Float64Array;
+  readonly uy: Float64Array;
+  readonly uz: Float64Array;
+  force: [number, number, number];
+  ramp: number;
+  viscosityScale: number;
+  stepCount: number;
+  readonly partForce: Float64Array;
+  readonly partMoment: Float64Array;
+  readonly patchMass: Float64Array;
+  wallMass: number;
+  readonly wallFunction: boolean;
+  get eddyViscosity(): Float64Array | null;
+  wettedArea(): { force: Float64Array; moment: Float64Array; };
+  program(): { fluidCells: number; source: Int32Array; linkIndex: Int32Array; linkStart: Int32Array; linkDir: Uint8Array; linkKind: Uint8Array; linkQ: Float64Array; linkAdd: Float64Array; linkOwner: Int32Array; linkAux: Int32Array; linkArm: Float32Array; viscosity: number; smagorinsky: number; bulkRelaxation: number; features: string[]; };
+  get linkCount(): number;
+  step(): void;
+  excessMass(): number;
+  momentum(): [number, number, number];
+  healthy(): boolean;
+  saveState(): StateObject;
+  restoreState(state: StateValue): void;
+}
+```
+
+### FlowLatticeOptions · interface
+
+Options of `FlowLattice`: the box of cells, their kinds and owners, the walls and the fluid, in lattice units.
+
+```ts
+export interface FlowLatticeOptions {
+    readonly nx: number;
+    readonly ny: number;
+    readonly nz: number;
+    readonly tiles?: FlowTiles | null;
+    readonly periodic?: readonly [boolean, boolean, boolean];
+    readonly kind: Uint8Array;
+    readonly owner?: Int16Array | Int32Array;
+    readonly distance?: Float32Array;
+    readonly walls?: 'interpolated' | 'halfway';
+    readonly parts?: readonly FlowLatticePart[];
+    readonly patches?: readonly FlowLatticePatch[];
+    readonly viscosity: number;
+    readonly smagorinsky?: number;
+    readonly wale?: number;
+    readonly wallFunction?: boolean;
+    readonly wallFunctionMask?: Uint8Array;
+    readonly collision?: 'regularized' | 'trt';
+    readonly bulkRelaxation?: number;
+    readonly force?: readonly [number, number, number];
+    readonly initialVelocity?: readonly [number, number, number];
+    readonly extraViscosity?: Float32Array;
+    readonly absorbSteps?: number;
+    readonly forceCells?: Int32Array;
+    readonly forceValues?: Float64Array;
+    readonly cellVelocity?: ReadonlyMap<number, readonly [number, number, number]>;
+}
+```
+
+### FlowLatticePart · interface
+
+A part of the walls in lattice units: its velocity and angular velocity (a moving ground, a frozen rotor).
+
+```ts
+export interface FlowLatticePart {
+    readonly velocity?: readonly [number, number, number];
+    readonly angularVelocity?: readonly [number, number, number];
+    readonly centre?: readonly [number, number, number];
+}
+```
+
+### FlowLatticePatch · interface
+
+An inlet (a velocity) or an outlet (a density) in lattice units.
+
+```ts
+export interface FlowLatticePatch {
+    readonly velocity?: readonly [number, number, number];
+    readonly density?: number;
+    readonly totalPressure?: boolean;
+}
+```
+
+### flowLine · function
+
+The fields along a straight line.
+
+```ts
+export declare function flowLine(field: FlowField, from: FlowVec3, to: FlowVec3, samples?: number, along?: FlowVec3): FlowLine;
+```
+
+### FlowLine · interface
+
+The fields along a line, and where a velocity component changes sign.
+
+```ts
+export interface FlowLine {
+    readonly from: FlowVec3;
+    readonly to: FlowVec3;
+    readonly s: Float32Array;
+    readonly ux: Float32Array;
+    readonly uy: Float32Array;
+    readonly uz: Float32Array;
+    readonly speed: Float32Array;
+    readonly pressure: Float32Array;
+    readonly distance: Float32Array;
+    readonly zeroCrossings: number[];
+}
+```
+
+### FlowMesh · interface
+
+A triangle mesh: closed components are solids, open ones surfaces of a thickness; `elements` give per-run flags.
+
+```ts
+export interface FlowMesh extends ItemBase {
+    readonly kind: 'mesh';
+    readonly positions: ArrayLike<number>;
+    readonly indices?: ArrayLike<number>;
+    readonly thickness?: number;
+    readonly position?: FlowVec3;
+    readonly rotation?: FlowQuat;
+    readonly scale?: number | FlowVec3;
+    readonly elements?: readonly FlowMeshElement[];
+}
+```
+
+### FlowMeshElement · interface
+
+A run of triangles of one model element, closed (a solid) or open (a surface of a thickness).
+
+```ts
+export interface FlowMeshElement {
+    readonly element?: string | number;
+    readonly triStart: number;
+    readonly triCount: number;
+    readonly closed: boolean;
+    readonly thickness?: number;
+}
+```
+
+### FlowOptions · interface
+
+Options of `Flow`: the grid, geometry, fluid, sides, openings, motion, actuators, model and run settings, SI units.
+
+```ts
+export interface FlowOptions {
+    readonly grid: FlowGrid;
+    readonly geometry?: readonly FlowItem[];
+    readonly fluid: FlowFluid;
+    readonly sides?: Partial<Record<FlowSideName, FlowSide>>;
+    readonly patches?: readonly FlowPatch[];
+    readonly motion?: Readonly<Record<string, FlowPartMotion>>;
+    readonly actuators?: readonly FlowActuator[];
+    readonly referenceSpeed: number;
+    readonly latticeSpeed?: number;
+    readonly turbulence?: 'auto' | 'none' | 'smagorinsky' | 'wale';
+    readonly absorbSteps?: number;
+    readonly collision?: 'auto' | 'regularized' | 'trt';
+    readonly wale?: number;
+    readonly reynolds?: number;
+    readonly smagorinsky?: number;
+    readonly wallFunction?: boolean;
+    readonly wallFunctionCurvature?: number;
+    readonly walls?: 'interpolated' | 'halfway';
+    readonly acceleration?: FlowVec3;
+    readonly initialVelocity?: FlowVec3;
+    readonly rampSteps?: number;
+    readonly spongeCells?: number;
+    readonly band?: number;
+    readonly surfaces?: boolean;
+    readonly thicken?: boolean;
+    readonly storage?: 'auto' | 'dense' | 'sparse';
+}
+```
+
+### FlowPartMotion · interface
+
+A wall velocity for a part of the geometry: the solid stays where it is (a "frozen" rotor, a belt, a rolling wheel)
+and its surface moves.
+
+```ts
+export interface FlowPartMotion {
+    readonly velocity?: FlowVec3;
+    readonly angularVelocity?: FlowVec3;
+    readonly center?: FlowVec3;
+}
+```
+
+### FlowPatch · interface
+
+An opening of an internal flow: an inlet by flow rate, speed or velocity, or an outlet by pressure or flow rate.
+
+```ts
+export interface FlowPatch {
+    readonly name: string;
+    readonly kind: 'inlet' | 'outlet';
+    readonly shape: FlowPatchShape;
+    readonly flowRate?: number;
+    readonly speed?: number;
+    readonly velocity?: FlowVec3;
+    readonly profile?: 'uniform' | 'parabolic';
+    readonly pressure?: number;
+}
+```
+
+### FlowPatchInfo · interface
+
+An opening as set up on the lattice: its area, outward normal and what is imposed.
+
+```ts
+export interface FlowPatchInfo {
+    readonly name: string;
+    readonly kind: 'inlet' | 'outlet';
+    readonly area: number;
+    readonly normal: FlowVec3;
+    readonly velocity: FlowVec3 | null;
+    readonly pressure: number | null;
+    readonly cells: number;
+}
+```
+
+### FlowPatchShape · type
+
+The shape of an opening: a disc or a rectangle in a plane, with the outward normal of the fluid.
+
+```ts
+export type FlowPatchShape = 
+{
+    readonly kind: 'disc';
+    readonly center: FlowVec3;
+    readonly normal: FlowVec3;
+    readonly radius: number;
+} | {
+    readonly kind: 'rect';
+    readonly center: FlowVec3;
+    readonly normal: FlowVec3;
+    readonly up?: FlowVec3;
+    readonly halfWidth: number;
+    readonly halfHeight: number;
+};
+```
+
+### FlowPrimitive · type
+
+Any primitive item of the geometry.
+
+```ts
+export type FlowPrimitive = FlowBox | FlowSphere | FlowCylinder | FlowCapsule | FlowCone | FlowTube | FlowBeam;
+```
+
+### flowPrimitiveSurface · function
+
+Triangles of the surface of a primitive, with edges of about `size`.
+
+```ts
+export declare function flowPrimitiveSurface(item: FlowPrimitive, size: number): {
+    positions: number[];
+    indices: number[];
+};
+```
+
+### FlowProgress · interface
+
+Progress reported after every monitor interval of a study.
+
+```ts
+export interface FlowProgress {
+    readonly step: number;
+    readonly maxSteps: number;
+    readonly time: number;
+    readonly fraction: number;
+    readonly residual: number;
+    readonly coefficients: {
+        cd: number;
+        cl: number;
+        cs: number;
+    } | null;
+    readonly massBalance: number | null;
+    readonly window: number;
+    readonly phase: 'startup' | 'averaging';
+}
+```
+
+### flowProjectedArea · function
+
+Area of the shadow the solid cells cast along `direction`, m^2: every solid cell is eight sub-cells whose centres are
+dropped onto a plane grid of half the cell size; the area is the number of grid squares hit times (h/2)^2. Along an
+axis this counts the columns of cells that hold a solid cell. `solid(c)` says whether cell c counts.
+
+```ts
+export declare function flowProjectedArea(grid: {
+    readonly nx: number;
+    readonly ny: number;
+    readonly nz: number;
+    readonly cell: number;
+}, solid: (cell: number) => boolean, direction: FlowVec3): number;
+```
+
+### FlowQuat · type
+
+Quaternion x, y, z, w.
+
+```ts
+export type FlowQuat = readonly [number, number, number, number];
+```
+
+### flowRake · function
+
+`count` points evenly spaced from `from` to `to` (a rake of seeds).
+
+```ts
+export declare function flowRake(from: FlowVec3, to: FlowVec3, count: number): FlowVec3[];
+```
+
+### flowSample · function
+
+Trilinear sample of the velocity, pressure and wall distance at a point. Returns false outside the lattice. `out` is
+[ux, uy, uz, pressure, distance]. The pressure is weighted over fluid cells only.
+
+```ts
+export declare function flowSample(field: FlowField, x: number, y: number, z: number, out: Float64Array | number[]): boolean;
+```
+
+### flowSection · function
+
+Integrals over the cell layer of the lattice that holds the plane `axis = position`, optionally inside a box.
+
+```ts
+export declare function flowSection(field: FlowField, density: number, axis: 'x' | 'y' | 'z', position: number, bounds?: {
+    readonly min: FlowVec3;
+    readonly max: FlowVec3;
+}): FlowSection;
+```
+
+### FlowSection · interface
+
+Integrals over one layer of cells: area, flow rate, mean and peak speeds, mean pressures, momentum factor.
+
+```ts
+export interface FlowSection {
+    readonly axis: 'x' | 'y' | 'z';
+    readonly position: number;
+    readonly area: number;
+    readonly flowRate: number;
+    readonly meanSpeed: number;
+    readonly maxSpeed: number;
+    readonly maxNormalSpeed: number;
+    readonly meanPressure: number;
+    readonly meanTotalPressure: number;
+    readonly momentumFactor: number;
+}
+```
+
+### flowSeedPlane · function
+
+A grid of nu x nv points on the parallelogram origin + s u + t v, at the centres of its cells.
+
+```ts
+export declare function flowSeedPlane(origin: FlowVec3, u: FlowVec3, v: FlowVec3, nu: number, nv: number): FlowVec3[];
+```
+
+### FlowSide · type
+
+What closes a side of the box: a wall, a slip plane, periodic, a velocity inlet or a pressure outlet.
+
+```ts
+export type FlowSide = 'wall' | 'slip' | 'periodic'
+| {
+    readonly kind: 'wall';
+    readonly velocity?: FlowVec3;
+    readonly part?: string;
+}
+| {
+    readonly kind: 'velocity';
+    readonly velocity: FlowVec3 | ((x: number, y: number, z: number) => FlowVec3);
+    readonly name?: string;
+    readonly freeStream?: boolean;
+}
+| {
+    readonly kind: 'pressure';
+    readonly pressure?: number;
+    readonly name?: string;
+};
+```
+
+### FlowSideName · type
+
+Names of the six sides of the box.
+
+```ts
+export type FlowSideName = 'xMin' | 'xMax' | 'yMin' | 'yMax' | 'zMin' | 'zMax';
+```
+
+### flowSlice · function
+
+The fields on a plane normal to an axis, sampled at the cell centres of the lattice.
+
+```ts
+export declare function flowSlice(field: FlowField, axis: 'x' | 'y' | 'z', position: number): FlowSlice;
+```
+
+### FlowSlice · interface
+
+The fields on a plane normal to an axis, sampled at the cell centres.
+
+```ts
+export interface FlowSlice {
+    readonly axis: 'x' | 'y' | 'z';
+    readonly position: number;
+    readonly axes: readonly ['x' | 'y' | 'z', 'x' | 'y' | 'z'];
+    readonly nu: number;
+    readonly nv: number;
+    readonly origin: readonly [number, number];
+    readonly cell: number;
+    readonly speed: Float32Array;
+    readonly pressure: Float32Array;
+    readonly u: Float32Array;
+    readonly v: Float32Array;
+    readonly fluid: Uint8Array;
+}
+```
+
+### FlowSphere · interface
+
+A sphere: centre and radius.
+
+```ts
+export interface FlowSphere extends ItemBase {
+    readonly kind: 'sphere';
+    readonly center: FlowVec3;
+    readonly radius: number;
+}
+```
+
+### FlowStreamline · interface
+
+One streamline: points, speed and pressure per point, and why it ended.
+
+```ts
+export interface FlowStreamline {
+    readonly seed: FlowVec3;
+    readonly points: Float32Array;
+    readonly speed: Float32Array;
+    readonly pressure: Float32Array;
+    readonly termination: 'opening' | 'wall' | 'outside' | 'stagnation' | 'length';
+}
+```
+
+### FlowStreamlineOptions · interface
+
+Options of `flowStreamlines`: step, stride, length, direction and the speed below which a line stops.
+
+```ts
+export interface FlowStreamlineOptions {
+    readonly step?: number;
+    readonly stride?: number;
+    readonly maxPoints?: number;
+    readonly direction?: 'forward' | 'backward' | 'both';
+    readonly minSpeed?: number;
+}
+```
+
+### flowStreamlines · function
+
+Streamlines by classical Runge-Kutta (RK4) with a fixed arc-length step through the trilinear field.
+
+```ts
+export declare function flowStreamlines(field: FlowField, seeds: readonly FlowVec3[], options?: FlowStreamlineOptions): FlowStreamline[];
+```
+
+### FlowStudyOptions · interface
+
+Options of `runFlowStudy`, `createFlowStudy` and `flowStudySetup`: progress, file loaders, clock, provenance.
+
+```ts
+export interface FlowStudyOptions {
+    readonly onProgress?: (progress: FlowProgress) => void;
+    readonly loadMesh?: (file: string) => {
+        positions: ArrayLike<number>;
+        indices?: ArrayLike<number>;
+    };
+    readonly loadDocument?: (file: string) => unknown;
+    readonly now?: () => number;
+    readonly provenance?: Readonly<Record<string, string | number | boolean | null>>;
+}
+```
+
+### FlowStudyRun · interface
+
+A study in progress.
+
+```ts
+export interface FlowStudyRun {
+    readonly setup: FlowStudySetup;
+    readonly flow: Flow;
+    readonly done: boolean;
+    advance(): FlowProgress | null;
+    result(): Json;
+}
+```
+
+### flowStudySetup · function
+
+Check a study and work out the set-up: the box, the cell size, the time step, the sides, the run lengths.
+
+```ts
+export declare function flowStudySetup(study: unknown, options?: FlowStudyOptions): FlowStudySetup;
+```
+
+### FlowStudySetup · interface
+
+What `flowStudySetup` works out from a study: the options of the solver and the numbers of the set-up.
+
+```ts
+export interface FlowStudySetup {
+    readonly name: string;
+    readonly mode: 'external' | 'internal';
+    readonly options: FlowOptions;
+    readonly fluid: FlowFluid;
+    readonly grid: FlowGrid;
+    readonly referenceSpeed: number;
+    readonly referenceLength: number;
+    readonly referenceLengthSource: string;
+    readonly reynolds: number;
+    readonly transitTime: number;
+    readonly external: null | {
+        direction: [number, number, number];
+        up: [number, number, number];
+        side: [number, number, number];
+        speed: number;
+        ground: null | {
+            height: number;
+            type: 'fixed' | 'moving' | 'slip';
+        };
+        bodySize: number;
+        bodyBounds: {
+            min: [number, number, number];
+            max: [number, number, number];
+        };
+        margins: {
+            upstream: number;
+            downstream: number;
+            side: number;
+            top: number;
+            bottom: number;
+            length: number;
+        };
+        momentCenter: [number, number, number];
+        referenceArea: number | null;
+    };
+    readonly internal: null | {
+        inlets: string[];
+        outlets: string[];
+        fluidFraction: number;
+    };
+    readonly run: {
+        maxSteps: number;
+        startupSteps: number;
+        windowSteps: number;
+        monitorEvery: number;
+        sampleEvery: number;
+        tolerance: number;
+        viscosityBoost: null | {
+            scale: number;
+            fullUntil: number;
+            rampUntil: number;
+        };
+    };
+    readonly outputs: Json;
+    readonly warnings: string[];
+}
+```
+
+### FlowSurface · interface
+
+Triangles of the surface of one part, for sampling and drawing.
+
+```ts
+export interface FlowSurface {
+    readonly part: string;
+    readonly positions: Float32Array;
+    readonly indices: Uint32Array;
+}
+```
+
+### FlowSurfaceField · interface
+
+Pressure at the vertices of the surface of one part.
+
+```ts
+export interface FlowSurfaceField {
+    readonly part: string;
+    readonly positions: Float32Array;
+    readonly indices: Uint32Array;
+    readonly pressure: Float32Array;
+    readonly flags: Uint8Array;
+}
+```
+
+### flowSurfacePressure · function
+
+Pressure on the surfaces of the parts. With `density` (kg/m^3) the read is carried to the wall along the normal by
+Bernoulli: p + rho (u . n)^2 / 2, the pressure the normal component of the velocity there would give stagnating at the
+wall (exact on the stagnation streamline of an inviscid flow; small where the flow runs along the wall).
+
+```ts
+export declare function flowSurfacePressure(field: FlowField, surfaces: readonly FlowSurface[], density?: number): FlowSurfaceField[];
+```
+
+### FlowTiles · class
+
+Sparse storage of a box of cells: tiles of FLOW_TILE^3 cells, of which only those listed hold storage ("blocks");
+every other tile reads as block 0, which the owner of an array fills with what lies far from the fluid (solid). The
+slot of cell (i, j, k) is block * 512 + its place in the tile; an array of the box has `slots` entries. Loops over
+the box visit the blocks (`blockTile`), not the box. Dense storage is `tiles` null: the slot is the cell index.
+
+```ts
+export declare class FlowTiles {
+  readonly nx: number;
+  readonly ny: number;
+  readonly nz: number;
+  readonly tx: number;
+  readonly ty: number;
+  readonly tz: number;
+  readonly block: Int32Array;
+  readonly blockTile: Int32Array;
+  readonly blocks: number;
+  readonly slots: number;
+  slot(i: number, j: number, k: number): number;
+  slotOf(c: number): number;
+  stored(i: number, j: number, k: number): boolean;
+  forEach(f: (i: number, j: number, k: number, c: number, s: number) => void): void;
+  get storedCells(): number;
+}
+```
+
+### FlowTube · interface
+
+A pipe wall: the solid between `innerRadius` and `radius`, open at both ends.
+
+```ts
+export interface FlowTube extends ItemBase, AxisPlacement {
+    readonly kind: 'tube';
+    readonly radius: number;
+    readonly innerRadius: number;
+}
+```
+
+### flowTubeMesh · function
+
+A tube swept along a polyline, as a closed triangle mesh (caps at both ends): a pipe bore, a bent duct.
+
+```ts
+export declare function flowTubeMesh(path: readonly FlowVec3[], radius: number, segments?: number): {
+    positions: number[];
+    indices: number[];
+};
+```
+
+### FlowVec3 · type
+
+A point or vector [x, y, z], metres in SI frames.
+
+```ts
+export type FlowVec3 = readonly [number, number, number];
+```
+
+### FlowVoxelization · interface
+
+The voxelisation with the surfaces of the parts and the thickening counts.
+
+```ts
+export interface FlowVoxelization extends FlowVoxels {
+    readonly surfaces: readonly FlowSurface[];
+    readonly thickenedItems: number;
+    readonly largestThickening: number;
+    readonly closedCells: number;
+    readonly slenderItems: number;
+}
+```
+
+### flowVoxelize · function
+
+The signed distance of a list of items on a grid, the part of every cell, the surfaces and the report. The work is
+proportional to the cells near each item (its bounding box plus the band), not to cells times items.
+
+```ts
+export declare function flowVoxelize(items: readonly FlowItem[], grid: FlowGrid, options?: FlowVoxelizeOptions): FlowVoxelization;
+```
+
+### FlowVoxelizeOptions · interface
+
+Options of `flowVoxelize`: band, surface sampling and thickening.
+
+```ts
+export interface FlowVoxelizeOptions {
+    readonly band?: number;
+    readonly surfaceSize?: number;
+    readonly surfaces?: boolean;
+    readonly thicken?: boolean;
+    readonly sparse?: boolean;
+}
+```
+
+### FlowVoxels · interface
+
+The voxelised geometry: signed distance per cell, the part of each cell, the report and the warnings.
+
+```ts
+export interface FlowVoxels {
+    readonly grid: FlowGrid;
+    readonly distance: Float32Array;
+    readonly part: Int16Array;
+    readonly parts: readonly string[];
+    readonly band: number;
+    readonly items: readonly FlowItemReport[];
+    readonly warnings: readonly string[];
+    readonly solidCells: number;
+    readonly tiles?: FlowTiles | null;
+}
+```
+
+### runFlowStudy · function
+
+Run a study to its end and return the result document.
+
+```ts
+export declare function runFlowStudy(study: unknown, options?: FlowStudyOptions): Json;
+```
+
+## `box3d-webgpu-kit/flow-three`
+
+### createFlowView · function
+
+Build the three.js objects of a flow result.
+
+```ts
+export declare function createFlowView(THREE: FlowThreeLike, result: FlowResultLike, options?: FlowViewOptions): FlowView;
+```
+
+### flowColormap · function
+
+A colour map: `t` in [0, 1] to [r, g, b] in [0, 1]. A name that is not a colour map gives 'rainbow'.
+
+```ts
+export declare function flowColormap(name?: FlowColormap): (t: number) => [number, number, number];
+```
+
+### FlowColormap · type
+
+The colour maps of the streamlines, slices and surfaces.
+
+```ts
+export type FlowColormap = 'rainbow' | 'turbo' | 'viridis' | 'coolwarm';
+```
+
+### flowLegend · function
+
+Draw a vertical colour scale with labelled values (largest at the top) on a 2D canvas context.
+
+```ts
+export declare function flowLegend(context: FlowLegendContext, options: FlowLegendOptions): void;
+```
+
+### FlowLegendContext · interface
+
+The part of a 2D canvas context the legend draws with.
+
+```ts
+export interface FlowLegendContext {
+    fillStyle: unknown;
+    strokeStyle: unknown;
+    font: string;
+    textAlign: string;
+    textBaseline: string;
+    lineWidth: number;
+    fillRect(x: number, y: number, w: number, h: number): void;
+    strokeRect(x: number, y: number, w: number, h: number): void;
+    fillText(text: string, x: number, y: number): void;
+}
+```
+
+### FlowLegendOptions · interface
+
+Options of `flowLegend`: the range, title, unit, colour map and placement.
+
+```ts
+export interface FlowLegendOptions {
+    readonly min: number;
+    readonly max: number;
+    readonly title?: string;
+    readonly unit?: string;
+    readonly colormap?: FlowColormap;
+    readonly x?: number;
+    readonly y?: number;
+    readonly width?: number;
+    readonly height?: number;
+    readonly ticks?: number;
+    readonly color?: string;
+    readonly font?: string;
+}
+```
+
+### FlowResultLike · interface
+
+The members of a result this module reads (any `box3d-flow-result/1` document fits).
+
+```ts
+export interface FlowResultLike {
+    readonly setup: {
+        readonly lattice: {
+            readonly cell: number;
+        };
+        readonly referenceSpeed: number;
+    };
+    readonly streamlines?: {
+        readonly speedRange: readonly number[];
+        readonly lines: readonly {
+            readonly points: ArrayLike<number>;
+            readonly speed: ArrayLike<number>;
+            readonly pressure: ArrayLike<number>;
+        }[];
+    };
+    readonly surface?: readonly {
+        readonly part: string;
+        readonly positions: ArrayLike<number>;
+        readonly indices: ArrayLike<number>;
+        readonly pressure: ArrayLike<number>;
+        readonly cp: ArrayLike<number>;
+        readonly flags?: ArrayLike<number>;
+    }[];
+    readonly slices?: readonly {
+        readonly axis: string;
+        readonly position: number;
+        readonly axes: readonly string[];
+        readonly nu: number;
+        readonly nv: number;
+        readonly origin: readonly number[];
+        readonly cell: number;
+        readonly speed: ArrayLike<number>;
+        readonly pressure: ArrayLike<number>;
+        readonly fluid: ArrayLike<number>;
+    }[];
+}
+```
+
+### FlowThreeLike · interface
+
+The parts of the THREE namespace this module uses.
+
+```ts
+export interface FlowThreeLike {
+    Group: new () => any;
+    BufferGeometry: new () => any;
+    BufferAttribute: new (array: Float32Array | Uint32Array, itemSize: number) => any;
+    Mesh: new (geometry: any, material: any) => any;
+    MeshStandardMaterial: new (options?: object) => any;
+    MeshBasicMaterial: new (options?: object) => any;
+    LineSegments: new (geometry: any, material: any) => any;
+    LineBasicMaterial: new (options?: object) => any;
+    DoubleSide: unknown;
+}
+```
+
+### FlowView · interface
+
+The three.js objects of a result: a group, the streamlines, surfaces and slices, the colour range, and `dispose()`.
+
+```ts
+export interface FlowView {
+    readonly group: any;
+    readonly streamlines: any | null;
+    readonly surfaces: any[];
+    readonly slices: any[];
+    readonly range: [number, number];
+    readonly colorBy: 'speed' | 'pressure';
+    dispose(): void;
+}
+```
+
+### FlowViewOptions · interface
+
+Options of `createFlowView`: what to draw, the styles and the colour ranges.
+
+```ts
+export interface FlowViewOptions {
+    readonly streamlines?: boolean;
+    readonly streamlineStyle?: 'tubes' | 'lines';
+    readonly tubeRadius?: number;
+    readonly tubeSides?: number;
+    readonly colorBy?: 'speed' | 'pressure';
+    readonly range?: readonly [number, number];
+    readonly colormap?: FlowColormap;
+    readonly surface?: 'plain' | 'cp' | false;
+    readonly flaggedColor?: number | null;
+    readonly surfaceColor?: number;
+    readonly surfaceOpacity?: number;
+    readonly cpRange?: readonly [number, number];
+    readonly slices?: boolean;
+    readonly sliceOpacity?: number;
+}
+```
+
 ## `box3d-webgpu-kit/solid-contact`
 
 ### SOLID_CONTACT_SOLVER_ID · const
@@ -13164,12 +14658,21 @@ export declare const SOLID_CONTACT_SUBSYSTEM_ORDER = 170;
 export declare const SOLID_COUPLING_BACKEND = "rigid-solid-coupling-monolithic-js-f64-v1";
 ```
 
-### SOLID_SOLID_CONTACT_SOLVER_ID · const
+### SOLID_SOLID_CONTACT_NODE_FACE_SOLVER_ID · const
 
-The solver id recorded in results and checkpoints: node-to-face penalty contact solved with the solids in one Newton solve (PCG), float64.
+The solver id of `method: 'node-face'`: node-to-face penalty contact (the first version).
 
 ```ts
-export declare const SOLID_SOLID_CONTACT_SOLVER_ID = "solid-solid-contact-node-face-penalty-newton-pcg-js-f64-v1";
+export declare const SOLID_SOLID_CONTACT_NODE_FACE_SOLVER_ID = "solid-solid-contact-node-face-penalty-newton-pcg-js-f64-v1";
+```
+
+### SOLID_SOLID_CONTACT_SOLVER_ID · const
+
+The solver id of the default (mortar) method recorded in results and checkpoints: segment-to-segment mortar penalty
+contact with edge-to-edge contact, solved with the solids in one Newton solve (PCG), float64.
+
+```ts
+export declare const SOLID_SOLID_CONTACT_SOLVER_ID = "solid-solid-contact-mortar-penalty-newton-pcg-js-f64-v2";
 ```
 
 ### SOLID_SOLID_CONTACT_SUBSYSTEM_ORDER · const
@@ -13403,13 +14906,16 @@ export interface SolidCouplingOptions extends SolidContactOptions {
 
 ### SolidSolidContact · class
 
-Contact between deformable solids, of a solid with itself and with planes: node against face both ways, with Coulomb friction, solved together with the solids in one Newton solve. See docs/SOLID_CONTACT.md.
+Contact between deformable solids, of a solid with itself and with planes: mortar (or node-face) contact both ways and
+edge-to-edge contact, with Coulomb friction, solved together with the solids in one Newton solve. See docs/SOLID_CONTACT.md.
 
 ```ts
 export declare class SolidSolidContact {
   saveState(): StateObject;
   restoreState(state: StateValue): void;
-  readonly solver = "solid-solid-contact-node-face-penalty-newton-pcg-js-f64-v1";
+  readonly solver: string;
+  readonly method: SolidSolidContactMethod;
+  readonly edges: boolean;
   readonly solids: SolidBody[];
   readonly dt: number;
   readonly stiffnessScale: number;
@@ -13433,12 +14939,22 @@ export declare class SolidSolidContact {
 }
 ```
 
+### SolidSolidContactMethod · type
+
+How a contact between two surfaces is discretised: `mortar` (segment to segment) or `node-face` (node against face).
+
+```ts
+export type SolidSolidContactMethod = 'mortar' | 'node-face';
+```
+
 ### SolidSolidContactOptions · interface
 
-Settings of a SolidSolidContact: contact stiffness, skin, friction, which bodies collide with themselves, and the friction passes.
+Settings of a SolidSolidContact: method, contact stiffness, skin, friction, which bodies collide with themselves, and the friction passes.
 
 ```ts
 export interface SolidSolidContactOptions {
+    readonly method?: SolidSolidContactMethod;
+    readonly edges?: boolean;
     readonly stiffnessScale?: number;
     readonly skin?: number;
     readonly friction?: number;
@@ -13462,6 +14978,7 @@ export interface SolidSolidContactStats {
     frictionPasses: number;
     unconvergedSteps: number;
     contacts: number;
+    edgeContacts: number;
 }
 ```
 
@@ -14076,4 +15593,797 @@ Thermal diffusivity k / (rho c_p), m^2/s.
 
 ```ts
 export declare function thermalDiffusivity(id: string, options?: MaterialOptions): number;
+```
+
+## `box3d-webgpu-kit/gpu`
+
+### acquireGpuCompute · function
+
+An adapter and a device for compute, with the limits `needs` asks for. Throws GPU_UNAVAILABLE with the reason.
+
+```ts
+export declare function acquireGpuCompute(options?: GpuAcquireOptions): Promise<GpuCompute>;
+```
+
+### demMemory · function
+
+Bytes of each storage buffer a set of `capacity` grains needs, and the largest (what the device must be able to bind).
+
+```ts
+export declare function demMemory(capacity: number, options?: {
+    readonly historySlots?: number;
+    readonly bucketSlots?: number;
+    readonly tableSize?: number;
+    readonly rolling?: boolean;
+    readonly walls?: number;
+}): {
+    grains: number;
+    forces: number;
+    history: number;
+    grid: number;
+    sums: number;
+    total: number;
+    largest: number;
+};
+```
+
+### DemOptions · interface
+
+Capacities of a grain backend: contact-history slots per grain, grains per hash bucket, the hash table size (a power of two).
+
+```ts
+export interface DemOptions {
+    readonly historySlots?: number;
+    readonly bucketSlots?: number;
+    readonly tableSize?: number;
+}
+```
+
+### DemStats · interface
+
+Counters of a grain backend after its last step: contacts, the largest overlap, grains removed, and the overflows (history slots, hash buckets).
+
+```ts
+export interface DemStats {
+    steps: number;
+    contacts: number;
+    wallContacts: number;
+    overlap: number;
+    maxOverlap: number;
+    removed: number;
+    bucketOverflow: number;
+    historyOverflow: number;
+}
+```
+
+### FLOW_GPU_SOLVER_ID · const
+
+The solver id of the flow step on WebGPU (float32).
+
+```ts
+export declare const FLOW_GPU_SOLVER_ID = "flow-lbm-d3q19-regularized-les-webgpu-f32-v1";
+```
+
+### FLOW_WGSL · const
+
+The WGSL of the flow step: one dispatch per step, one invocation per fluid cell.
+
+```ts
+export declare const FLOW_WGSL: string;
+```
+
+### flowGpuSums · function
+
+Forces (lattice units, per part and about the origin of the cell coordinates) and the mass per patch of the last
+step, from the link fluxes, in float64, as FlowLattice sums them.
+
+```ts
+export declare function flowGpuSums(lattice: FlowLattice, linkFlux: Float32Array): FlowGpuSums;
+```
+
+### FlowGpuSums · interface
+
+The state and the sums a host reads after steps: forces per part and mass per patch from the link fluxes.
+
+```ts
+export interface FlowGpuSums {
+    force: Float64Array;
+    moment: Float64Array;
+    patchMass: Float64Array;
+}
+```
+
+### flowGpuSupport · function
+
+Whether a lattice can run on this backend, and if not, why.
+
+```ts
+export declare function flowGpuSupport(lattice: FlowLattice): {
+    ok: boolean;
+    unsupported: string[];
+};
+```
+
+### flowGpuTables · function
+
+The tables of a lattice in the shader's layout; throws when the lattice uses a feature the kernel does not have.
+
+```ts
+export declare function flowGpuTables(lattice: FlowLattice): FlowGpuTables;
+```
+
+### FlowGpuTables · interface
+
+The tables of a lattice in the layout of the shader (float32 and uint32).
+
+```ts
+export interface FlowGpuTables {
+    readonly fluidCells: number;
+    readonly links: number;
+    readonly boundaryCells: number;
+    readonly source: Uint32Array;
+    readonly linkIndex: Uint32Array;
+    readonly linkStart: Uint32Array;
+    readonly linkCode: Uint32Array;
+    readonly linkQ: Float32Array;
+    readonly linkAdd: Float32Array;
+    readonly linkAux: Uint32Array;
+    readonly tau0: number;
+    readonly smagorinskyK: number;
+    readonly bulk: number;
+}
+```
+
+### FlowLatticeF32 · class
+
+The float32 program of FLOW_WGSL on the CPU.
+
+```ts
+export declare class FlowLatticeF32 {
+  readonly tables: FlowGpuTables;
+  f: Float32Array;
+  readonly moments: Float32Array;
+  readonly linkFlux: Float32Array;
+  force: [number, number, number];
+  ramp: number;
+  les: boolean;
+  stepCount: number;
+  step(): void;
+}
+```
+
+### FLUID_F32_SOLVER_ID · const
+
+The solver id of the float32 CPU reference of the flow program.
+
+```ts
+export declare const FLUID_F32_SOLVER_ID = "fluid-mac-projection-jacobi-pcg-f32-reference-v1";
+```
+
+### FLUID_GPU_SOLVER_ID · const
+
+The solver id of the flow on WebGPU compute (float32).
+
+```ts
+export declare const FLUID_GPU_SOLVER_ID = "fluid-mac-projection-jacobi-pcg-webgpu-f32-v1";
+```
+
+### FLUID_MAX_OBSTACLES · const
+
+At most this many obstacles on the GPU (the per-obstacle sums take 36 scalars each).
+
+```ts
+export declare const FLUID_MAX_OBSTACLES = 1024;
+```
+
+### FLUID_PROGRAM_CHECKPOINT · const
+
+Checkpoints of the fluid program (GpuFluid and FluidF32 write and read the same bytes): the face velocities with their
+ghosts, the previous advection (Adams-Bashforth), the pressure, whether the next step uses Adams-Bashforth, the time
+and the statistics. Everything else in F is rewritten by a step before it is read, or constant. A checkpoint of one
+restores into the other; the obstacles' poses and forces belong to the Fluid the backend was built from (its own
+saveState).
+
+```ts
+export declare const FLUID_PROGRAM_CHECKPOINT = "fluid-program-f32-v1";
+```
+
+### FluidBackendOptions · interface
+
+Options of a flow backend (GpuFluid, FluidF32): the stopping rules of its solves and the room for obstacle faces.
+
+```ts
+export interface FluidBackendOptions {
+    readonly pressureTolerance?: number;
+    readonly viscousReduction?: number;
+    readonly viscousFloor?: number;
+    readonly obstacleCapacity?: number;
+}
+```
+
+### FluidF32 · class
+
+The flow program run on the CPU in float32, kernel by kernel: the GPU's bits where the two agree; synchronous.
+
+```ts
+export declare class FluidF32 {
+  readonly solver = "fluid-mac-projection-jacobi-pcg-f32-reference-v1";
+  readonly program: FluidProgram;
+  readonly fluid: Fluid;
+  readonly F: Float32Array;
+  readonly I: Uint32Array;
+  readonly S: Float32Array;
+  obstacleSums: { J: Float64Array; M: Float64Array; Mstart: Float64Array | null; } | null;
+  readonly stats: { steps: number; pressureIterations: number; viscousIterations: number; divergence: number; unconverged: number; };
+  time: number;
+  setObstacles(band: FluidObstacleBand): void;
+  run(program: Generator<FluidCommand, void, Float32Array>): void;
+  step(count?: number): void;
+  project(): void;
+  checkpoint(): Uint8Array;
+  restoreCheckpoint(bytes: Uint8Array): void;
+  reload(): void;
+  velocity(c: number): Float32Array;
+  pressure(): Float32Array;
+}
+```
+
+### fluidMemory · function
+
+Bytes of the three buffers a fluid of this description needs (the largest must fit one storage binding).
+
+```ts
+export declare function fluidMemory(source: Fluid | FluidProgramSource): {
+    data: number;
+    indices: number;
+};
+```
+
+### FluidRunner · class
+
+A fluid run that starts on the GPU and carries on with the float64 solver when the device is lost (or was never
+there): `fluid` receives a snapshot every `snapshotEvery` steps; on a loss it is stepped from the last snapshot to
+where the GPU run had got to (its Adams-Bashforth history restarts, as after any restore).
+
+```ts
+export declare class FluidRunner {
+  backend: 'gpu' | 'cpu';
+  fallback: { reason: string; atTime: number; resumedFrom: number; stepsRerun: number; } | null;
+  readonly fluid: Fluid;
+  gpu: GpuFluid | null;
+  static create(fluid: Fluid, compute: GpuCompute | null, options?: FluidBackendOptions & { readonly snapshotEvery?: number; }): Promise<FluidRunner>;
+  get steps(): number;
+  get time(): number;
+  step(count?: number): Promise<void>;
+  destroy(): void;
+}
+```
+
+### GPU_SCENE_BACKEND · const
+
+The tag of a GPU section's state in a simulation checkpoint.
+
+```ts
+export declare const GPU_SCENE_BACKEND = "scene-section-gpu-f32-v1";
+```
+
+### GpuAcquireOptions · interface
+
+What `acquireGpuCompute` needs: the limits to check, and the GPU object to ask (default navigator.gpu).
+
+```ts
+export interface GpuAcquireOptions extends GpuComputeNeeds {
+    readonly gpu?: GPU;
+    readonly powerPreference?: GPUPowerPreference;
+    readonly label?: string;
+}
+```
+
+### GpuCompute · class
+
+A WebGPU device for compute: buffers, shader modules and pipelines inside error scopes, readback, and device loss as GPU_DEVICE_LOST.
+
+```ts
+export declare class GpuCompute {
+  readonly info: GpuComputeInfo;
+  readonly device: GPUDevice;
+  get lost(): boolean;
+  get lossReason(): string | null;
+  onLost(listener: (reason: string) => void): void;
+  assertAlive(): void;
+  buffer(label: string, size: number, usage: GPUBufferUsageFlags, data?: ArrayBufferView | ArrayBuffer): GPUBuffer;
+  storage(label: string, size: number, data?: ArrayBufferView | ArrayBuffer): GPUBuffer;
+  write(buffer: GPUBuffer, data: ArrayBufferView | ArrayBuffer, offset?: number): void;
+  release(buffer: GPUBuffer): void;
+  scoped<T>(label: string, work: () => T | Promise<T>): Promise<T>;
+  module(label: string, code: string): Promise<GPUShaderModule>;
+  pipeline(label: string, module: GPUShaderModule, entryPoint: string, layout?: GPUPipelineLayout | 'auto'): Promise<GPUComputePipeline>;
+  layout(label: string, bindings: readonly ('uniform' | 'uniform-dynamic' | 'read' | 'write')[]): GPUBindGroupLayout;
+  bind(label: string, layout: GPUBindGroupLayout, buffers: readonly (GPUBuffer | { readonly buffer: GPUBuffer; readonly size: number; })[]): GPUBindGroup;
+  read(sources: readonly { readonly buffer: GPUBuffer; readonly offset?: number; readonly size?: number; }[]): Promise<ArrayBuffer[]>;
+  readTyped<T extends TypedArray>(buffer: GPUBuffer, Type: { new (buffer: ArrayBuffer): T; }, offset?: number, size?: number): Promise<T>;
+  destroy(): void;
+}
+```
+
+### GpuComputeInfo · interface
+
+The adapter a GpuCompute runs on (vendor, architecture, device, whether it is a software adapter) and its limits.
+
+```ts
+export interface GpuComputeInfo {
+    readonly vendor: string;
+    readonly architecture: string;
+    readonly device: string;
+    readonly description: string;
+    readonly software: boolean;
+    readonly limits: {
+        readonly storageBuffers: number;
+        readonly storageBytes: number;
+        readonly bufferBytes: number;
+        readonly workgroups: number;
+        readonly invocations: number;
+    };
+}
+```
+
+### GpuComputeNeeds · interface
+
+Limits a backend needs of a device: storage buffers per stage, the largest storage binding, workgroups per dimension, invocations per workgroup.
+
+```ts
+export interface GpuComputeNeeds {
+    readonly storageBuffers?: number;
+    readonly storageBytes?: number;
+    readonly workgroups?: number;
+    readonly invocations?: number;
+}
+```
+
+### gpuComputeSupported · const
+
+True when this JavaScript environment has a WebGPU entry point (a device may still be refused).
+
+```ts
+export declare const gpuComputeSupported: () => boolean;
+```
+
+### GpuFlowLattice · class
+
+The step on a WebGPU device. Two population buffers swap each step; `read()` brings the populations, the moments
+and the link fluxes back.
+
+```ts
+export declare class GpuFlowLattice {
+  readonly solver = "flow-lbm-d3q19-regularized-les-webgpu-f32-v1";
+  readonly compute: GpuCompute;
+  readonly tables: FlowGpuTables;
+  stepCount: number;
+  static create(compute: GpuCompute, lattice: FlowLattice): Promise<GpuFlowLattice>;
+  writeParams(lattice: FlowLattice): void;
+  step(steps?: number): void;
+  read(): Promise<{ f: Float32Array; moments: Float32Array; linkFlux: Float32Array; }>;
+  destroy(): void;
+}
+```
+
+### GpuFluid · class
+
+Incompressible flow on the MAC grid on WebGPU compute, in float32, with fixed and moving obstacles (geometry on the host).
+
+```ts
+export declare class GpuFluid {
+  readonly solver = "fluid-mac-projection-jacobi-pcg-webgpu-f32-v1";
+  readonly compute: GpuCompute;
+  readonly program: FluidProgram;
+  readonly dataBuffer: GPUBuffer;
+  readonly stats: { steps: number; pressureIterations: number; viscousIterations: number; divergence: number; unconverged: number; };
+  obstacleSums: { J: Float64Array; M: Float64Array; Mstart: Float64Array | null; } | null;
+  time: number;
+  readonly dt: number;
+  static create(compute: GpuCompute, fluid: Fluid | FluidProgramSource, state?: { velocity: readonly ArrayLike<number>[]; pressure: ArrayLike<number>; time: number; } | null, options?: FluidBackendOptions): Promise<GpuFluid>;
+  setObstacles(band: FluidObstacleBand): void;
+  get regions(): Readonly<Record<string, number>>;
+  get padded(): number;
+  step(count?: number): Promise<void>;
+  project(): Promise<void>;
+  load(velocity: readonly ArrayLike<number>[], pressure: ArrayLike<number>): void;
+  read(): Promise<{ u: Float32Array; v: Float32Array; w: Float32Array; p: Float32Array; }>;
+  checkpoint(): Promise<Uint8Array>;
+  restoreCheckpoint(bytes: Uint8Array): void;
+  pull(target: Fluid): Promise<void>;
+  destroy(): void;
+}
+```
+
+### gpuFluidSubsystem · function
+
+A GPU (or float32 reference) flow: a FluidCoupling (couple stage, order 180, the rigid step) whose fluid steps run on
+the backend, or a bare Fluid (post stage, commensurate step), as fluidSubsystem. The backend is built from the Fluid,
+which keeps the obstacles: before each fluid step the backend takes their band at the poses the coupling set, after it
+the coupling reads their forces (Fluid.finishBackendObstacles). The room for obstacle faces is fixed when the section
+is built (twice the band at the scene's start plus 64 per obstacle), so a resumed run has the same room as a straight
+one; a move that needs more throws GPU_CAPACITY. No energy ledger (the backend sums no dissipation); events:
+'unconverged' when a solve stopped at its iteration limit.
+
+```ts
+export declare function gpuFluidSubsystem<W, B>(device: GpuCompute | 'reference', target: Fluid | FluidCoupling<B>, options?: {
+    readonly id?: string;
+    readonly order?: number;
+    readonly backend?: FluidBackendOptions;
+}): GpuSceneSubsystem<W, B>;
+```
+
+### GpuGranular · class
+
+Discrete-element grains on WebGPU compute, in float32: hash-grid neighbours, contact histories, walls of every shape.
+
+```ts
+export declare class GpuGranular {
+  readonly solver = "granular-dem-hash-grid-webgpu-f32-v1";
+  readonly compute: GpuCompute;
+  readonly setup: DemSetup;
+  readonly positionBuffer: GPUBuffer;
+  readonly stats: DemStats;
+  time: number;
+  static fromGranular(compute: GpuCompute, granular: Granular, options?: DemOptions): Promise<GpuGranular>;
+  static create(compute: GpuCompute, setup: DemSetup): Promise<GpuGranular>;
+  get count(): number;
+  get capacity(): number;
+  step(count?: number): Promise<void>;
+  upload(what?: { readonly grains?: boolean; readonly walls?: boolean; }): void;
+  uploadWalls(): void;
+  readWalls(): Promise<Float32Array>;
+  sync(): Promise<void>;
+  read(): Promise<GpuGranularSnapshot>;
+  checkpoint(): Promise<Uint8Array>;
+  restoreCheckpoint(bytes: Uint8Array): void;
+  pull(target: Granular, snapshot?: GpuGranularSnapshot): Promise<GpuGranularSnapshot>;
+  destroy(): void;
+}
+```
+
+### GpuGranularCoupling · class
+
+Two-way coupling of GPU grains with a rigid world, on the CPU: `coupling` is the float64 solver's GranularCoupling on
+the Granular the GPU backend was built from (the "mirror"). Each rigid step: the bodies are copied into the mirror's
+walls and uploaded (a few hundred bytes per wall), the GPU takes the grain substeps with the dynamic bodies integrated
+alongside as in the float64 solver, the walls' impulses are read back (the per-wall sums are reduced on the GPU) and
+the bodies are handed the mean force and torque.
+
+`latency: 0` (default) waits for that readback before `world.step()`: the bodies get the forces of this step, as in the
+float64 coupling. `latency: 1` does not wait: the bodies get the forces of the previous rigid step. That is a delayed
+feedback on a stiff contact and is stable only for a heavy body: with the contact stiffness k under the body (the sum
+over its touching grains) and the rigid step h, the body's mass must be well above k h^2 (a body of 0.06 kg on a bed of
+k = 1e5 N/m at 240 Hz, k h^2 = 1.7 kg, is thrown off the bed; one of 6 kg rests as with latency 0). Use latency 0 unless
+the frame loop must not wait: the readback is 288 bytes per wall.
+
+```ts
+export declare class GpuGranularCoupling<B> {
+  readonly coupling: GranularCoupling<B>;
+  readonly gpu: Pick<GpuGranular, 'setup' | 'uploadWalls' | 'step' | 'readWalls'>;
+  readonly latency: 0 | 1;
+  steps: number;
+  step(): Promise<void>;
+}
+```
+
+### gpuGranularSubsystem · function
+
+A GPU (or float32 reference) grain section: the coupling's begin and finish on the CPU, the grain steps on the backend; couple stage, as granularSubsystem of a coupling.
+
+```ts
+export declare function gpuGranularSubsystem<W, B>(device: GpuCompute | 'reference', coupling: GranularCoupling<B>, options?: {
+    readonly id?: string;
+    readonly order?: number;
+}): GpuSceneSubsystem<W, B>;
+```
+
+### GpuProgram · class
+
+Dispatches that run in list order.
+
+```ts
+export declare class GpuProgram {
+  readonly dispatches: GpuDispatch[];
+  add(dispatch: GpuDispatch): this;
+  encode(encoder: GPUCommandEncoder, label?: string): void;
+}
+```
+
+### gpuSceneBackends · function
+
+The `gpu` option of the scene loaders: GPU subsystems for the sections that say backend: 'gpu'.
+
+```ts
+export declare function gpuSceneBackends<W, B>(compute: GpuCompute | 'reference'): SceneGpuBackends<W, B>;
+```
+
+### GpuSceneFallback · interface
+
+What a GpuSceneRunner did when the device was lost.
+
+```ts
+export interface GpuSceneFallback {
+    readonly reason: string;
+    readonly atTick: number;
+    readonly resumedFrom: number;
+    readonly stepsRerun: number;
+}
+```
+
+### GpuSceneRunner · class
+
+Steps a simulation with GPU sections and carries on with the float32 reference when the device is lost. It takes a
+checkpoint of the whole simulation (`checkpointAsync`: the world, every section, the clock) before its first step and
+then every `snapshotEvery` steps; on GPU_DEVICE_LOST during a step or a checkpoint every GPU section switches to the
+reference (`useReference`), the last checkpoint is restored and the steps since it are taken again, then the step that
+failed. The reference runs the GPU's program, so the run goes on with the bits it would have had on the device
+wherever the two agree bit for bit (docs/GPU_COMPUTE.md); a fall back costs the steps since the checkpoint.
+
+```ts
+export declare class GpuSceneRunner<W extends SimulationWorld<B>, B> {
+  readonly simulation: Simulation<W, B>;
+  readonly snapshotEvery: number;
+  fallback: GpuSceneFallback | null;
+  get sections(): GpuSceneSubsystem<W, B>[];
+  get backend(): 'gpu' | 'reference';
+  get checkpointTick(): number;
+  step(): Promise<void>;
+}
+```
+
+### GpuSceneSubsystem · interface
+
+What `pullAsync` and the scene save need of a GPU section.
+
+```ts
+export interface GpuSceneSubsystem<W, B> extends Subsystem<W, B> {
+    stale(): boolean;
+    readonly backend: 'gpu' | 'reference';
+    useReference(): void;
+}
+```
+
+### GpuShallowWater · class
+
+Shallow water on terrain on WebGPU compute, in float32: the float64 solver's scheme with its sides, rain, soil and friction.
+
+```ts
+export declare class GpuShallowWater {
+  readonly solver = "shallow-water-hr-muscl-hll-webgpu-f32-v1";
+  readonly nx: number;
+  readonly nz: number;
+  readonly dx: number;
+  readonly dz: number;
+  readonly stats: ShallowWaterF32Stats;
+  maxCourant: number;
+  courantExceeded: number;
+  rainVolume: number;
+  initialVolume: number;
+  dt: number;
+  time: number;
+  steps: number;
+  readonly rateLatency: number;
+  readonly safety: number;
+  readonly rateWait: boolean;
+  readonly compute: GpuCompute;
+  readonly water: ShallowWater;
+  readonly setup: ShallowWaterSetup;
+  readonly stateBuffer: GPUBuffer;
+  readonly fixedBuffer: GPUBuffer;
+  static create(compute: GpuCompute, water: ShallowWater, options?: GpuShallowWaterOptions): Promise<GpuShallowWater>;
+  get cells(): number;
+  step(count?: number): Promise<void>;
+  advance(duration: number): Promise<void>;
+  sync(): Promise<void>;
+  checkpoint(): Promise<Uint8Array>;
+  restoreCheckpoint(bytes: Uint8Array): void;
+  read(): Promise<GpuShallowWaterSnapshot>;
+  budget(snapshot: GpuShallowWaterSnapshot): { volume: number; inflow: number; rain: number; infiltrated: number; clipped: number; error: number; };
+  pull(target?: ShallowWater, snapshot?: GpuShallowWaterSnapshot): Promise<GpuShallowWaterSnapshot>;
+  destroy(): void;
+}
+```
+
+### GpuShallowWaterOptions · interface
+
+Options of GpuShallowWater: how old the face speeds that set the substeps may be (rateLatency), the margin, and whether to wait for them.
+
+```ts
+export interface GpuShallowWaterOptions {
+    readonly rateLatency?: number;
+    readonly safety?: number;
+    readonly rateWait?: boolean;
+}
+```
+
+### gpuShallowWaterSubsystem · function
+
+A GPU (or float32 reference) shallow-water section: post stage, commensurate step, as shallowWaterSubsystem without bodies.
+
+```ts
+export declare function gpuShallowWaterSubsystem<W, B>(device: GpuCompute | 'reference', water: ShallowWater, options?: {
+    readonly id?: string;
+    readonly order?: number;
+}): GpuSceneSubsystem<W, B>;
+```
+
+### GRANULAR_CHECKPOINT · const
+
+Checkpoints of the float32 grain program (GpuGranular and GranularF32 write and read the same bytes): per grain the
+position and radius, velocity and mass, spin and inverse inertia, force and torque, the contact histories the next
+step reads, the walls with their sums, the cumulative counters (bucket and history overflows, removed grains), the
+time and the statistics. A checkpoint of one restores into the other.
+
+```ts
+export declare const GRANULAR_CHECKPOINT = "granular-f32-v1";
+```
+
+### GRANULAR_GPU_SOLVER_ID · const
+
+The solver id of the grains on WebGPU compute (float32).
+
+```ts
+export declare const GRANULAR_GPU_SOLVER_ID = "granular-dem-hash-grid-webgpu-f32-v1";
+```
+
+### GranularF32 · class
+
+The grain program run on the CPU in float32, pass by pass over the shaders' buffer layouts: the GPU's bits where the two agree.
+
+```ts
+export declare class GranularF32 {
+  readonly solver = "granular-dem-hash-grid-f32-reference-v1";
+  readonly setup: DemSetup;
+  readonly pos: Float32Array;
+  readonly vel: Float32Array;
+  readonly spin: Float32Array;
+  readonly ft: Float32Array;
+  readonly wallF: Float32Array;
+  readonly wallU: Uint32Array;
+  readonly stats: DemStats;
+  time: number;
+  get count(): number;
+  checkpoint(): Uint8Array;
+  restoreCheckpoint(bytes: Uint8Array): void;
+  refresh(): void;
+  step(count?: number): void;
+}
+```
+
+### GranularRunner · class
+
+A grain run that starts on the GPU and carries on with the float64 solver when the device is lost (or was never
+there). `granular` is the Granular the run was built from; while the GPU runs it only receives the snapshots.
+
+```ts
+export declare class GranularRunner {
+  backend: 'gpu' | 'cpu';
+  fallback: { reason: string; atTime: number; resumedFrom: number; stepsRerun: number; } | null;
+  readonly granular: Granular;
+  gpu: GpuGranular | null;
+  static create(granular: Granular, compute: GpuCompute | null, options?: GranularRunnerOptions): Promise<GranularRunner>;
+  get steps(): number;
+  get time(): number;
+  step(count?: number): Promise<void>;
+  snapshot(): Promise<void>;
+  destroy(): void;
+}
+```
+
+### GranularRunnerOptions · interface
+
+Options of GranularRunner: the backend's capacities and how often a snapshot is kept in the float64 solver for a fall back.
+
+```ts
+export interface GranularRunnerOptions extends DemOptions {
+    readonly snapshotEvery?: number;
+}
+```
+
+### SHALLOW_WATER_CHECKPOINT · const
+
+Checkpoints of the float32 shallow-water scheme (GpuShallowWater and ShallowWaterF32 write and read the same bytes):
+per cell (h, hu, hv, carry) and (infiltrated, scratch, side volume, its carry), the time, the step count, the length of
+the last substep (the leading half of the friction uses it), the rain added, the statistics and the volumes the budget
+is taken from. A checkpoint of one restores into the other.
+
+```ts
+export declare const SHALLOW_WATER_CHECKPOINT = "shallow-water-f32-v1";
+```
+
+### SHALLOW_WATER_GPU_SOLVER_ID · const
+
+The solver id of the shallow water on WebGPU compute (float32).
+
+```ts
+export declare const SHALLOW_WATER_GPU_SOLVER_ID = "shallow-water-hr-muscl-hll-webgpu-f32-v1";
+```
+
+### ShallowWaterF32 · class
+
+The shallow-water program run on the CPU in float32, pass by pass: the GPU's bits where the two agree.
+
+```ts
+export declare class ShallowWaterF32 {
+  readonly solver = "shallow-water-hr-muscl-hll-f32-reference-v1";
+  readonly setup: ShallowWaterSetup;
+  readonly water: ShallowWater;
+  readonly nx: number;
+  readonly nz: number;
+  readonly dx: number;
+  readonly dz: number;
+  readonly state: Float32Array;
+  readonly aux: Float32Array;
+  readonly fixed: Float32Array;
+  readonly stats: ShallowWaterF32Stats;
+  rainVolume: number;
+  initialVolume: number;
+  dt: number;
+  time: number;
+  steps: number;
+  safety: number;
+  secondX: number;
+  secondZ: number;
+  get cells(): number;
+  depth(c: number): number;
+  volume(): number;
+  ledger(): { inflow: number; rain: number; infiltrated: number; clipped: number; };
+  volumeError(): number;
+  checkpoint(): Uint8Array;
+  restoreCheckpoint(bytes: Uint8Array): void;
+  step(count?: number): void;
+  measure(): [number, number];
+  advance(duration: number): void;
+  substep(sub: number, last: boolean, led?: boolean): void;
+}
+```
+
+### ShallowWaterF32Stats · interface
+
+What a float32 backend reports of a run; the names follow ShallowWater.
+
+```ts
+export interface ShallowWaterF32Stats {
+    substeps: number;
+    totalSubsteps: number;
+    courant: number;
+    maxWaveSpeed: number;
+    wetCells: number;
+}
+```
+
+### ShallowWaterRunner · class
+
+A shallow-water run that starts on the GPU and carries on with the float64 solver when the device is lost.
+
+`water` is the ShallowWater the run was built from. While the GPU runs it only receives the snapshots (every
+`snapshotEvery` steps). When the device is lost, or was never there, `water` is advanced on the CPU from the last
+snapshot to the time the run had reached and takes over: `backend` becomes 'cpu' and `fallback` says why, when, and
+how much simulated time was run again.
+
+```ts
+export declare class ShallowWaterRunner {
+  backend: 'gpu' | 'cpu';
+  fallback: { reason: string; atTime: number; resumedFrom: number; stepsRerun: number; } | null;
+  readonly water: ShallowWater;
+  gpu: GpuShallowWater | null;
+  static create(water: ShallowWater, compute: GpuCompute | null, options?: ShallowWaterRunnerOptions): Promise<ShallowWaterRunner>;
+  get time(): number;
+  get steps(): number;
+  step(count?: number): Promise<void>;
+  snapshot(): Promise<void>;
+  destroy(): void;
+}
+```
+
+### ShallowWaterRunnerOptions · interface
+
+Options of ShallowWaterRunner: those of GpuShallowWater and how often a snapshot is kept in the float64 solver for a fall back.
+
+```ts
+export interface ShallowWaterRunnerOptions extends GpuShallowWaterOptions {
+    readonly snapshotEvery?: number;
+}
 ```

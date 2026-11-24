@@ -1,0 +1,1926 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://nathansenn.github.io/box3d-WEBGPU/schemas/flow-result.schema.json",
+ "title": "box3d-flow-result/1",
+ "description": "The result of a box3d-flow-study/1 run. SI units, the frame of the study. Numbers rounded to six significant digits. See docs/FLOW.md.",
+ "$defs": {
+  "vec3": {
+   "type": "array",
+   "items": {
+    "type": "number"
+   },
+   "minItems": 3,
+   "maxItems": 3
+  },
+  "bounds": {
+   "type": "object",
+   "properties": {
+    "min": {
+     "$ref": "#/$defs/vec3"
+    },
+    "max": {
+     "$ref": "#/$defs/vec3"
+    }
+   },
+   "required": [
+    "min",
+    "max"
+   ],
+   "additionalProperties": false
+  },
+  "forceMoment": {
+   "type": "object",
+   "properties": {
+    "force": {
+     "$ref": "#/$defs/vec3",
+     "description": "N"
+    },
+    "moment": {
+     "$ref": "#/$defs/vec3",
+     "description": "N m about forces.about"
+    }
+   },
+   "required": [
+    "force",
+    "moment"
+   ],
+   "additionalProperties": false
+  },
+  "extreme": {
+   "type": "object",
+   "properties": {
+    "value": {
+     "type": "number"
+    },
+    "cp": {
+     "type": "number"
+    },
+    "at": {
+     "$ref": "#/$defs/vec3"
+    }
+   },
+   "required": [
+    "value",
+    "at"
+   ],
+   "additionalProperties": true
+  }
+ },
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "format",
+  "name",
+  "solver",
+  "setup",
+  "run",
+  "forces",
+  "extremes",
+  "flow",
+  "actuators",
+  "wake",
+  "warnings",
+  "limits"
+ ],
+ "properties": {
+  "format": {
+   "const": "box3d-flow-result/1"
+  },
+  "name": {
+   "type": "string"
+  },
+  "solver": {
+   "type": "object",
+   "properties": {
+    "id": {
+     "type": "string",
+     "description": "flow-lbm-d3q19-regularized-les-js-f64-v1"
+    },
+    "version": {
+     "type": "string"
+    },
+    "statement": {
+     "type": "string",
+     "description": "What the solver is, in one paragraph."
+    },
+    "provenance": {
+     "anyOf": [
+      {
+       "type": "object",
+       "additionalProperties": {
+        "type": [
+         "string",
+         "number",
+         "boolean",
+         "null"
+        ]
+       }
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "description": "The provenance option: where the solver came from (a commit, a package version, a bundle hash)."
+    }
+   },
+   "required": [
+    "id",
+    "version",
+    "statement",
+    "provenance"
+   ],
+   "additionalProperties": false
+  },
+  "setup": {
+   "type": "object",
+   "properties": {
+    "mode": {
+     "enum": [
+      "external",
+      "internal"
+     ]
+    },
+    "fluid": {
+     "type": "object",
+     "properties": {
+      "density": {
+       "type": "number",
+       "description": "kg/m^3"
+      },
+      "viscosity": {
+       "type": "number",
+       "description": "m^2/s"
+      }
+     },
+     "required": [
+      "density",
+      "viscosity"
+     ],
+     "additionalProperties": false
+    },
+    "grid": {
+     "type": "object",
+     "properties": {
+      "origin": {
+       "$ref": "#/$defs/vec3"
+      },
+      "cell": {
+       "type": "number",
+       "description": "m"
+      },
+      "nx": {
+       "type": "integer"
+      },
+      "ny": {
+       "type": "integer"
+      },
+      "nz": {
+       "type": "integer"
+      },
+      "min": {
+       "$ref": "#/$defs/vec3"
+      },
+      "max": {
+       "$ref": "#/$defs/vec3"
+      }
+     },
+     "required": [
+      "origin",
+      "cell",
+      "nx",
+      "ny",
+      "nz",
+      "min",
+      "max"
+     ],
+     "additionalProperties": false,
+     "description": "The box of fluid cells."
+    },
+    "lattice": {
+     "type": "object",
+     "properties": {
+      "origin": {
+       "$ref": "#/$defs/vec3"
+      },
+      "cell": {
+       "type": "number"
+      },
+      "nx": {
+       "type": "integer"
+      },
+      "ny": {
+       "type": "integer"
+      },
+      "nz": {
+       "type": "integer"
+      },
+      "cells": {
+       "type": "integer"
+      },
+      "fluidCells": {
+       "type": "integer"
+      },
+      "solidCells": {
+       "type": "integer"
+      },
+      "enclosedCells": {
+       "type": "integer"
+      },
+      "boundaryLinks": {
+       "type": "integer"
+      }
+     },
+     "required": [
+      "origin",
+      "cell",
+      "nx",
+      "ny",
+      "nz",
+      "cells",
+      "fluidCells",
+      "solidCells",
+      "enclosedCells",
+      "boundaryLinks"
+     ],
+     "additionalProperties": false,
+     "description": "The box plus its boundary layers."
+    },
+    "timeStep": {
+     "type": "number",
+     "description": "s"
+    },
+    "latticeSpeed": {
+     "type": "number"
+    },
+    "latticeMach": {
+     "type": "number"
+    },
+    "relaxationTime": {
+     "type": "number"
+    },
+    "cellReynolds": {
+     "type": "number"
+    },
+    "turbulence": {
+     "type": "object",
+     "properties": {
+      "model": {
+       "enum": [
+        "none",
+        "smagorinsky",
+        "wale"
+       ]
+      },
+      "constant": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Cs or Cw"
+      },
+      "wallFunction": {
+       "type": "boolean"
+      },
+      "rule": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "model",
+      "constant",
+      "wallFunction",
+      "rule"
+     ],
+     "additionalProperties": false
+    },
+    "walls": {
+     "enum": [
+      "interpolated",
+      "halfway"
+     ]
+    },
+    "collision": {
+     "enum": [
+      "regularized",
+      "trt"
+     ],
+     "description": "The collision the run used."
+    },
+    "referenceSpeed": {
+     "type": "number",
+     "description": "m/s"
+    },
+    "referenceLength": {
+     "type": "object",
+     "properties": {
+      "value": {
+       "type": "number",
+       "description": "m"
+      },
+      "source": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "value",
+      "source"
+     ],
+     "additionalProperties": false
+    },
+    "reynolds": {
+     "type": "number"
+    },
+    "transitTime": {
+     "type": "number",
+     "description": "s"
+    },
+    "external": {
+     "anyOf": [
+      {
+       "type": "object",
+       "properties": {
+        "speed": {
+         "type": "number"
+        },
+        "direction": {
+         "$ref": "#/$defs/vec3"
+        },
+        "up": {
+         "$ref": "#/$defs/vec3"
+        },
+        "side": {
+         "$ref": "#/$defs/vec3"
+        },
+        "ground": {
+         "anyOf": [
+          {
+           "type": "object",
+           "properties": {
+            "height": {
+             "type": "number"
+            },
+            "type": {
+             "enum": [
+              "fixed",
+              "moving",
+              "slip"
+             ]
+            }
+           },
+           "required": [
+            "height",
+            "type"
+           ],
+           "additionalProperties": false
+          },
+          {
+           "type": "null"
+          }
+         ]
+        },
+        "bodySize": {
+         "type": "number",
+         "description": "m across the flow"
+        },
+        "bodyCells": {
+         "type": "number"
+        },
+        "bodyBounds": {
+         "$ref": "#/$defs/bounds"
+        },
+        "blockage": {
+         "type": "number"
+        },
+        "referenceArea": {
+         "type": "object",
+         "properties": {
+          "value": {
+           "type": "number",
+           "description": "m^2"
+          },
+          "source": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "value",
+          "source"
+         ],
+         "additionalProperties": false
+        },
+        "dynamicPressure": {
+         "type": "number",
+         "description": "Pa"
+        },
+        "momentCenter": {
+         "$ref": "#/$defs/vec3"
+        },
+        "margins": {
+         "type": "object",
+         "properties": {
+          "upstream": {
+           "type": "number"
+          },
+          "downstream": {
+           "type": "number"
+          },
+          "side": {
+           "type": "number"
+          },
+          "top": {
+           "type": "number"
+          },
+          "bottom": {
+           "type": "number"
+          },
+          "length": {
+           "type": "number",
+           "description": "m"
+          }
+         },
+         "required": [
+          "upstream",
+          "downstream",
+          "side",
+          "top",
+          "bottom",
+          "length"
+         ],
+         "additionalProperties": false,
+         "description": "As used, in multiples of length."
+        },
+        "referencePressure": {
+         "type": "object",
+         "properties": {
+          "value": {
+           "type": "number",
+           "description": "Pa above the outlet pressure"
+          },
+          "source": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "value",
+          "source"
+         ],
+         "additionalProperties": false,
+         "description": "The static pressure of the free stream: the mean pressure on the inlet. Every pressure, cp and force of an external result is gauge to it."
+        }
+       },
+       "required": [
+        "speed",
+        "direction",
+        "up",
+        "side",
+        "ground",
+        "bodySize",
+        "bodyCells",
+        "bodyBounds",
+        "blockage",
+        "referenceArea",
+        "dynamicPressure",
+        "momentCenter",
+        "margins",
+        "referencePressure"
+       ],
+       "additionalProperties": false
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "internal": {
+     "anyOf": [
+      {
+       "type": "object",
+       "properties": {
+        "inlets": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         }
+        },
+        "outlets": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         }
+        },
+        "fluidFraction": {
+         "type": "number"
+        }
+       },
+       "required": [
+        "inlets",
+        "outlets",
+        "fluidFraction"
+       ],
+       "additionalProperties": false
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "sides": {
+     "type": "object",
+     "properties": {
+      "xMin": {
+       "enum": [
+        "wall",
+        "slip",
+        "periodic",
+        "velocity",
+        "pressure"
+       ]
+      },
+      "xMax": {
+       "enum": [
+        "wall",
+        "slip",
+        "periodic",
+        "velocity",
+        "pressure"
+       ]
+      },
+      "yMin": {
+       "enum": [
+        "wall",
+        "slip",
+        "periodic",
+        "velocity",
+        "pressure"
+       ]
+      },
+      "yMax": {
+       "enum": [
+        "wall",
+        "slip",
+        "periodic",
+        "velocity",
+        "pressure"
+       ]
+      },
+      "zMin": {
+       "enum": [
+        "wall",
+        "slip",
+        "periodic",
+        "velocity",
+        "pressure"
+       ]
+      },
+      "zMax": {
+       "enum": [
+        "wall",
+        "slip",
+        "periodic",
+        "velocity",
+        "pressure"
+       ]
+      }
+     },
+     "required": [
+      "xMin",
+      "xMax",
+      "yMin",
+      "yMax",
+      "zMin",
+      "zMax"
+     ],
+     "additionalProperties": false
+    },
+    "patches": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "name": {
+        "type": "string"
+       },
+       "kind": {
+        "enum": [
+         "inlet",
+         "outlet"
+        ]
+       },
+       "area": {
+        "type": "number",
+        "description": "m^2 the lattice gives the opening"
+       },
+       "normal": {
+        "$ref": "#/$defs/vec3",
+        "description": "outward"
+       },
+       "velocity": {
+        "anyOf": [
+         {
+          "$ref": "#/$defs/vec3"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "pressure": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "cells": {
+        "type": "integer"
+       }
+      },
+      "required": [
+       "name",
+       "kind",
+       "area",
+       "normal",
+       "velocity",
+       "pressure",
+       "cells"
+      ],
+      "additionalProperties": false
+     }
+    },
+    "parts": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Names of the parts that take force: those of the geometry (the first geometryParts), then the walls of the box (the ground, the sides)."
+    },
+    "geometryParts": {
+     "type": "integer"
+    },
+    "geometry": {
+     "type": "object",
+     "properties": {
+      "items": {
+       "type": "integer"
+      },
+      "thinCells": {
+       "type": "number"
+      },
+      "thinSize": {
+       "type": "number",
+       "description": "m"
+      },
+      "thickened": {
+       "type": "integer",
+       "description": "Items grown so that they do not leak."
+      },
+      "largestThickening": {
+       "type": "number",
+       "description": "m"
+      },
+      "closedCells": {
+       "type": "integer",
+       "description": "Cells made solid to close thin closed meshes."
+      },
+      "slender": {
+       "type": "integer",
+       "description": "Items thinner than a cell in two directions."
+      },
+      "report": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "index": {
+          "type": "integer"
+         },
+         "id": {
+          "type": [
+           "string",
+           "number"
+          ]
+         },
+         "part": {
+          "type": "string"
+         },
+         "role": {
+          "enum": [
+           "solid",
+           "cavity"
+          ]
+         },
+         "kind": {
+          "type": "string"
+         },
+         "smallestDimension": {
+          "anyOf": [
+           {
+            "type": "number"
+           },
+           {
+            "type": "null"
+           }
+          ],
+          "description": "m"
+         },
+         "thickened": {
+          "type": "number",
+          "description": "m added"
+         },
+         "thickenedCells": {
+          "type": "integer"
+         },
+         "triangles": {
+          "type": "integer"
+         },
+         "components": {
+          "type": "integer"
+         },
+         "closedComponents": {
+          "type": "integer"
+         },
+         "surfaceArea": {
+          "type": "number",
+          "description": "m^2"
+         },
+         "unresolvedFraction": {
+          "type": "number"
+         }
+        },
+        "required": [
+         "index",
+         "part",
+         "role",
+         "kind",
+         "smallestDimension",
+         "thickened",
+         "surfaceArea",
+         "unresolvedFraction"
+        ],
+        "additionalProperties": false
+       },
+       "description": "Every item when there are at most 100, else those the grid changed or could not hold; at most 200."
+      },
+      "reportTruncated": {
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "items",
+      "thinCells",
+      "thinSize",
+      "thickened",
+      "largestThickening",
+      "closedCells",
+      "slender",
+      "report",
+      "reportTruncated"
+     ],
+     "additionalProperties": false
+    },
+    "controls": {
+     "type": "object",
+     "properties": {
+      "maxSteps": {
+       "type": "integer"
+      },
+      "startupSteps": {
+       "type": "integer"
+      },
+      "windowSteps": {
+       "type": "integer"
+      },
+      "monitorEvery": {
+       "type": "integer"
+      },
+      "sampleEvery": {
+       "type": "integer"
+      },
+      "tolerance": {
+       "type": "number"
+      },
+      "viscosityBoost": {
+       "anyOf": [
+        {
+         "type": "object",
+         "properties": {
+          "scale": {
+           "type": "number"
+          },
+          "fullUntil": {
+           "type": "integer"
+          },
+          "rampUntil": {
+           "type": "integer"
+          }
+         },
+         "required": [
+          "scale",
+          "fullUntil",
+          "rampUntil"
+         ],
+         "additionalProperties": false
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "Laminar internal flows: the start-up viscosity factor, held to step fullUntil and lowered to 1 by rampUntil."
+      }
+     },
+     "required": [
+      "maxSteps",
+      "startupSteps",
+      "windowSteps",
+      "monitorEvery",
+      "sampleEvery",
+      "tolerance",
+      "viscosityBoost"
+     ],
+     "additionalProperties": false
+    }
+   },
+   "required": [
+    "mode",
+    "fluid",
+    "grid",
+    "lattice",
+    "timeStep",
+    "latticeSpeed",
+    "latticeMach",
+    "relaxationTime",
+    "cellReynolds",
+    "turbulence",
+    "walls",
+    "collision",
+    "referenceSpeed",
+    "referenceLength",
+    "reynolds",
+    "transitTime",
+    "external",
+    "internal",
+    "sides",
+    "patches",
+    "parts",
+    "geometryParts",
+    "geometry",
+    "controls"
+   ],
+   "additionalProperties": false
+  },
+  "run": {
+   "type": "object",
+   "properties": {
+    "steps": {
+     "type": "integer"
+    },
+    "time": {
+     "type": "number",
+     "description": "s simulated"
+    },
+    "wallTime": {
+     "type": "number",
+     "description": "s"
+    },
+    "cellUpdatesPerSecond": {
+     "type": "number"
+    },
+    "converged": {
+     "type": "boolean"
+    },
+    "reason": {
+     "enum": [
+      "tolerance",
+      "max-steps"
+     ]
+    },
+    "windows": {
+     "type": "integer"
+    },
+    "criterion": {
+     "anyOf": [
+      {
+       "enum": [
+        "tolerance",
+        "stationary"
+       ]
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "description": "How the last two windows agreed: within the tolerance, or within twice their combined standard error (an unsteady wake whose means are known to that error, the error under twice the tolerance). null when the run did not converge."
+    },
+    "standardErrors": {
+     "anyOf": [
+      {
+       "type": "array",
+       "items": {
+        "anyOf": [
+         {
+          "type": "number"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       }
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "description": "Standard error of each monitored mean of the last window (batch means): external cd, cl, cs; internal the flow rate and pressure of each opening, then the bulk speed. null for a window too short to split."
+    },
+    "averaged": {
+     "anyOf": [
+      {
+       "type": "object",
+       "properties": {
+        "fromStep": {
+         "type": "integer"
+        },
+        "steps": {
+         "type": "integer"
+        },
+        "time": {
+         "type": "number"
+        },
+        "samples": {
+         "type": "integer"
+        }
+       },
+       "required": [
+        "fromStep",
+        "steps",
+        "time",
+        "samples"
+       ],
+       "additionalProperties": false
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "maxSpeed": {
+     "type": "number",
+     "description": "m/s"
+    }
+   },
+   "required": [
+    "steps",
+    "time",
+    "wallTime",
+    "cellUpdatesPerSecond",
+    "converged",
+    "reason",
+    "windows",
+    "averaged",
+    "maxSpeed"
+   ],
+   "additionalProperties": false
+  },
+  "convergence": {
+   "type": "object",
+   "properties": {
+    "tolerance": {
+     "type": "number"
+    },
+    "startupSteps": {
+     "type": "integer"
+    },
+    "windowSteps": {
+     "type": "integer"
+    },
+    "monitorEvery": {
+     "type": "integer"
+    },
+    "history": {
+     "type": "object",
+     "properties": {
+      "step": {
+       "type": "array",
+       "items": {
+        "type": "integer"
+       }
+      },
+      "time": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      "residual": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "description": "rms change of the velocity over an interval over the reference speed"
+      },
+      "maxSpeed": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      "cd": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      "cl": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      "cs": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      "massBalance": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      "bulkSpeed": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      "flowRates": {
+       "type": "object",
+       "additionalProperties": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        }
+       },
+       "description": "By opening name, m^3/s into the box."
+      },
+      "patchPressure": {
+       "type": "object",
+       "additionalProperties": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        }
+       },
+       "description": "By opening name, Pa."
+      }
+     },
+     "required": [
+      "step",
+      "time",
+      "residual",
+      "maxSpeed"
+     ],
+     "additionalProperties": false
+    }
+   },
+   "required": [
+    "tolerance",
+    "startupSteps",
+    "windowSteps",
+    "monitorEvery",
+    "history"
+   ],
+   "additionalProperties": false
+  },
+  "forces": {
+   "type": "object",
+   "properties": {
+    "about": {
+     "$ref": "#/$defs/vec3"
+    },
+    "total": {
+     "$ref": "#/$defs/forceMoment"
+    },
+    "parts": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "name": {
+        "type": "string"
+       },
+       "force": {
+        "$ref": "#/$defs/vec3"
+       },
+       "moment": {
+        "$ref": "#/$defs/vec3"
+       }
+      },
+      "required": [
+       "name",
+       "force",
+       "moment"
+      ],
+      "additionalProperties": false
+     }
+    },
+    "coefficients": {
+     "anyOf": [
+      {
+       "type": "object",
+       "properties": {
+        "cd": {
+         "type": "number"
+        },
+        "cl": {
+         "type": "number"
+        },
+        "cs": {
+         "type": "number"
+        },
+        "cdRms": {
+         "type": "number"
+        },
+        "clRms": {
+         "type": "number"
+        },
+        "csRms": {
+         "type": "number"
+        },
+        "cm": {
+         "$ref": "#/$defs/vec3"
+        },
+        "referenceArea": {
+         "type": "number"
+        },
+        "referenceLength": {
+         "type": "number"
+        },
+        "dynamicPressure": {
+         "type": "number"
+        },
+        "axes": {
+         "type": "object",
+         "properties": {
+          "drag": {
+           "$ref": "#/$defs/vec3"
+          },
+          "lift": {
+           "$ref": "#/$defs/vec3"
+          },
+          "side": {
+           "$ref": "#/$defs/vec3"
+          }
+         },
+         "required": [
+          "drag",
+          "lift",
+          "side"
+         ],
+         "additionalProperties": false
+        }
+       },
+       "required": [
+        "cd",
+        "cl",
+        "cs",
+        "cdRms",
+        "clRms",
+        "csRms",
+        "cm",
+        "referenceArea",
+        "referenceLength",
+        "dynamicPressure",
+        "axes"
+       ],
+       "additionalProperties": false
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "required": [
+    "about",
+    "total",
+    "parts",
+    "coefficients"
+   ],
+   "additionalProperties": false
+  },
+  "extremes": {
+   "type": "object",
+   "properties": {
+    "pressureMax": {
+     "$ref": "#/$defs/extreme"
+    },
+    "pressureMin": {
+     "$ref": "#/$defs/extreme"
+    },
+    "speedMax": {
+     "$ref": "#/$defs/extreme"
+    },
+    "dynamicPressure": {
+     "type": "number",
+     "description": "Pa: rho U^2 / 2 of the reference speed; cp = pressure / dynamicPressure."
+    },
+    "pressureMaxResolved": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/extreme"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "description": "pressureMax over the fluid cells a cell or more from the geometry (the first layer is singular at sharp edges and in gaps)."
+    },
+    "pressureMinResolved": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/extreme"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "description": "pressureMin over the same cells."
+    }
+   },
+   "required": [
+    "pressureMax",
+    "pressureMin",
+    "speedMax",
+    "dynamicPressure"
+   ],
+   "additionalProperties": false,
+   "description": "Of the averaged field over the fluid cells."
+  },
+  "flow": {
+   "type": "object",
+   "properties": {
+    "patches": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "name": {
+        "type": "string"
+       },
+       "kind": {
+        "enum": [
+         "inlet",
+         "outlet"
+        ]
+       },
+       "flowRate": {
+        "type": "number",
+        "description": "m^3/s into the box"
+       },
+       "area": {
+        "type": "number"
+       },
+       "meanSpeed": {
+        "type": "number"
+       },
+       "meanPressure": {
+        "type": "number",
+        "description": "Pa, area mean over the fluid cells touching the opening"
+       },
+       "meanDynamicPressure": {
+        "type": "number"
+       },
+       "meanTotalPressure": {
+        "type": "number"
+       }
+      },
+      "required": [
+       "name",
+       "kind",
+       "flowRate",
+       "area",
+       "meanSpeed",
+       "meanPressure",
+       "meanDynamicPressure",
+       "meanTotalPressure"
+      ],
+      "additionalProperties": false
+     }
+    },
+    "inflow": {
+     "type": "number"
+    },
+    "outflow": {
+     "type": "number"
+    },
+    "massBalance": {
+     "type": "number",
+     "description": "(inflow - outflow) / inflow"
+    },
+    "splits": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "name": {
+        "type": "string"
+       },
+       "fraction": {
+        "type": "number"
+       }
+      },
+      "required": [
+       "name",
+       "fraction"
+      ],
+      "additionalProperties": false
+     }
+    },
+    "pressureDrops": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "from": {
+        "type": "string"
+       },
+       "to": {
+        "type": "string"
+       },
+       "static": {
+        "type": "number"
+       },
+       "total": {
+        "type": "number"
+       }
+      },
+      "required": [
+       "from",
+       "to",
+       "static",
+       "total"
+      ],
+      "additionalProperties": false
+     }
+    },
+    "sections": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "name": {
+        "type": "string"
+       },
+       "axis": {
+        "enum": [
+         "x",
+         "y",
+         "z"
+        ]
+       },
+       "position": {
+        "type": "number"
+       },
+       "area": {
+        "type": "number"
+       },
+       "flowRate": {
+        "type": "number"
+       },
+       "meanSpeed": {
+        "type": "number"
+       },
+       "maxSpeed": {
+        "type": "number"
+       },
+       "maxNormalSpeed": {
+        "type": "number"
+       },
+       "meanPressure": {
+        "type": "number"
+       },
+       "meanTotalPressure": {
+        "type": "number"
+       },
+       "momentumFactor": {
+        "type": "number"
+       }
+      },
+      "required": [
+       "name",
+       "axis",
+       "position",
+       "area",
+       "flowRate",
+       "meanSpeed",
+       "maxSpeed",
+       "maxNormalSpeed",
+       "meanPressure",
+       "meanTotalPressure",
+       "momentumFactor"
+      ],
+      "additionalProperties": false
+     }
+    }
+   },
+   "required": [
+    "patches",
+    "inflow",
+    "outflow",
+    "massBalance",
+    "splits",
+    "pressureDrops",
+    "sections"
+   ],
+   "additionalProperties": false
+  },
+  "actuators": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string"
+     },
+     "cells": {
+      "type": "integer"
+     },
+     "force": {
+      "type": "number"
+     },
+     "axis": {
+      "$ref": "#/$defs/vec3"
+     },
+     "area": {
+      "type": "number"
+     },
+     "pressureJump": {
+      "type": "number"
+     },
+     "meanSpeed": {
+      "type": "number"
+     },
+     "flowRate": {
+      "type": "number"
+     },
+     "power": {
+      "type": "number"
+     }
+    },
+    "required": [
+     "name",
+     "cells",
+     "force",
+     "axis",
+     "area",
+     "pressureJump",
+     "meanSpeed",
+     "flowRate",
+     "power"
+    ],
+    "additionalProperties": false
+   }
+  },
+  "wake": {
+   "anyOf": [
+    {
+     "type": "object",
+     "properties": {
+      "shedding": {
+       "anyOf": [
+        {
+         "type": "object",
+         "properties": {
+          "frequency": {
+           "type": "number",
+           "description": "Hz"
+          },
+          "strouhal": {
+           "type": "number"
+          },
+          "length": {
+           "type": "number",
+           "description": "m"
+          },
+          "periods": {
+           "type": "number"
+          },
+          "amplitude": {
+           "type": "number"
+          },
+          "axis": {
+           "enum": [
+            "lift",
+            "side"
+           ]
+          }
+         },
+         "required": [
+          "frequency",
+          "strouhal",
+          "length",
+          "periods",
+          "amplitude",
+          "axis"
+         ],
+         "additionalProperties": false
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "recirculationLength": {
+       "anyOf": [
+        {
+         "type": "number"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "m from the rear of the bounding box"
+      },
+      "recirculationFrom": {
+       "$ref": "#/$defs/vec3"
+      }
+     },
+     "required": [
+      "shedding",
+      "recirculationLength",
+      "recirculationFrom"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "null"
+    }
+   ]
+  },
+  "streamlines": {
+   "type": "object",
+   "properties": {
+    "field": {
+     "enum": [
+      "mean",
+      "instant"
+     ]
+    },
+    "speedRange": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 2,
+     "maxItems": 2
+    },
+    "lines": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "seed": {
+        "$ref": "#/$defs/vec3"
+       },
+       "termination": {
+        "enum": [
+         "opening",
+         "wall",
+         "outside",
+         "stagnation",
+         "length"
+        ]
+       },
+       "points": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        },
+        "description": "x, y, z per vertex, m"
+       },
+       "speed": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        },
+        "description": "m/s per vertex"
+       },
+       "pressure": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        },
+        "description": "Pa gauge per vertex"
+       }
+      },
+      "required": [
+       "seed",
+       "termination",
+       "points",
+       "speed",
+       "pressure"
+      ],
+      "additionalProperties": false
+     }
+    }
+   },
+   "required": [
+    "field",
+    "speedRange",
+    "lines"
+   ],
+   "additionalProperties": false
+  },
+  "slices": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "axis": {
+      "enum": [
+       "x",
+       "y",
+       "z"
+      ]
+     },
+     "position": {
+      "type": "number"
+     },
+     "axes": {
+      "type": "array",
+      "items": {
+       "enum": [
+        "x",
+        "y",
+        "z"
+       ]
+      },
+      "minItems": 2,
+      "maxItems": 2
+     },
+     "nu": {
+      "type": "integer"
+     },
+     "nv": {
+      "type": "integer"
+     },
+     "origin": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      },
+      "minItems": 2,
+      "maxItems": 2
+     },
+     "cell": {
+      "type": "number"
+     },
+     "speed": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "pressure": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "u": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "v": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "fluid": {
+      "type": "array",
+      "items": {
+       "enum": [
+        0,
+        1
+       ]
+      }
+     }
+    },
+    "required": [
+     "axis",
+     "position",
+     "axes",
+     "nu",
+     "nv",
+     "origin",
+     "cell",
+     "speed",
+     "pressure",
+     "u",
+     "v",
+     "fluid"
+    ],
+    "additionalProperties": false
+   }
+  },
+  "surface": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "part": {
+      "type": "string"
+     },
+     "positions": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "indices": {
+      "type": "array",
+      "items": {
+       "type": "integer"
+      }
+     },
+     "pressure": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      },
+      "description": "Pa per vertex"
+     },
+     "cp": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "pressureMin": {
+      "type": "number"
+     },
+     "pressureMax": {
+      "type": "number"
+     },
+     "cpMin": {
+      "type": "number"
+     },
+     "cpMax": {
+      "type": "number"
+     },
+     "flags": {
+      "type": "array",
+      "items": {
+       "type": "integer",
+       "minimum": 0,
+       "maximum": 3
+      },
+      "description": "Per vertex: 0 a resolved sample; 1 on a sharp convex edge or corner (singular); 2 less than 3 cells of fluid in front (a gap, a contact line with the ground): under-resolved. Draw flagged samples greyed out."
+     },
+     "flagged": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Vertices with a flag."
+     },
+     "cpMinResolved": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "cpMin over the vertices with no flag; null when every vertex has one."
+     },
+     "cpMaxResolved": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "cpMax over the vertices with no flag; null when every vertex has one."
+     }
+    },
+    "required": [
+     "part",
+     "positions",
+     "indices",
+     "pressure",
+     "cp",
+     "pressureMin",
+     "pressureMax",
+     "cpMin",
+     "cpMax"
+    ],
+    "additionalProperties": false
+   }
+  },
+  "lines": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string"
+     },
+     "from": {
+      "$ref": "#/$defs/vec3"
+     },
+     "to": {
+      "$ref": "#/$defs/vec3"
+     },
+     "s": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "ux": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "uy": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "uz": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "speed": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "pressure": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "distance": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     },
+     "zeroCrossings": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      }
+     }
+    },
+    "required": [
+     "name",
+     "from",
+     "to",
+     "s",
+     "ux",
+     "uy",
+     "uz",
+     "speed",
+     "pressure",
+     "distance",
+     "zeroCrossings"
+    ],
+    "additionalProperties": false
+   }
+  },
+  "warnings": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "limits": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  }
+ }
+}

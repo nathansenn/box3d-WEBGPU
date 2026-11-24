@@ -68,6 +68,20 @@
       "types": "./dist/shallow-water.d.ts",
       "default": "./dist/shallow-water.js"
     },
+    "./flow": {
+      "types": "./dist/flow.d.ts",
+      "default": "./dist/flow.js"
+    },
+    "./flow-bundle": {
+      "types": "./dist/flow-bundle.d.ts",
+      "default": "./dist/flow-bundle.js"
+    },
+    "./flow-three": {
+      "types": "./dist/flow-three.d.ts",
+      "default": "./dist/flow-three.js"
+    },
+    "./schemas/flow-study.schema.json": "./schemas/flow-study.schema.json",
+    "./schemas/flow-result.schema.json": "./schemas/flow-result.schema.json",
     "./materials": {
       "types": "./dist/materials.d.ts",
       "default": "./dist/materials.js"
@@ -104,6 +118,10 @@
       "types": "./dist/fracture.d.ts",
       "default": "./dist/fracture.js"
     },
+    "./gpu": {
+      "types": "./dist/gpu-compute.d.ts",
+      "default": "./dist/gpu-compute.js"
+    },
     "./single": {
       "types": "./dist/index.d.ts",
       "default": "./dist/single.js"
@@ -123,6 +141,7 @@
     "CHANGELOG.md",
     "api/API.md",
     "bin",
+    "schemas",
     "templates"
   ],
   "engines": {
@@ -142,7 +161,7 @@
   },
   "scripts": {
     "sync": "node scripts/sync-core.mjs",
-    "build": "node scripts/sync-core.mjs && rm -rf dist && tsc -p tsconfig.json && node scripts/build-single.mjs",
+    "build": "node scripts/sync-core.mjs && rm -rf dist && tsc -p tsconfig.json && node scripts/bundle-rigid.mjs && node scripts/build-single.mjs",
     "test": "npm run build && node --test test/*.test.mjs",
     "test:gate": "npm run build && node scripts/test-gate.mjs",
     "clean": "node --input-type=module -e \"import {rmSync} from 'node:fs'; for (const path of ['dist', 'src/core', 'wasm', 'test/.generated', 'LICENSE', 'THIRD_PARTY_NOTICES.md']) rmSync(path, {recursive: true, force: true});\"",
@@ -180,7 +199,8 @@
     "directory": "packages/box3d-kit"
   },
   "bin": {
-    "box3d-kit": "./bin/box3d-kit.mjs"
+    "box3d-kit": "./bin/box3d-kit.mjs",
+    "box3d-flow": "./bin/flow-cli.mjs"
   },
   "homepage": "https://nathansenn.github.io/box3d-WEBGPU/docs/",
   "bugs": {

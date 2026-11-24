@@ -53,12 +53,14 @@ test('the renderer draws its simulation layers in the main pass, opaque before b
   assert.match(rendererSource, /for \(const blended of \[false, true\]\) for \(const layer of this\.simulationLayers\) if \(layer\.blended === blended\) \{\s*mainPass\.setBindGroup\(0, this\.sceneBindGroup\);\s*layer\.draw\(mainPass, this\.sampleCount\);/);
   assert.ok(rendererSource.indexOf('layer.draw(mainPass') < rendererSource.indexOf("label: 'AAA tone mapping and bloom pass'"), 'before the post pass');
 });
-test('with a GPU example on screen the Lab keeps one frame on the device, and draws none while the fluid steps', () => {
+test('with a GPU example or a scene with GPU sections on screen the Lab keeps one frame on the device, and draws none while the GPU steps', () => {
   // On a slow adapter (SwiftShader) frames were queued faster than they ran; every readback of a fluid step (one per 16
   // solver iterations) then waited behind all of them, and a 16^3 cube drew no frame in 34 minutes.
   const main = fs.readFileSync(new URL('../../src/main.ts', import.meta.url), 'utf8'), showcase = fs.readFileSync(new URL('../../src/lab/gpu-showcase.ts', import.meta.url), 'utf8');
   assert.match(main, /if\(gpuShowcase&&\(gpuShowcaseFramePending\|\|gpuShowcase\.holdsFrames\?\.\(\)\)\)\{last=now;frameRequest=requestAnimationFrame\(frame\);return;\}/);
-  assert.match(main, /renderer\.render\([^;]*\);\s*if \(gpuShowcase && renderer instanceof WebGPURenderer\) \{\s*gpuShowcaseFramePending = true;[\s\S]{0,120}onSubmittedWorkDone\(\)\.then\(done, done\);/);
+  // The same for a scene with GPU sections (src/lab/gpu-scene.ts): one frame on the device, none while a step is on its way.
+  assert.match(main, /renderer\.render\([^;]*\);\s*if \(\(gpuShowcase \|\| coupledView\?\.gpu\) && renderer instanceof WebGPURenderer\) \{\s*gpuShowcaseFramePending = true;[\s\S]{0,120}onSubmittedWorkDone\(\)\.then\(done, done\);/);
+  assert.match(main, /if\(siDemo&&labScene&&coupledView\?\.gpu&&\(gpuShowcaseFramePending\|\|coupledView\.gpu\.busy\)\)\{last=now;frameRequest=requestAnimationFrame\(frame\);return;\}/);
   assert.ok(main.indexOf('gpuShowcaseFramePending||') < main.indexOf('gpuShowcase.frame(gpuShowcasePaused'), 'the check comes before the example is stepped');
   assert.match(showcase, /holdsFrames: \(\) => pending > 0/);
 });

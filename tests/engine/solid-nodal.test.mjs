@@ -32,29 +32,101 @@ test('sparse LDLᵀ: a factorization of a random sparse SPD block matrix solves 
   assert.ok(L.modified>0&&[...L.D].every(d=>d>0),'reset pivots, all positive');
 });
 
-/** The factorization as it was before attempts that cannot succeed were skipped: every shift in turn. */
-function factorEveryShift(L){
+/** Column-by-column references of the node-blocked kernels (sparse-ldl.ts as it was before 2026-11-18, with the
+ * isolated-unknown rule): every shift in turn, a left-looking factorization one column at a time, and a substitution one
+ * column at a time. The blocked kernels must give the same numbers bit for bit. */
+function referenceFactor(L){
   const SHIFTS=[0,1e-6,1e-4,1e-2,1],saved=L.values.slice(),savedD=L.D.slice();
+  L.findIsolated();
   for(let k=0;k<SHIFTS.length;k++){
     if(k>0){L.values.set(saved);for(let j=0;j<L.size;j++)L.D[j]=savedD[j]*(1+SHIFTS[k]);}
-    L.shift=SHIFTS[k];L.factorOnce();if(L.modified===0)break;
+    L.shift=SHIFTS[k];
+    const n=L.size,D=L.D,values=L.values,rows=L.rows,cs=L.columnStart,x=new Float64Array(n),fixed=L.fixed,rs=L.rowStart,rc=L.rowColumn,re=L.rowEntry,iso=L.isolated;let modified=0,largest=0;
+    for(let j=0;j<n;j++)if(!fixed[j])largest=Math.max(largest,Math.abs(D[j]));
+    const tiny=1e-12*largest||1;
+    for(let j=0;j<n;j++){
+      if(fixed[j]){D[j]=1;for(let e=cs[j];e<cs[j+1];e++)values[e]=0;continue;}
+      const diagonal=D[j];for(let e=cs[j];e<cs[j+1];e++)x[rows[e]]=values[e];
+      let d=diagonal;
+      for(let r=rs[j];r<rs[j+1];r++){const c=rc[r],entry=re[r],l=values[entry];if(l===0)continue;const f=l*D[c];d-=l*f;for(let e=entry+1;e<cs[c+1];e++)x[rows[e]]-=values[e]*f;}
+      if(iso[j]){if(!(d>0))d=Math.max(Math.abs(d),tiny);}
+      else if(!(d>1e-6*Math.abs(diagonal))||!(d>tiny)){d=Math.max(Math.abs(d),Math.abs(diagonal),tiny);modified++;}
+      D[j]=d;const inv=1/d;for(let e=cs[j];e<cs[j+1];e++){const i=rows[e];values[e]=x[i]*inv;x[i]=0;}
+    }
+    L.modified=modified;if(modified===0)break;
   }
 }
-test('sparse LDLᵀ: a pivot no shift can save (an unknown left without stiffness) skips to the last attempt, with the same factor bit for bit',()=>{
+function referenceSolve(L,r){
+  const n=L.size,y=new Float64Array(n),z=new Float64Array(n),{values,rows,columnStart:cs,D,order,fixed}=L;
+  for(let s=0;s<L.nodes;s++)for(let p=0;p<3;p++)y[3*s+p]=r[3*order[s]+p];
+  for(let j=0;j<n;j++){if(fixed[j])y[j]=0;const v=y[j];if(v!==0)for(let e=cs[j];e<cs[j+1];e++)y[rows[e]]-=values[e]*v;}
+  for(let j=0;j<n;j++)y[j]/=D[j];
+  for(let j=n-1;j>=0;j--){let v=y[j];for(let e=cs[j];e<cs[j+1];e++)v-=values[e]*y[rows[e]];y[j]=fixed[j]?0:v;}
+  for(let s=0;s<L.nodes;s++)for(let p=0;p<3;p++)z[3*order[s]+p]=y[3*s+p];
+  return z;
+}
+test('sparse LDLᵀ: the node-blocked factorization and substitution give the column-by-column numbers bit for bit; an unknown left without stiffness is its own exact pivot',()=>{
   const rnd=random(5),N=24,adj=Array.from({length:N},()=>[]),blocks=[];
-  for(let a=0;a<N;a++)for(let b=a+1;b<N;b++)if(b-a<3||rnd()>.6){adj[a].push(b);blocks.push([a,b,Array.from({length:9},rnd)]);}
+  for(let a=0;a<N;a++)for(let b=a+1;b<N;b++)if(b-a<3||rnd()>.6){adj[a].push(b);blocks.push([a,b,Array.from({length:9},k=>k===4&&rnd()>.8?0:rnd())]);}
   for(let a=0;a<N;a++){const M=Array.from({length:9},rnd);for(let p=0;p<3;p++)for(let q=p;q<3;q++){const v=(M[3*p+q]+M[3*q+p])/2+(p===q?12:0);M[3*p+q]=M[3*q+p]=v;}blocks.push([a,a,M]);}
-  // orphan: node 9 keeps only a lumped mass 1e-15 of the stiffness (its elements have eroded); flip: an indefinite coupled pivot.
-  const assemble=(L,{orphan,flip})=>{L.begin(new Uint8Array(3*N));for(const [a,b,M] of blocks){
+  // orphan: node 9 keeps only a lumped mass 1e-15 of the stiffness (its elements have eroded); flip: an indefinite coupled pivot;
+  // fixed: constrained components, among them one of the orphan's.
+  const assemble=(L,{orphan,flip,fixed})=>{const f=new Uint8Array(3*N);if(fixed){f[4]=f[28]=f[50]=1;}L.begin(f);for(const [a,b,M] of blocks){
     if(orphan&&(a===9||b===9)){if(a===b)L.addBlock(a,a,[1e-14,0,0,0,1e-14,0,0,0,1e-14]);continue;}
     L.addBlock(a,b,flip&&a===b&&a===3?M.map((v,k)=>k===0?-v:v):M);}};
-  for(const set of [{orphan:true,flip:false},{orphan:true,flip:true},{orphan:false,flip:true},{orphan:false,flip:false}]){
-    const A=new SparseLDL(N,(a,visit)=>adj[a].forEach(visit)),B=new SparseLDL(N,(a,visit)=>adj[a].forEach(visit));
-    assemble(A,set);assemble(B,set);A.factor();factorEveryShift(B);
+  for(const orphan of [true,false])for(const flip of [true,false])for(const fixed of [true,false]){
+    const set={orphan,flip,fixed},A=new SparseLDL(N,(a,visit)=>adj[a].forEach(visit)),B=new SparseLDL(N,(a,visit)=>adj[a].forEach(visit));
+    assemble(A,set);assemble(B,set);A.factor();referenceFactor(B);
     assert.equal(bits(A.values),bits(B.values),JSON.stringify(set));assert.equal(bits(A.D),bits(B.D));
     assert.equal(A.shift,B.shift);assert.equal(A.modified,B.modified);
-    assert.equal(A.skippedAttempts,set.orphan?4:0,'skips only when a pivot fails at every shift');
-    if(set.orphan)assert.ok(A.shift===1&&A.modified>0,'the orphan pivot is reset at the last attempt, as before');
+    const r=Float64Array.from({length:3*N},(_,j)=>j%7===3?0:rnd()),z=new Float64Array(3*N);A.solve(r,z);
+    assert.equal(bits(z),bits(referenceSolve(B,r)),'substitution '+JSON.stringify(set));
+    assert.equal(A.isolatedUnknowns,orphan?(fixed?2:3):0);
+    if(orphan&&!flip){
+      // Not a reset pivot: the rest of the matrix is factored without a shift, and the orphan's unknowns solve exactly.
+      assert.ok(A.shift===0&&A.modified===0,'no shift for an isolated unknown');
+      for(let p=0;p<3;p++)if(!(fixed&&p===1))assert.equal(z[27+p],r[27+p]/1e-14);
+    }
+  }
+});
+
+/** A steel block pressed onto a plane it starts just short of: ten backward-Euler steps of the contact solve. Counts the
+ * evaluations of the solid's energy; `noReuse` makes every friction pass evaluate its starting state again. */
+function pressedBlock(gap,{tolerance=1e-8,noReuse=false}={}){
+  const b=new SolidBody({mesh:boxMesh({size:[.02,.01,.02],cells:[4,2,4],origin:[-.01,gap,-.01]}),material:steel,config:{model:'green-lagrange',dt:1/200,element:'tet4-nodal',linearSolver:'ldl',tolerance}});
+  const c=new SolidContact(b,{});c.addBody({shape:{kind:'plane',normal:[0,1,0]},type:'static',position:[0,0,0],rotation:[0,0,0,1],friction:.2});
+  b.addPressure(b.selectFaces((x,y,z,nx,ny)=>ny>.9),2e7);
+  let evaluations=0,newton=0,converged=true;const k=c.k,energy=k.energy;k.energy=(...a)=>{evaluations++;return energy(...a);};
+  if(noReuse){const objective=c.objective;c.objective=(y,G,yu)=>objective.call(c,y,G,yu,false);}
+  for(let s=0;s<10;s++){c.step();newton+=c.stats.newtonIterations;converged&&=c.stats.converged;}
+  k.energy=energy;
+  return {evaluations,newton,converged,force:c.bodyForce(0)[1],u:b.displacements.slice()};
+}
+test('contact friction passes: a pass that starts where the last one ended reuses its energy evaluation, bit for bit',()=>{
+  const a=pressedBlock(1e-5),b=pressedBlock(1e-5,{noReuse:true});
+  console.log(`# ${a.evaluations} evaluations of the solid's energy with the reuse, ${b.evaluations} without`);
+  assert.ok(a.converged&&b.converged);assert.equal(bits(a.u),bits(b.u));assert.equal(a.force,b.force);assert.ok(a.evaluations<b.evaluations);
+});
+
+test('contact line search: a node short of the plane steps onto it instead of creeping towards it (same answer, a third of the evaluations)',()=>{
+  for(const gap of [1e-7,1e-5,1e-3]){
+    const r=pressedBlock(gap),ref=pressedBlock(gap,{tolerance:1e-10});
+    let d=0,s=0;for(let j=0;j<r.u.length;j++){d=Math.max(d,Math.abs(r.u[j]-ref.u[j]));s=Math.max(s,Math.abs(ref.u[j]));}
+    console.log(`# gap ${gap} m: ${r.evaluations} evaluations of the solid's energy, ${r.newton} Newton iterations; |u - u(tolerance 1e-10)| ${(d/s).toExponential(2)} of the largest`);
+    assert.ok(r.converged&&ref.converged);
+    assert.ok(Math.abs(r.force+8000)<=1e-6*8000,'the plane carries the 20 MPa on 4 cm^2');
+    assert.ok(d<=1e-6*s,'within the solve tolerance of a tightly converged run');
+    // Before the step to first touch (2026-11-18): 97, 159 and 172 evaluations.
+    assert.ok(r.evaluations<=60,`${r.evaluations} evaluations`);
+  }
+});
+test('sparse LDLᵀ ordering: the press section (a long strip) takes reverse Cuthill-McKee, a cube keeps minimum degree',()=>{
+  // Minimum degree gave the press section's factor 57,114 entries.
+  for(const [cells,ordering,entries] of [[[23,4,1],'reverse-cuthill-mckee',46800],[[5,5,5],'minimum-degree',104508]]){
+    const b=new SolidBody({mesh:boxMesh({size:[.05,.002,.003],cells}),material:steel,config:{model:'green-lagrange',element:'tet4-nodal',linearSolver:'ldl'}}),n=3*b.nodeCount;
+    b.kernel().energy(new Float64Array(n),new Float64Array(n),true);
+    const L=b.kernel().assembleTangent(1,0);
+    assert.equal(L.ordering,ordering);assert.equal(L.entries,entries);
   }
 });
 

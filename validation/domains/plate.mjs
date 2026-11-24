@@ -11,6 +11,7 @@ const T = {
   levy: 'von Karman plate: centre deflection of a square plate under uniform pressure against Levy (NACA Report 737), edges held and edges free to move',
   graded: 'graded grid: the undamaged pane still matches Navier, the first Kirchhoff mode and the first-crack pressure',
   gradedLevy: 'graded grid: von Karman centre deflection and edge tension against Levy (Table 9 and 10), as on the equal grid',
+  implicit: 'implicit fine cells: the 0.05 m cells no longer set the step; the step keeps its own energy and the momentum; the first mode and statics are unchanged',
 };
 /** Levy, "Bending of rectangular plates with large deflections", NACA Report 737 (1942), read in the scan on NTRS
  * (https://ntrs.nasa.gov/api/citations/19930091816/downloads/19930091816.pdf): simply supported square plate of side a
@@ -90,6 +91,24 @@ const gradedLevy = load => memo(`plate/graded/levy/${load}`, async () => {
   p.relax({tolerance: 1e-7});
   return p.w[p.selectNodes((x, y) => Math.abs(x - 0.5) < 1e-9 && Math.abs(y - 0.5) < 1e-9)[0]] / h;
 });
+/** The graded pane with implicit fine cells (`implicitCells: 0.075`): its step against the 0.1 m grid's, the step's own energy
+ * over 1 s from a random state at 0.9 of the limit, the momentum of a free graded plate over 2000 steps, and the (1,1) mode. */
+const seeded = seed => { let s = seed; return () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; }; };
+const implicitRun = () => memo('plate/implicit', async () => {
+  const {PlateBody, plateFrequency} = await plate(), equal = new PlateBody({size: [A, B], cells: [26, 20], thickness: TH, material: GLASS}); equal.hold(equal.selectNodes(edge));
+  const p = await gradedPane({implicitCells: 0.075}), stepRatio = p.stableTimeStep() / equal.stableTimeStep();
+  const e = await gradedPane({implicitCells: 0.075}), r = seeded(7); for (let n = 0; n < e.nodeCount; n++) if (!e.fixed[n]) { e.w[n] = 1e-4 * r(); e.v[n] = 0.05 * r(); }
+  const h = 0.9 * e.stableTimeStep(); e.advance(h); const E0 = e.stepEnergy(h); let energy = 0;
+  for (let k = 0; k < Math.round(1 / h); k++) { e.advance(h); if (k % 10 === 0) energy = Math.max(energy, Math.abs(e.stepEnergy(h) / E0 - 1)); }
+  const f = new PlateBody({size: [A, B], cells: [PANE_LINES.x.length - 1, PANE_LINES.y.length - 1], lines: PANE_LINES, thickness: TH, material: GLASS, implicitCells: 0.075}), s = seeded(11);
+  for (let n = 0; n < f.nodeCount; n++) { f.w[n] = 1e-4 * s(); f.v[n] = 0.05 * s(); }
+  const sum = () => { let a = 0, b = 0; for (let n = 0; n < f.nodeCount; n++) { a += f.mass[n] * f.v[n]; b += f.mass[n] * Math.abs(f.v[n]); } return {a, b}; }, P0 = sum(), hf = 0.9 * f.stableTimeStep();
+  for (let k = 0; k < 2000; k++) f.advance(hf); const momentum = Math.abs(sum().a - P0.a) / P0.b;
+  const q = await gradedPane({implicitCells: 0.075}), cq = gradedCentre(q); for (let n = 0; n < q.nodeCount; n++) q.w[n] = 1e-3 * Math.sin(Math.PI * q.x(n) / A) * Math.sin(Math.PI * q.y(n) / B);
+  const hq = 0.9 * q.stableTimeStep(); let prev = q.w[cq]; const crossings = [];
+  for (let k = 0; k < 200000 && crossings.length < 12; k++) { q.advance(hq); const w = q.w[cq]; if (prev > 0 && w <= 0) crossings.push((k + prev / (prev - w)) * hq); prev = w; }
+  return {stepRatio, energy, momentum, frequency: (crossings.length - 1) / (crossings.at(-1) - crossings[0]), theory: plateFrequency(A, B, q.rigidity, GLASS.density * TH, 1, 1)};
+});
 const navierOnset = async () => { const {navierUniform} = await plate(), ex = navierUniform(A, B, rigidity, GLASS.poissonRatio, 1); return STRENGTH * TH * TH / (6 * Math.max(ex.mx, ex.my)); };
 
 export default defineCases('plate', FILE, [
@@ -146,6 +165,18 @@ export default defineCases('plate', FILE, [
   ...LEVY.held.map(([load, w], k) => ({id: `plate.graded.karman-held-${k + 1}`, title: `Graded grid, von Karman plate, edges held, p a^4 / (E h^4) = ${load}`, quantity: 'centre deflection over the thickness, 16 x 16 cells with the middle quarter split (20 x 20)', unit: '1', test: T.gradedLevy,
     reference: {formula: `Levy, NACA Report 737 (1942), Table 9: ${w}`, value: w}, tolerance: relative(0.01),
     measure: async () => gradedLevy(load)})),
+  {id: 'plate.implicit.step', title: 'Implicit fine cells: the time step of the graded pane', quantity: 'stable step of the graded pane (0.05 m cells within 0.3 m of the centre) with their bending terms implicit, over that of the 0.1 m grid', unit: '1', test: T.implicit,
+    reference: {formula: 'the explicit terms are those of 0.1 m cells: their limit, 2 / sqrt(max row / m)', value: 1}, tolerance: relative(1e-9),
+    note: 'With every term explicit the graded pane takes a quarter of this step (49.08 against 196.31 us).', measure: async () => (await implicitRun()).stepRatio},
+  {id: 'plate.implicit.energy', title: 'Implicit fine cells: energy of the step without damping', quantity: 'largest relative change over 1 s (5,660 steps at 0.9 of the limit) from random deflections and velocities of the step\'s own energy 1/2 v (M - h^2/4 K_e + (h0^2 - h^2)/4 K_f) v + 1/2 wm K wm', unit: '1', test: T.implicit,
+    reference: {formula: 'conserved exactly by central differences with the mass M + h0^2/4 K_f (rounding only)', value: 0}, tolerance: absolute(1e-12),
+    measure: async () => (await implicitRun()).energy},
+  {id: 'plate.implicit.momentum', title: 'Implicit fine cells: momentum of a free plate', quantity: 'change of sum m v over 2000 steps from random velocities, over sum m |v|', unit: '1', test: T.implicit,
+    reference: {formula: 'K_f 1 = 0: the implicit term adds no net force', value: 0}, tolerance: absolute(1e-10),
+    measure: async () => (await implicitRun()).momentum},
+  {id: 'plate.implicit.frequency', title: 'Implicit fine cells: first mode of the graded pane against Kirchhoff theory', quantity: 'frequency of the (1,1) mode released from its shape, steps at 0.9 of the limit', unit: 'Hz', test: T.implicit,
+    reference: {formula: 'f = (pi / 2) ((1 / a)^2 + (1 / b)^2) sqrt(D / (rho t))', value: Math.PI / 2 * (1 / A ** 2 + 1 / B ** 2) * Math.sqrt(rigidity / (GLASS.density * TH))}, tolerance: relative(2.5e-3),
+    note: 'The graded pane with every term explicit: -0.23 %.', measure: async () => (await implicitRun()).frequency},
   {id: 'plate.karman.mesh', title: 'Von Karman plate: mesh dependence', quantity: 'centre deflection at p a^4 / (E h^4) = 278.5 on 8 x 8 cells over that on 32 x 32, minus 1', unit: '1', test: T.levy,
     reference: {formula: '0 (converged)', value: 0}, tolerance: absolute(0.015),
     note: '1.855, 1.841 and 1.837 on 8, 16 and 32 cells: the grid is 1.0 % and 0.2 % above its fine value.', measure: async () => (await levy('held', 278.5, 8)).w / (await levy('held', 278.5, 32)).w - 1},

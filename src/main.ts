@@ -23,7 +23,7 @@ import {
 } from './math';
 import { CameraMatrixCache } from './camera';
 import { StageTimings } from './perf/frame-clock';
-import { FrameBudgetGovernor } from './perf/runtime';
+import { DynamicResolution, resolutionQuery } from './perf/dynamic-resolution';
 import { createWorkbenchRuntime, type WorkbenchRuntime } from './engine/workbench-runtime';
 import { FrameLineStager } from './frame-lines';
 import {
@@ -93,6 +93,7 @@ import { RigidDebugOverlay, parseRigidDebugParam, rigidDebugParam, type RigidDeb
 import { PLAY_KEYS, RigidPlay } from './lab/rigid-play.ts';
 import { sceneHasRoles } from './engine/scene-roles.ts';
 import { CoupledSceneView, sceneIsCoupled } from './lab/coupled-scene.ts';
+import { LabGpu, LabGpuStepper, gpuCheckOptions, labGpuRequest, sceneHasGpuSections } from './lab/gpu-scene.ts';
 import { createCoupledPanel, type CoupledPanel } from './lab/coupled-panel.ts';
 import {
   EXAMPLE_SCENE_TITLES, LAB_SCENE_LIMITS, parseSceneRequest, problemLines, quoteForDisplay, readLabFile, readSceneText, resolveSceneRequest,
@@ -413,6 +414,10 @@ let siBridge: SiBridgeScene | null = null;
 let siBridgePanel: SiBridgePanel | null = null;
 // A coupled scene (water, cables, frames, cloths, grains, solids, heat) is stepped through its Simulation and drawn through this view.
 let coupledView: CoupledSceneView | null = null;
+// Scene sections with backend 'gpu' (src/lab/gpu-scene.ts): the compute device, and why the scene on screen does not use it.
+const labGpu = new LabGpu(labGpuRequest(window.location.search));
+let labGpuNote: string | null = null;
+let gpuSceneReadout: HTMLElement | null = null;
 let coupledPanel: CoupledPanel | null = null;
 /** The editor's lines over a coupled scene's own, rebuilt when either changes. */
 let mergedOverlay: { editor: number; coupled: number; lines: readonly DebugLine[]; version: number } = { editor: -1, coupled: -1, lines: [], version: 0 };
@@ -431,18 +436,60 @@ function setRigidDebug(state: RigidDebugState): void {
   if (value === null) url.searchParams.delete('debug'); else url.searchParams.set('debug', value);
   window.history.replaceState(window.history.state, '', url);
 }
+/** The indicator of a scene with GPU sections: where they run and why; hidden for other scenes. */
+function syncGpuSceneReadout(): void {
+  const text = coupledView?.gpu ? coupledView.gpu.readout() : labGpuNote !== null ? `GPU sections on the float64 CPU solvers: ${labGpuNote}` : null;
+  if (text === null) { gpuSceneReadout?.remove(); gpuSceneReadout = null; return; }
+  if (!gpuSceneReadout) {
+    gpuSceneReadout = document.createElement('div');
+    gpuSceneReadout.id = 'gpu-scene-readout';
+    gpuSceneReadout.setAttribute('role', 'status');
+    gpuSceneReadout.style.cssText = 'position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:20;max-width:92vw;padding:7px 12px;border-radius:8px;background:rgba(8,14,22,.82);color:#d9e7ef;font:12px/1.4 ui-monospace,monospace;pointer-events:none';
+    document.body.append(gpuSceneReadout);
+  }
+  if (gpuSceneReadout.textContent !== text) gpuSceneReadout.textContent = text;
+}
 function clearCoupledView(): void {
-  if (!coupledView) return;
+  labGpuNote = null;
+  if (!coupledView) { syncGpuSceneReadout(); return; }
   coupledPanel?.attach(null);
   coupledView.dispose();
   disposeLabScene(coupledView.loaded);
   coupledView = null;
+  syncGpuSceneReadout();
 }
 const SI_DEMO_HOST_LAB_ID = 'titan-hauler-crash';
 let engineRuntime:WorkbenchRuntime;
 const engineTimings=new StageTimings(['step','staging','renderCpu','frame']);
-const renderGovernor=new FrameBudgetGovernor();
-const adaptiveRendering=new URLSearchParams(location.search).get('adaptive')==='1';
+/** Dynamic resolution (src/perf/dynamic-resolution.ts): the drawing buffer's scale follows the GPU frame time between 0.5
+ * of devicePixelRatio (lower on a software adapter) and the quality profile's scale. `?resolution=<scale>` fixes the scale,
+ * `?adaptive=0` keeps the profile's. Held during an engineering run, so a run's frames keep one resolution. */
+const resolutionOptions=resolutionQuery(location.search);
+let dynamicResolution:DynamicResolution|null=null;
+let dynamicResolutionKey='';
+/** WebGPU without timestamp queries: the submit-to-done latency of one frame at a time stands for its GPU time. */
+let latencyProbePending=false;
+/** Readers of the canvas that want a frame drawn at the profile's full scale (captures and run archives). */
+const fullResolutionReaders:Array<()=>void>=[];
+function readFullResolutionFrame(read:()=>void):void {
+  fullResolutionReaders.push(read);
+  // A loop that draws nothing (recovery, a GPU example holding frames) must not hold the capture for ever.
+  setTimeout(()=>{const index=fullResolutionReaders.indexOf(read);if(index>=0){fullResolutionReaders.splice(index,1);read();}},3000);
+}
+function syncDynamicResolution():DynamicResolution {
+  const key=`${quality.id}:${rendererKind}:${rendererSwitches}`;
+  if(!dynamicResolution||key!==dynamicResolutionKey){
+    dynamicResolutionKey=key;
+    const timestamps=renderer instanceof WebGPURenderer&&renderer.gpuTimingInfo().supported;
+    // Timestamp queries sample one frame in sampleEveryFrames (30): 6 samples below target are 180 frames, about 3 s.
+    dynamicResolution=new DynamicResolution({ceiling:QUALITY_PROFILES[quality.id].resolutionScale,software:renderer.softwareAdapter,
+      source:renderer instanceof WebGPURenderer||timestamps?'gpu':'interval',...(timestamps?{upwardSamples:6}:{}),...resolutionOptions});
+    ui.canvas.dataset.dynamicResolution=dynamicResolution.adaptive?'adaptive':'fixed';ui.canvas.dataset.softwareAdapter=String(renderer.softwareAdapter);
+  }
+  if(quality.resolutionScale!==dynamicResolution.ratio)quality={...quality,resolutionScale:dynamicResolution.ratio};
+  ui.canvas.dataset.renderScale=dynamicResolution.ratio.toFixed(2);
+  return dynamicResolution;
+}
 // `?pressure=multigrid`: the Lab's volumetric flows solve their pressure with the multigrid preconditioner instead of
 // MIC(0) (docs/FLUID.md, "Cost"): the same tolerance, other bits, fewer iterations on large grids.
 if(new URLSearchParams(location.search).get('pressure')==='multigrid')setFluidPressureSolverDefault('multigrid');
@@ -452,6 +499,7 @@ let rendererFailed=false;
 let frameDisposed=false;
 let frameRequest=0;
 let lastGovernorSample=-1;
+let lastRenderedFrameAt=0;
 let stopRendererLoss:()=>void=()=>{};
 let currentLab: WorkbenchLabDefinition = WORKBENCH_LABS[0];
 let currentScene: ScenePreset = resolveWorkbenchLabScene(currentLab);
@@ -1474,13 +1522,17 @@ function createRigidScene(scene: ScenePreset, stress: number, sceneSeed: number)
           const { read, link } = siDemo;
           const world = read.scene.world ?? {};
           let loaded: LabLoadedScene | null = null;
+          // Sections with backend 'gpu' run on WebGPU compute, or on the float32 reference (?gpu=reference), or on the float64
+          // CPU solvers without the backend fields when there is no compute device (?gpu=off asks for that).
+          const gpuPlan = sceneHasGpuSections(read.scene) ? labGpu.plan(read.scene) : null;
+          labGpuNote = gpuPlan?.reason ?? null;
           // A coupled scene takes each fixed step through its Simulation: couple stage, rigid step, post stage, events.
           const coupled = sceneIsCoupled(read.scene);
           // A scene with roles (src/engine/scene-roles.ts) is stepped through its Simulation too: the roles act before every rigid step.
           const playable = sceneHasRoles(read.scene);
           let play: RigidPlay | null = null;
           const count = backend.createGeneralScene((native) => {
-            loaded = loadLabScene(native, read.scene);
+            loaded = loadLabScene(native, gpuPlan ? gpuPlan.scene : read.scene, gpuPlan?.options ?? {});
             // Roles the Lab cannot use (a character on a body that is not kinematic, say) leave a plain scene, with the reason in the console.
             if (playable) try { play = new RigidPlay(loaded); } catch (error) { console.warn('[scene roles] The scene plays without its roles.', error); }
           }, { step: world.step, subSteps: world.subSteps, stepsPerTick: sceneStepsPerLabTick(world.step ?? 1 / 60),
@@ -1488,9 +1540,11 @@ function createRigidScene(scene: ScenePreset, stress: number, sceneSeed: number)
           labScene = { read, loaded: loaded!, link };
           rigidPlay = (play as RigidPlay | null)?.roles.active ? play : null;
           if (coupled) {
-            coupledView = new CoupledSceneView(loaded!, backend);
+            const stepper = gpuPlan && gpuPlan.mode !== 'cpu' ? new LabGpuStepper((loaded as unknown as LabLoadedScene).simulation, labGpu, gpuPlan.mode) : null;
+            coupledView = new CoupledSceneView(loaded!, backend, stepper);
             coupledPanel?.attach(coupledView, read.title);
           }
+          syncGpuSceneReadout();
           return coupled ? coupledView!.rowCount : count;
         }
         return backend.createGeneralScene((world) => { siDemoScene = buildMechanismsScene(world, sceneSeed); });
@@ -1535,7 +1589,7 @@ function openLabScene(read: SceneRead, link: string | null = null): boolean {
     return false;
   }
   try {
-    backend.checkGeneralScene?.((native) => { loadLabScene(native, read.scene); });
+    backend.checkGeneralScene?.((native) => { loadLabScene(native, read.scene, gpuCheckOptions(read.scene)); });
   } catch (error) {
     reportSceneError(`${read.title} could not be built`, engineProblems(error));
     return false;
@@ -1603,7 +1657,7 @@ function createEditorHost(mount: HTMLElement): SceneEditorHost {
     },
     checkScene(scene) {
       if (!backend.checkGeneralScene) return 'Scenes need the native Box3D engine, which did not load.';
-      try { backend.checkGeneralScene((native) => { loadLabScene(native, scene); }); return null; } catch (error) { return messageOf(error); }
+      try { backend.checkGeneralScene((native) => { loadLabScene(native, scene, gpuCheckOptions(scene)); }); return null; } catch (error) { return messageOf(error); }
     },
     showScene(scene, frame) {
       const read: LabSceneRead = { ok: true, scene, source: { kind: 'editor' }, title: scene.meta?.title ? quoteForDisplay(scene.meta.title, 96) : 'Untitled scene', notes: [] };
@@ -1740,19 +1794,23 @@ const LAB_CHECKPOINT_KIND = 'lab-checkpoint';
 // Scene steps taken before this page loaded the checkpoint the scene on screen resumed from (0 for a scene opened afresh).
 let labStepsBefore = 0;
 function labSceneSteps(): number {
+  // A scene with GPU sections skips the clock's steps while one is on its way: its simulation counts the steps taken.
+  if (coupledView?.gpu) return labStepsBefore + coupledView.loaded.simulation.tick;
   return labStepsBefore + (engineRuntime?.tick ?? 0) * (labScene ? sceneStepsPerLabTick(labScene.read.scene.world?.step ?? 1 / 60) : 1);
 }
 
 /** The Lab checkpoint of the running simulation, or null without a scene file on screen. */
-function labCheckpointBytes(): Uint8Array | null {
+async function labCheckpointBytes(): Promise<Uint8Array | null> {
   if (!siDemo || !labScene) return null;
-  const simulation = labScene.loaded.simulation.checkpoint();
+  // A scene with GPU sections: after the step on its way, the asynchronous checkpoint (the same file format).
+  if (coupledView?.gpu) await coupledView.gpu.settle();
+  const simulation = labScene.loaded.simulation.isAsync ? await labScene.loaded.simulation.checkpointAsync() : labScene.loaded.simulation.checkpoint();
   return writeCheckpoint(LAB_CHECKPOINT_KIND, { title: labScene.read.title, steps: labSceneSteps(), simulation });
 }
 
-function saveLabCheckpoint(): void {
+async function saveLabCheckpoint(): Promise<void> {
   let bytes: Uint8Array | null;
-  try { bytes = labCheckpointBytes(); } catch (error) {
+  try { bytes = await labCheckpointBytes(); } catch (error) {
     reportSceneError('No checkpoint was saved', [{ path: '', message: quoteForDisplay(error instanceof Error ? error.message : String(error), 300) }]);
     return;
   }
@@ -1804,8 +1862,9 @@ async function loadLabCheckpoint(file: File): Promise<void> {
   if (coupledView) {
     const loaded = coupledView.loaded;
     coupledPanel?.attach(null);
+    const stepper = coupledView.gpu;
     coupledView.dispose();
-    coupledView = new CoupledSceneView(loaded, backend);
+    coupledView = new CoupledSceneView(loaded, backend, stepper);
     coupledPanel?.attach(coupledView, labScene!.read.title);
   }
   backend.syncTransforms();
@@ -1844,6 +1903,7 @@ function labSceneState(): Record<string, unknown> {
     shapes: renderer?.instanceShapeInfo() ?? null,
     // Coupled scenes: the Simulation's clock, a hash of every solver's state, and what is drawn besides the bodies.
     coupled: coupledView !== null,
+    gpuScene: coupledView?.gpu ? coupledView.gpu.state() : labGpuNote !== null ? { mode: 'cpu', reason: labGpuNote } : null,
     simulationTick: labScene ? labScene.loaded.simulation.tick : 0,
     stateHash: coupledView ? coupledView.stateHash() : native ? exactTransformHash(native).toString(16).padStart(8, '0') : null,
     coupledDraw: coupledView?.drawInfo() ?? null,
@@ -2293,7 +2353,7 @@ function refreshModalCaptureUi(): void {
 }
 
 function archiveCompletedRunFrame(record: RunRecordV1): void {
-  ui.canvas.toBlob((blob) => {
+  readFullResolutionFrame(() => ui.canvas.toBlob((blob) => {
     if (!blob) return;
     const previous = completedRunFrameUrls.get(record.runId);
     if (previous) URL.revokeObjectURL(previous);
@@ -2314,7 +2374,7 @@ function archiveCompletedRunFrame(record: RunRecordV1): void {
       });
     }
     syncCorrelationWorkSnapshot();
-  }, 'image/png');
+  }, 'image/png'));
 }
 
 function syncCorrelationWorkSnapshot(): void {
@@ -3226,7 +3286,7 @@ function ensureNumericalActionAllowed(action: string): boolean {
 }
 
 function captureCurrentFrame(): void {
-  ui.canvas.toBlob((blob) => {
+  readFullResolutionFrame(() => ui.canvas.toBlob((blob) => {
     if (!blob) {
       appendLog('Frame capture is unavailable on this WebGPU surface.');
       return;
@@ -3239,7 +3299,7 @@ function captureCurrentFrame(): void {
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
     appendLog(`Captured ${activeLab?.title ?? currentScene.title} as a PNG frame.`);
-  }, 'image/png');
+  }, 'image/png'));
 }
 
 function runRecordV1(): RunRecordV1 | null {
@@ -4832,6 +4892,13 @@ async function main(): Promise<void> {
       }
       return labSceneState();
     },
+    /** A scene with GPU sections: take `steps` steps now (after any on its way), pull the state, and report it (frames need not be drawn). */
+    stepGpuScene: async (steps: number) => {
+      if (coupledView?.gpu && Number.isInteger(steps) && steps > 0) { await coupledView.gpu.advance(Math.min(steps, 100000)); coupledView.sync(); syncGpuSceneReadout(); }
+      return labSceneState();
+    },
+    /** For tests: lose the GPU sections' compute device (destroy it), as a driver reset would; the drawing device is not touched. */
+    loseGpuCompute: () => { const device = labGpu.compute?.device as (GPUDevice & { destroy?(): void }) | undefined; device?.destroy?.(); return !!device; },
     /** A GPU example: take `steps` of its 1/60 s steps now, wait for the GPU, and report the state (frames need not be drawn). */
     stepGpuShowcase: (steps: number) => (gpuShowcase && Number.isInteger(steps) && steps > 0 ? gpuShowcase.advance(Math.min(steps, 100000)) : Promise.resolve()).then(labSceneState),
     pauseGpuShowcase: (pause: boolean) => { gpuShowcasePaused = pause === true; return labSceneState(); },
@@ -4870,6 +4937,8 @@ async function main(): Promise<void> {
   applyConceptScreen(boot.screen);
   if (sceneRequest !== null) {
     const read = resolveSceneRequest(sceneRequest);
+    // A scene with GPU sections waits for the compute device; any other starts it in the background for later scenes.
+    if (read.ok && sceneHasGpuSections(read.scene)) await labGpu.prepare(); else void labGpu.prepare();
     // A scene that came in the address stays in the address, as a share link of the scene that was read.
     const opened = openLabScene(read, sceneRequest.kind !== 'example' && read.ok ? await encodeSceneLink(read.scene) : null);
     // lab.html?example=<name>&edit=1 and ?scene=<link>&edit=1 open that scene in the editor.
@@ -4919,6 +4988,9 @@ async function main(): Promise<void> {
     // example holds them: on a slow adapter frames would otherwise queue up faster than they run, and every readback of
     // the example waits behind all of them (a fluid step reads back every 16 solver iterations).
     if(gpuShowcase&&(gpuShowcaseFramePending||gpuShowcase.holdsFrames?.())){last=now;frameRequest=requestAnimationFrame(frame);return;}
+    // A scene with GPU sections likewise: at most one frame on the device, and none drawn while a step is on its way (its
+    // solves read back; on a software adapter the frames and the steps share the same cores).
+    if(siDemo&&labScene&&coupledView?.gpu&&(gpuShowcaseFramePending||coupledView.gpu.busy)){last=now;frameRequest=requestAnimationFrame(frame);return;}
     const frameStart=performance.now();
     const wallDeltaSeconds=Math.max(0,(now-last)/1000);
     const deltaSeconds = Math.min(0.1,wallDeltaSeconds);
@@ -4963,13 +5035,14 @@ async function main(): Promise<void> {
       || activeWorkspace === 'field'
       || engineeringWorkspaces?.getLayout() === 'material-lab'
       || activeEngineeringModel?.detailLevel === 'flagship';
+    const resolution=syncDynamicResolution(),captureFrame=fullResolutionReaders.length>0;
     renderer.writeSceneUniforms({
       viewProjection: matrices.viewProjection,
       lightViewProjection: matrices.lightViewProjection,
       cameraPosition: matrices.eye,
       timeSeconds: globalTime,
       lightDirection: LIGHT_DIRECTION,
-      quality,
+      quality: captureFrame&&resolution.adaptive ? {...quality,resolutionScale:resolution.ceiling} : quality,
       fogColor: studioMode ? STUDIO_FOG_COLOR : FOG_COLOR,
       studioMode,
     });
@@ -4980,6 +5053,7 @@ async function main(): Promise<void> {
     // and a wire grid on its water surfaces as overlay lines.
     const coupled = siDemo && labScene ? coupledView : null;
     coupled?.sync();
+    if (coupled?.gpu && fpsFrames % 20 === 0) syncGpuSceneReadout();
     coupledPanel?.refresh(now);
     // While the editor is open on a coupled scene, its lines are drawn over the scene's own (water grid, fluid boxes and arrows).
     const editingCoupled = sceneEditor?.active && coupled && coupled.overlayLines.length > 0;
@@ -5074,20 +5148,28 @@ async function main(): Promise<void> {
       : (effectFrame.frameVersion ^ inspectionLineVersion) >>> 0;
     engineTimings.sample('staging',performance.now()-stagingStart);
     const renderMs = renderer.render(effectBase + effectFrame.count, combinedFrameLines, lineFrameVersion);
-    if (gpuShowcase && renderer instanceof WebGPURenderer) {
+    if ((gpuShowcase || coupledView?.gpu) && renderer instanceof WebGPURenderer) {
       gpuShowcaseFramePending = true;
       const done = (): void => { gpuShowcaseFramePending = false; };
       renderer.device.queue.onSubmittedWorkDone().then(done, done);
     }
     engineTimings.sample('renderCpu',renderMs);engineTimings.sample('frame',performance.now()-frameStart);
-    if(adaptiveRendering&&engineeringRun?.state!=='running'){
-      const timing=renderer.gpuTimingInfo(),fresh=timing.latest?.frameId!==lastGovernorSample;
-      if(!timing.latest||fresh){
-        if(timing.latest)lastGovernorSample=timing.latest.frameId;
-        const direction=renderGovernor.sample(timing.latest?.totalPassMs??(performance.now()-frameStart));
-        if(direction){const scale=clamp(quality.resolutionScale+direction*.05,.5,QUALITY_PROFILES[quality.id].resolutionScale);if(scale!==quality.resolutionScale)quality={...quality,resolutionScale:scale};}
-      }
+    if(captureFrame)for(const read of fullResolutionReaders.splice(0))read();
+    const measured=!captureFrame&&engineeringRun?.state!=='running'&&resolution.adaptive;
+    if(measured){
+      const timing=renderer.gpuTimingInfo();
+      if(timing.supported){
+        if(timing.latest&&timing.latest.frameId!==lastGovernorSample){lastGovernorSample=timing.latest.frameId;resolution.sample(timing.latest.totalPassMs);}
+      }else if(renderer instanceof WebGPURenderer){
+        if(!latencyProbePending){
+          latencyProbePending=true;const submitted=performance.now(),probed=resolution;
+          const done=(ok:boolean)=>()=>{latencyProbePending=false;if(ok&&probed===dynamicResolution)probed.sample(performance.now()-submitted);};
+          renderer.device.queue.onSubmittedWorkDone().then(done(true),done(false));
+        }
+      // WebGL: the presented-frame interval, less this frame's simulation (on this thread, and not a cost of resolution).
+      }else if(lastRenderedFrameAt>0)resolution.sample(Math.max(0,now-lastRenderedFrameAt-simMs));
     }
+    lastRenderedFrameAt=measured?now:0;
     statsFrames++;
     statsSteps += steps;
     statsSimMs += simMs;

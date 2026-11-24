@@ -95,7 +95,51 @@ Release browser test (`npm run test:browser:release`), 2026-11-17. Causes found 
 - **What is left is the CPU.** SwiftShader draws on the CPU, in Chromium's GPU process. The liquid lab's frame took 5.4 to 7.6 s at 1028 × 742 and 0.9 s at a quarter of the pixels (load 22 to 25); the bridge's 0.84 s, 0.33 to 0.41 s at half and 0.09 to 0.16 s at a quarter of the pixels (load 12); the first frame drawn after an idle period took 12 to 30 s (liquid, press, bridge), the next ones about 1 s. Boots wait for the GPU process: the page's main thread was idle 88% of the press's 142 s boot, which compiles 45 render pipelines (the bridge 110). Clicks wait too although the main thread is idle (95% of a press run's samples): Playwright clicks once the button has kept its place for two animation frames, and the browser produces frames only as fast as the GPU process draws. CI's runner has its 4 cores to itself and passed the old budgets except for the bridge; this sandbox had a load average of 12 to 33 from other jobs. The budgets are now multiplied by the load average per core (at least 1, at most 8), measured before each page and written to the report (`loadFactor`), so CI keeps the old ones.
 
 Final run here with these changes (load average 12 to 15 from other jobs, factors 2.9 to 5.5): liquid, glass, concrete, rubber, granular, canopy, the Physics Lab and the mobile page pass, with post-reset screenshots of 8.5 to 17 s in the labs and 53 s in the canopy; the press and the bridge fail their post-reset screenshots (over 59 s and 51 s; the press passed once in three runs), as the bridge does on CI. Before the changes, at load 24 to 30, liquid and granular failed their screenshots and plate, canopy, bridge, the Lab's return and the mobile page their 90 s boots.
-Not found: why the Studio's pages (canopy, press, bridge) take 50 s and more for a screenshot. On the press page (load 17 to 21) every screenshot took 70 to 88 s while the animation loop ran, with or without CSS filters, and the page got no animation frame in 10 s; with the loop stopped, the first took 45 s and the next 0.45 s. Its WebGPU frames complete in about 1 s each (with at most two in flight), so the time goes to presenting or compositing them in Chromium's GPU process, which was not traced further. Drawing at a quarter of the pixels on a software adapter would make every frame 5 to 9 times cheaper (measured above) but changes what users without a GPU see; not done.
+Found later (2026-11-18): why the Studio's pages (canopy, press, bridge) took 50 s and more for a screenshot. A Chrome
+trace of the press page (load 25 to 30) shows the GPU process's main thread inside WebGPU command-buffer flushes for 22 to
+29 s each, three of them in 105 s, waiting for SwiftShader to finish the frames; compositing took 1.7 s in all. The frames
+themselves were the cost, and not their pixels: a press frame took 25 to 75 s at 1080 x 610, at 540 x 305 and at 144 x 81
+alike. Counting the GPU calls of one frame (5 render passes, 66 draws, 1.6 MB of buffer writes) found the reason: the sun's
+shadow pass drew into a 4096 x 4096 colour and depth target (three.js gives a shadow map a colour attachment too), 16.8 M
+texels against the view's 0.66 M, every frame. The material labs use 2048. Side by side at load 25, a press frame took 19 to
+21 s with the 4096 map and 7.6 to 8.0 s with a 1024 one. The earlier
+estimate of about 1 s per frame does not hold at this load. Fixed by (see Rendering below): the shadow map is drawn again only when something casting a
+shadow moves; a software adapter gets a 1024 map; a still scene is not redrawn; and dynamic resolution.
+
+## Rendering: dynamic resolution and on-demand frames
+
+Release browser test after these changes, two runs here at load 14 to 25 (factors 3.3 to 5.4): every page passes. Two runs (post-reset screenshot; boot): liquid 1.7 / 3.2 s (75 / 68 s), glass 2.0 / 0.7 s, concrete 1.4 / 1.7 s, rubber 1.7 / 1.0 s, granular 4.0 / 2.2 s, press 5.4 / 5.4 s (99 / 98 s), canopy 5.1 / 6.9 s (77 / 80 s), bridge 48 / 46 s (153 / 170 s; its budget there 66 / 61 s), the Physics Lab and the mobile page pass. Before, at load 12 to 15: labs 8.5 to 17 s, canopy 53 s, press and bridge failed (over 59 and 51 s). The bridge stays the slowest: one of its frames (1080 x 610, 1024 shadow map, load 19) draws 49 M indices in 111 draws of 138,050 instances, the valley's trees, shrubs, ferns, sedge and gravel in the shadow, view and river-reflection passes, and took 22 to 25 s; thinning that vegetation on software adapters is not done.
+
+Frame cost under SwiftShader, before (5f0454d) and after, each study at its default address (`?studio=<id>`, Ultra) and four Lab examples, Run pressed, frames completed in 30 s and their median GPU latency (first submit to `onSubmittedWorkDone`), the two builds interleaved at load 14 to 24: liquid 7 frames, 8.1 s → 23, 1.8 s; glass 12, 4.2 s → 43, 0.9 s; concrete 9, 6.2 s → 33, 1.3 s; rubber 12, 5.2 s → 30, 0.9 s; granular 6, 10.2 s → 14, 3.4 s; press 1, 39.7 s → 10, 6.1 s; canopy 2, 31.0 s → 11, 5.4 s; bridge 0 → 1, 20.6 s; Lab titan-bend-dent 7, 7.7 s → 22, 2.3 s; tempest-flag 12, 7.3 s → 46, 1.6 s; tsunami-flume 12, 7.0 s → 40, 1.8 s; heavy-pendulum 13, 6.4 s → 59, 1.3 s. After, the software adapter ran the Studio at ratio 0.35 to 0.5 and the Lab at scale 0.5. Captures of each default view, before at full and after at the reduced resolution, keep the composition, materials and lighting; the image is softer, small labels become unreadable at 0.5, and shadows are softer with the 1024 map. Six Lab examples (domino-run, ragdoll, moored-buoy, rubber-pad, sphere-settling, dam-break) stepped to tick 900 hash the same at scale 0.35 (288 x 162) and 1 (824 x 463).
+
+- **Dynamic resolution** (`src/perf/dynamic-resolution.ts`). The drawing buffer's pixel ratio moves between 0.5 and the
+  quality setting's ratio (Ultra: devicePixelRatio up to 2; Balanced: 0.75 of it, at most 1.25) to hold 14 ms of GPU time
+  per frame, measured as the submit-to-done latency of frames sent to an idle queue (WebGPU) or the presented-frame
+  interval (WebGL, vsync-locked, so it only sees missed frames). Four samples above 1.2 times the target lower the ratio
+  by sqrt(target / cost) (cost goes with the pixel count), at most to 0.6 of it per step; 45 samples below 0.6 times the
+  target (120 intervals) raise it by 0.05, and that run doubles after each raise that was undone. Ratios stay on a 0.05
+  grid so a render target is not reallocated for a 1% change. On a software adapter (`adapterInfo` names SwiftShader or a
+  fallback adapter; for WebGL the unmasked renderer string) it starts at 0.5 and may go to 0.35, the floor a real GPU never
+  passes. `?resolution=<ratio>` fixes the ratio, `?adaptive=0` keeps the quality ratio. The canvas reports
+  `data-render-ratio`, `data-render-scale`, `data-dynamic-resolution` and `data-software-adapter`. Viewport captures and
+  the comparison image draw one frame at the quality ratio and read it in the same task, so they keep full resolution.
+  The ratio is a rendering setting only: no solver file reads it (`tests/studio/dynamic-resolution.test.mjs` checks the
+  sources), and the Lab's examples hash the same at 0.35 and at full scale.
+- **Frames on demand.** The Studio and the material labs draw when something changed (a snapshot, the camera, a setting,
+  a resize) plus three frames after it (one on a software adapter), or while something moves on its own (the river,
+  orbiting, damped camera motion), and redraw a still scene once a second (every 30 s on a software adapter) for changes no
+  setter reports. On a software adapter the river moves with the frames something else asks for instead of on its own.
+- **Shadow map reuse.** The sun's (the labs' key light's) shadow map is drawn only after something that casts a shadow
+  moved or the light changed; camera moves reuse it. A software adapter gets a 1024 map instead of 4096 (the shadows are
+  softer there).
+- **Liquid lab resets** compile no render pipeline (5 before, 32 before 2026-11-17): an instanced mesh of at most 1024
+  instances keeps its matrices in a uniform buffer that three.js names after the node (`NodeBuffer_<id>`) in the shader, so
+  each new foam, current, rain or drop mesh was a new shader. The world keeps those four meshes across resets.
+- **Accessibility.** Readout colours meet 4.5:1 on their panels (atelier `--muted` #5f6862 and `--dim` #666e69, dark
+  `--dim` #86918f, labs `--muted` #687068, liquid #5f6f6f; they were 3.1 to 4.2:1), search fields show focus on their box,
+  the material labs have a focus ring in the ink colour, and `tests/studio/accessibility.test.mjs` (in `test:studio`)
+  checks names of icon-only buttons, labels of form controls, the canvases' role and description, the absence of positive
+  tabindex, and those contrasts.
 
 ## Saved runs resume exactly
 

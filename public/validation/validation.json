@@ -5,10 +5,10 @@
  "generatedBy": "node scripts/validation-report.mjs",
  "digits": 9,
  "totals": {
-  "cases": 752,
-  "passed": 752,
+  "cases": 827,
+  "passed": 827,
   "failed": 0,
-  "domains": 23
+  "domains": 24
  },
  "domains": [
   {
@@ -269,6 +269,25 @@
    "passed": 36
   },
   {
+   "id": "flow",
+   "title": "Flow around and through geometry: ducts, pipes, bluff bodies, buildings, internal networks",
+   "summary": "Plane Poiseuille, a square duct and a round pipe drawn as meshes and as primitives, a finer pipe, and the force on the walls; laminar round pipes at Re 500, 1000 and 1500 and the warning below the resolution that holds them; a pipe through its openings (pressure drop, developed profile, mass balance); the cylinder at Re 20, 40, 100 and 200; a sphere at Re 100; a cube and a square plate at Re 1e5; a building on the ground through the study runner (drag and stagnation pressure); the backward-facing step; the sudden expansion against Borda-Carnot; a symmetric tee; a tank with three inlets; Stokes drag against Hasimoto; conservation of mass; repeatability and resume; meshes against primitives, imperfect meshes and thin walls; the streamline tracer.",
+   "solver": "`box3d-webgpu-kit/flow`: weakly compressible lattice-Boltzmann, D3Q19, regularised collision (two-relaxation-time on request for laminar flow) with a Smagorinsky sub-grid model and a power-law wall function above a cell Reynolds number of 10, interpolated bounce-back walls from a signed distance of primitives and meshes, float64, deterministic",
+   "docs": [
+    "docs/FLOW.md"
+   ],
+   "notValidated": [
+    "High Reynolds numbers on smooth bodies: there is no resolved boundary layer, and the wall function is used only on flat and gently curved walls. A sphere at Re 1e4 gave Cd 0.78, 0.58 and 0.53 at 8, 12 and 16 cells across (blockage 4.9%) against about 0.40; letting the wall function act on the sphere gave 0.435 at 12 cells but 0.233 at 16, so it is not used. The drag crisis is not predicted. Only sharp-edged bodies have rows above Re 200.",
+    "Laminar ducts at high cell Reynolds numbers: above a cell Reynolds number of about 50 (peak speed) a laminar pipe, and a square duct aligned with the grid, grow a steady secondary flow that takes 15 to 45% of the flow rate (a periodic pipe at Re 1000 to 1500, 12 to 20 cells across: -25 to -43%; a pipe through its openings at Re 1107: +63% pressure drop at 12.6 cells, +35% at 41 cells). Below it the loss is slower, not absent (Re 1107, 48 cells: -0.3% after 3 viscous times, -15% after 8). The rows hold periodic pipes for 2 to 8 viscous times; the regularised collision, interpolated and half-way walls, the two-relaxation-time and recursive collisions and a hybrid finite-difference stress were tried and did not remove it at affordable resolution. The Flow warns above FLOW_LAMINAR_CELL_REYNOLDS.",
+    "Bodies are 8 to 10 cells across and the tunnels bounded (blockage 3 to 6%, not corrected): drag is within 15 to 20%, not better. Lift, moments, surface pressure distributions other than the stagnation value, and wake lengths of three-dimensional bodies have no row.",
+    "Turbulence statistics (spectra, Reynolds stresses), skin friction on bodies and heat transfer have no row. The wall function was checked on a tunnel floor only (Cf 0.0055).",
+    "Reference values: the cylinder rows use the computations tabulated by Cui et al. (2019), whose tables were read; Williamson's Strouhal fit, the Schiller-Naumann correlation, Hoerner's drag coefficients (1.05, 1.17) and Armaly's reattachment length (about 3.0 at Re 100) are from memory, not checked against a source opened while writing.",
+    "Cost: one JavaScript thread; a study of 400,000 cells runs for minutes. The WebGPU step compiles and encodes on Dawn and its float32 reference follows the float64 solver; the shader has not been run on a device (docs/GPU_COMPUTE.md)."
+   ],
+   "cases": 51,
+   "passed": 51
+  },
+  {
    "id": "shallow-water",
    "title": "Shallow water on terrain: dam breaks, steady flows, rain and infiltration",
    "summary": "A lake at rest over a bumpy, partly emerged bed; Ritter's and Stoker's dam breaks; Thacker's oscillating paraboloid; the subcritical, transcritical and shock flows over the Goutal-Maurel bump (SWASHES); Manning's normal depth; rain on a slope against the kinematic wave; Green-Ampt against its closed form; the volume budget; repeatability; a floating box and a sphere in a current.",
@@ -322,11 +341,11 @@
     "Plasticity is small-strain J2 (additive in the Green-Lagrange strain for large rotations), isotropic linear hardening only: no kinematic hardening, rate dependence, necking or anisotropy. Fully plastic bending is 3.2% (3-D) to 6.8% (plane strain, 4 cells) too strong with tet4 and 4.8% with tet4-nodal: what remains is the bending error of linear tetrahedra. Ductile erosion uses one failure strain, independent of stress triaxiality, and the press brake's limit load is 1.23 times beam theory.",
     "Self-contact, plasticity combined with viscoelasticity (refused), anisotropy, and more than one material per body. Crack growth is a separate solver on the linear model of this element (the fracture domain); `SolidBody` erodes plastic elements at a failure strain but has no crack-growth law of its own.",
     "No two-way coupling to the rigid-body, water, cable or frame solvers, and no contact with rigid bodies. The one-way thermal and dead-load links are in the simulation domain.",
-    "Concrete: the crack band holds G_c per unit area for a band of elements, but the peak at which a compressive band starts to soften depends on its confinement: in the 0.2 m prism with a 10 % weaker zone the dilatant hardening of the zone draws confinement from the stronger ends, so against the nominal 0.9 G_c A the energy is 0.97 to 1.06 on 10 to 40 cells (1.059 on 10 cells, outside 5 %); against G_c times the band's peak stress over f_cm it is within 1.6 %. After the compressive peak the confinement is frozen, a crushed element does not dilate, and its residual frictional strength is lost. setStrengthFactors() scales k but not the meridian's argument, so a factor 0.9 gives 0.794 f_cm in uniaxial compression (not changed: it would move the Studio peaks). The crack band was validated for bands across the load on box meshes only; an inclined band crosses elements whose projections overlap. The optional nonlocal average (`nonlocalLength`) dissipates about twice G_c A and is unchanged. The section through the EN 1992-1-1 meridian and Kupfer's equal-biaxial point overshoots Kupfer's 1.27 f_c at sigma_2 / sigma_1 = 0.5 (1.39 f_c). The confinement and dilatancy work with the pressure of the last committed step (an error of the order of one step). Imran and Pantazopoulou's triaxial data were not opened. The cube-to-cylinder and slenderness rows hold for a platen friction of 0.2, a calibrated input of another model of the compression test (Stredulova and Elias 2023), not a measurement: with 0.57, inside the range measured for steel plate on concrete or grout (0.43 to 0.70, Gomez et al. 2011), the cube is 1.43 times the 150 x 300 mm cylinder (60.0 and 41.9 MPa) against 37 / 30 = 1.23. Cracks unload elastically (plasticity, not damage) and do not close; no rate, size (beyond the crack band), creep or shrinkage. Bars have perfect bond (no slip, no dowel action, no rupture); tension stiffening then depends on the cell size.",
+    "Concrete: the crack band holds G_c per unit area for a band of elements, but the peak at which a compressive band starts to soften depends on its confinement: in the 0.2 m prism with a 10 % weaker zone the dilatant hardening of the zone draws confinement from the stronger ends (peaks 35.4 to 37.6 MPa against 34.2 MPa for the factor 0.9), so against the nominal 0.9 G_c A the energy is 1.04 to 1.11 on 10 to 40 cells (outside 5 % on all but the 40 x 2 x 2 mesh); against G_c times the band's peak stress over f_cm it is within 4.5 %. After the compressive peak the confinement is frozen, a crushed element does not dilate, and its residual frictional strength is lost. The crack band was validated for bands across the load on box meshes only; an inclined band crosses elements whose projections overlap. The optional nonlocal average (`nonlocalLength`) dissipates about twice G_c A and is unchanged. The section through the EN 1992-1-1 meridian and Kupfer's equal-biaxial point overshoots Kupfer's 1.27 f_c at sigma_2 / sigma_1 = 0.5 (1.39 f_c). The confinement and dilatancy work with the pressure of the last committed step (an error of the order of one step). Imran and Pantazopoulou's triaxial data were not opened. The cube-to-cylinder and slenderness rows hold for a platen friction of 0.2, a calibrated input of another model of the compression test (Stredulova and Elias 2023), not a measurement: with 0.57, inside the range measured for steel plate on concrete or grout (0.43 to 0.70, Gomez et al. 2011), the cube is 1.43 times the 150 x 300 mm cylinder (60.0 and 41.9 MPa) against 37 / 30 = 1.23. Cracks unload elastically (plasticity, not damage) and do not close; no rate, size (beyond the crack band), creep or shrinkage. Bars have perfect bond (no slip, no dowel action, no rupture); tension stiffening then depends on the cell size.",
     "Uniform states are exact, so the tension, shear, pressure and rubber rows say nothing about accuracy under stress gradients."
    ],
-   "cases": 73,
-   "passed": 73
+   "cases": 78,
+   "passed": 78
   },
   {
    "id": "solid-contact",
@@ -347,8 +366,8 @@
     "The integrator is backward Euler: it damps (36% of the kinetic energy is left after the impact case). Restitution is not a parameter and impact speeds after a bounce are not validated.",
     "Welds are stiff springs: a welded face is held in all three directions, like a clamped end. Large rotations of a welded solid are not checked against a reference."
    ],
-   "cases": 40,
-   "passed": 40
+   "cases": 55,
+   "passed": 55
   },
   {
    "id": "fracture",
@@ -385,8 +404,8 @@
     "Tempered glass dicing is a front that breaks every bond it reaches; its speed and the fragment size quoted by the Studio are inputs from the literature, not results.",
     "Bridging layers (PVB, wire mesh) are strings with the in-plane displacement neglected; they never tear. No impact validation: the contact with the pendulum is a penalty spring and dashpot, and fragments fall as rigid bodies that do not collide with each other."
    ],
-   "cases": 30,
-   "passed": 30
+   "cases": 34,
+   "passed": 34
   },
   {
    "id": "frame",
@@ -13996,6 +14015,1441 @@
    }
   },
   {
+   "id": "flow.poiseuille.plane",
+   "domain": "flow",
+   "title": "Plane Poiseuille flow between mesh walls",
+   "quantity": "flow rate between two walls 8 cells apart that lie off the grid lines (a slot drawn as a mesh), driven by a body force",
+   "unit": "m^3/s",
+   "formula": "q = G H^3 / (12 nu) per unit depth",
+   "reference": 0.0833333333,
+   "measured": 0.0804748549,
+   "error": -0.00285847842,
+   "relativeError": -0.034301741,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "ducts and pipes driven by a pressure gradient: plane Poiseuille, a square duct and a round pipe drawn as meshes and primitives, a finer pipe, the force on the walls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.08333333 m^3/s",
+    "measured": "0.08047485",
+    "error": "-3.43%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "flow.duct.flow-rate",
+   "domain": "flow",
+   "title": "Square duct drawn as a mesh",
+   "quantity": "flow rate through a square duct 8 cells across whose walls lie off the grid lines",
+   "unit": "m^3/s",
+   "formula": "Q = (a^4 G / mu) [1/12 - (16 / pi^5) sum_odd tanh(n pi / 2) / n^5]",
+   "reference": 0.878606344,
+   "measured": 0.836624876,
+   "error": -0.0419814676,
+   "relativeError": -0.0477818853,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "ducts and pipes driven by a pressure gradient: plane Poiseuille, a square duct and a round pipe drawn as meshes and primitives, a finer pipe, the force on the walls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.8786063 m^3/s",
+    "measured": "0.8366249",
+    "error": "-4.78%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "flow.pipe.flow-rate",
+   "domain": "flow",
+   "title": "Round pipe drawn as a cylinder",
+   "quantity": "flow rate through a pipe 12 cells across, a fluid cylinder (role cavity), driven by a body force",
+   "unit": "m^3/s",
+   "formula": "Q = pi R^4 G / (8 mu) (Hagen-Poiseuille)",
+   "reference": 0.368155389,
+   "measured": 0.35880924,
+   "error": -0.00934614934,
+   "relativeError": -0.0253864255,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "ducts and pipes driven by a pressure gradient: plane Poiseuille, a square duct and a round pipe drawn as meshes and primitives, a finer pipe, the force on the walls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.3681554 m^3/s",
+    "measured": "0.3588092",
+    "error": "-2.54%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "flow.pipe.mesh-flow-rate",
+   "domain": "flow",
+   "title": "Round pipe drawn as a mesh",
+   "quantity": "the same pipe as a swept tube of 48 sides, a closed mesh",
+   "unit": "m^3/s",
+   "formula": "Q = pi R^4 G / (8 mu)",
+   "reference": 0.368155389,
+   "measured": 0.357372804,
+   "error": -0.010782585,
+   "relativeError": -0.0292881357,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "ducts and pipes driven by a pressure gradient: plane Poiseuille, a square duct and a round pipe drawn as meshes and primitives, a finer pipe, the force on the walls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.3681554 m^3/s",
+    "measured": "0.3573728",
+    "error": "-2.93%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "flow.pipe.fine",
+   "domain": "flow",
+   "title": "Round pipe at 24 cells across",
+   "quantity": "flow rate through the pipe drawn as a cylinder, 24 cells across, the relaxation time held at 0.6",
+   "unit": "m^3/s",
+   "formula": "Q = pi R^4 G / (8 mu)",
+   "reference": 0.368155389,
+   "measured": 0.364577529,
+   "error": -0.00357786014,
+   "relativeError": -0.00971834242,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.02
+   },
+   "pass": true,
+   "note": "At the relaxation time 0.6 the error is 2.2% at 12 and at 16 cells and 1.0% at 24: the staircase of a circle does not converge evenly. With the lattice speed fixed instead, the relaxation time falls with the cell size and the wall of bounce-back moves with it: 12% low at 8 cells (relaxation time 0.53).",
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "ducts and pipes driven by a pressure gradient: plane Poiseuille, a square duct and a round pipe drawn as meshes and primitives, a finer pipe, the force on the walls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.3681554 m^3/s",
+    "measured": "0.3645775",
+    "error": "-0.972%",
+    "tolerance": "±2%"
+   }
+  },
+  {
+   "id": "flow.pipe.force-balance",
+   "domain": "flow",
+   "title": "Round pipe: force on the wall",
+   "quantity": "force the wall takes, over the body force on the fluid, minus one",
+   "unit": "1",
+   "formula": "a steady duct: the wall takes all the driving force",
+   "reference": 0,
+   "measured": -9.69006653e-10,
+   "error": -9.69006653e-10,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "ducts and pipes driven by a pressure gradient: plane Poiseuille, a square duct and a round pipe drawn as meshes and primitives, a finer pipe, the force on the walls",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "-9.690067e-10",
+    "error": "-9.69e-10",
+    "tolerance": "±1e-6"
+   }
+  },
+  {
+   "id": "flow.laminar-pipe.re500",
+   "domain": "flow",
+   "title": "Laminar round pipe, Re 500, 20 cells across",
+   "quantity": "flow rate through a periodic pipe 20 cells across (cell Reynolds number 50, peak speed) after 8 viscous times R^2 / (5.78 nu), started from the exact parabola",
+   "unit": "m^3/s",
+   "formula": "Q = pi R^4 G / (8 mu) (Hagen-Poiseuille)",
+   "reference": 0.785398163,
+   "measured": 0.774037687,
+   "error": -0.0113604764,
+   "relativeError": -0.0144646078,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a laminar round pipe at Re 500 to 1500, periodic, started from the exact parabola: the flow rate against Hagen-Poiseuille, and the warning below the resolution that holds it",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.7853982 m^3/s",
+    "measured": "0.7740377",
+    "error": "-1.45%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "flow.laminar-pipe.re1000",
+   "domain": "flow",
+   "title": "Laminar round pipe, Re 1000, 48 cells across",
+   "quantity": "flow rate through a periodic pipe 48 cells across (cell Reynolds number 41.7, peak speed) after 3 viscous times R^2 / (5.78 nu), started from the exact parabola, lattice speed 0.12",
+   "unit": "m^3/s",
+   "formula": "Q = pi R^4 G / (8 mu) (Hagen-Poiseuille)",
+   "reference": 0.785398163,
+   "measured": 0.783325166,
+   "error": -0.00207299738,
+   "relativeError": -0.00263942223,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a laminar round pipe at Re 500 to 1500, periodic, started from the exact parabola: the flow rate against Hagen-Poiseuille, and the warning below the resolution that holds it",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.7853982 m^3/s",
+    "measured": "0.7833252",
+    "error": "-0.264%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "flow.laminar-pipe.re1500",
+   "domain": "flow",
+   "title": "Laminar round pipe, Re 1500, 64 cells across",
+   "quantity": "flow rate through a periodic pipe 64 cells across (cell Reynolds number 46.9, peak speed) after 2 viscous times R^2 / (5.78 nu), started from the exact parabola, lattice speed 0.12",
+   "unit": "m^3/s",
+   "formula": "Q = pi R^4 G / (8 mu) (Hagen-Poiseuille)",
+   "reference": 0.785398163,
+   "measured": 0.783366075,
+   "error": -0.00203208825,
+   "relativeError": -0.00258733512,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a laminar round pipe at Re 500 to 1500, periodic, started from the exact parabola: the flow rate against Hagen-Poiseuille, and the warning below the resolution that holds it",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.7853982 m^3/s",
+    "measured": "0.7833661",
+    "error": "-0.259%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "flow.laminar-pipe.coarse-warning",
+   "domain": "flow",
+   "title": "Laminar round pipe, Re 1000, 16 cells across: the warning",
+   "quantity": "whether the Flow warns about the cell Reynolds number (125) at which the pipe loses a quarter of its flow rate",
+   "unit": "1",
+   "formula": "the warning is given above FLOW_LAMINAR_CELL_REYNOLDS = 50",
+   "reference": 1,
+   "measured": 1,
+   "error": 0,
+   "relativeError": 0,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a laminar round pipe at Re 500 to 1500, periodic, started from the exact parabola: the flow rate against Hagen-Poiseuille, and the warning below the resolution that holds it",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "flow.sparse.populations",
+   "domain": "flow",
+   "title": "Sparse storage against dense: populations",
+   "quantity": "populations that differ in bits after 300 steps of an L of two pipes (a sphere at the corner, a baffle, a parabolic inlet, a pressure outlet, Smagorinsky), stored as 8^3 tiles and as a dense box",
+   "unit": "values",
+   "formula": "the same lattice, numbered in the order of the cell index",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "sparse storage: the same bits as dense storage on an L of pipes, and a long L whose box is three times the dense limit",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 values",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "flow.sparse.fields",
+   "domain": "flow",
+   "title": "Sparse storage against dense: fields",
+   "quantity": "cells of the box whose fluid flag, velocity, pressure or distance differ in bits",
+   "unit": "cells",
+   "formula": "identical fields",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "sparse storage: the same bits as dense storage on an L of pipes, and a long L whose box is three times the dense limit",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 cells",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "±0"
+   }
+  },
+  {
+   "id": "flow.sparse.large-box",
+   "domain": "flow",
+   "title": "Sparse storage: a box three times the dense limit",
+   "quantity": "box cells of a long thin L of pipes (legs 3000 cells, radius 2.6 cells) over the dense limit 2^25",
+   "unit": "1",
+   "formula": "more than the dense limit",
+   "reference": 1,
+   "measured": 2.95436513,
+   "error": 1.95436513,
+   "relativeError": 1.95436513,
+   "tolerance": {
+    "kind": "lower",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "sparse storage: the same bits as dense storage on an L of pipes, and a long L whose box is three times the dense limit",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "2.954365",
+    "error": "+1.95",
+    "tolerance": "not below the reference"
+   }
+  },
+  {
+   "id": "flow.sparse.large-box-mass",
+   "domain": "flow",
+   "title": "Sparse storage, long L: mass ledger",
+   "quantity": "volume the box gained over 400 steps minus the volume through the openings and walls",
+   "unit": "m^3",
+   "formula": "conservation of mass",
+   "reference": 0,
+   "measured": -1.12265752e-12,
+   "error": -1.12265752e-12,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "sparse storage: the same bits as dense storage on an L of pipes, and a long L whose box is three times the dense limit",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 m^3",
+    "measured": "-1.122658e-12",
+    "error": "-1.12e-12",
+    "tolerance": "±1e-6"
+   }
+  },
+  {
+   "id": "flow.pipe-study.pressure-drop",
+   "domain": "flow",
+   "title": "Pipe through its openings, Re 100: pressure drop",
+   "quantity": "pressure drop between sections 2 D and 4 D from the inlet of a pipe 6 D long drawn as a fluid cylinder, inlet by flow rate with the developed profile, outlet by pressure, about 12.6 cells across",
+   "unit": "Pa",
+   "formula": "dp = 128 mu L Q / (pi D^4)",
+   "reference": 0.64,
+   "measured": 0.67085725,
+   "error": 0.0308572498,
+   "relativeError": 0.0482144527,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.05
+   },
+   "pass": true,
+   "note": "At Re 1107 with the same cells the drop is 63% high and the peak over the mean speed 1.90 (docs/FLOW.md): the relaxation time is 0.501, where the regularised collision moves a bounce-back wall on a staircase.",
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a pipe drawn as a fluid cylinder, through its openings: Hagen-Poiseuille pressure drop, the developed profile, the mass balance",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.64 Pa",
+    "measured": "0.6708572",
+    "error": "+4.82%",
+    "tolerance": "±5%"
+   }
+  },
+  {
+   "id": "flow.pipe-study.peak",
+   "domain": "flow",
+   "title": "Pipe through its openings, Re 100: peak over mean",
+   "quantity": "largest speed normal to the middle section over its mean speed",
+   "unit": "1",
+   "formula": "developed laminar profile: 2",
+   "reference": 2,
+   "measured": 2.01256478,
+   "error": 0.0125647843,
+   "relativeError": 0.00628239214,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.03
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a pipe drawn as a fluid cylinder, through its openings: Hagen-Poiseuille pressure drop, the developed profile, the mass balance",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "2",
+    "measured": "2.012565",
+    "error": "+0.628%",
+    "tolerance": "±3%"
+   }
+  },
+  {
+   "id": "flow.pipe-study.mass",
+   "domain": "flow",
+   "title": "Pipe through its openings, Re 100: mass balance",
+   "quantity": "(inflow - outflow) / inflow over the averaging window",
+   "unit": "1",
+   "formula": "conservation of mass",
+   "reference": 0,
+   "measured": 7.10367124e-8,
+   "error": 7.10367124e-8,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a pipe drawn as a fluid cylinder, through its openings: Hagen-Poiseuille pressure drop, the developed profile, the mass balance",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "7.103671e-8",
+    "error": "+7.1e-8",
+    "tolerance": "±0.0001"
+   }
+  },
+  {
+   "id": "flow.cylinder.re20-drag",
+   "domain": "flow",
+   "title": "Cylinder, Re 20: drag coefficient",
+   "quantity": "Cd of a cylinder 8 cells across in a 2D tunnel 24 D high (blockage 4.2%), inlet 9.5 D ahead, laminar",
+   "unit": "1",
+   "formula": "computed in unbounded domains: 2.091 (Wu & Shu), 2.11 (Cui et al.), 2.144 (Niu et al.), as tabulated by Cui et al. 2019",
+   "reference": 2.091,
+   "measured": 2.18216616,
+   "error": 0.0911661605,
+   "relativeError": 0.0435993116,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.08
+   },
+   "pass": true,
+   "note": "The blockage of the tunnel raises the drag a few percent; it is not corrected. In a tunnel 12 D high with the inlet 4.5 D ahead the drag was 2.39 (14% high).",
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the circular cylinder: drag and recirculation at Re 20 and 40, drag and Strouhal number at Re 100 and 200",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "2.091",
+    "measured": "2.182166",
+    "error": "+4.36%",
+    "tolerance": "±8%"
+   }
+  },
+  {
+   "id": "flow.cylinder.re20-length",
+   "domain": "flow",
+   "title": "Cylinder, Re 20: recirculation length",
+   "quantity": "length of the recirculation behind the cylinder over D, from its rear",
+   "unit": "1",
+   "formula": "Wu & Shu, Cui et al.: 0.93",
+   "reference": 0.93,
+   "measured": 0.933051018,
+   "error": 0.00305101797,
+   "relativeError": 0.00328066448,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.08
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the circular cylinder: drag and recirculation at Re 20 and 40, drag and Strouhal number at Re 100 and 200",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.93",
+    "measured": "0.933051",
+    "error": "+0.328%",
+    "tolerance": "±8%"
+   }
+  },
+  {
+   "id": "flow.cylinder.re40-drag",
+   "domain": "flow",
+   "title": "Cylinder, Re 40: drag coefficient",
+   "quantity": "Cd, the same tunnel",
+   "unit": "1",
+   "formula": "Wu & Shu: 1.539 (Cui et al. 1.56, Niu et al. 1.589)",
+   "reference": 1.539,
+   "measured": 1.63960241,
+   "error": 0.100602412,
+   "relativeError": 0.0653686885,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.1
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the circular cylinder: drag and recirculation at Re 20 and 40, drag and Strouhal number at Re 100 and 200",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1.539",
+    "measured": "1.639602",
+    "error": "+6.54%",
+    "tolerance": "±10%"
+   }
+  },
+  {
+   "id": "flow.cylinder.re40-length",
+   "domain": "flow",
+   "title": "Cylinder, Re 40: recirculation length",
+   "quantity": "length of the recirculation over D",
+   "unit": "1",
+   "formula": "Wu & Shu: 2.23 (Cui et al. 2.20, Niu et al. 2.26)",
+   "reference": 2.23,
+   "measured": 2.34401875,
+   "error": 0.11401875,
+   "relativeError": 0.0511294842,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.1
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the circular cylinder: drag and recirculation at Re 20 and 40, drag and Strouhal number at Re 100 and 200",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "2.23",
+    "measured": "2.344019",
+    "error": "+5.11%",
+    "tolerance": "±10%"
+   }
+  },
+  {
+   "id": "flow.cylinder.re100-drag",
+   "domain": "flow",
+   "title": "Cylinder, Re 100: mean drag coefficient",
+   "quantity": "mean Cd over 50 D/U after 100 D/U, 10 cells across, tunnel 16 D high (blockage 6.3%)",
+   "unit": "1",
+   "formula": "Wu & Shu: 1.334 (Ding et al. 1.325)",
+   "reference": 1.334,
+   "measured": 1.4717851,
+   "error": 0.137785097,
+   "relativeError": 0.103287179,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.15
+   },
+   "pass": true,
+   "note": "The drag is high by about the blockage effect; it is not corrected.",
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the circular cylinder: drag and recirculation at Re 20 and 40, drag and Strouhal number at Re 100 and 200",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1.334",
+    "measured": "1.471785",
+    "error": "+10.3%",
+    "tolerance": "±15%"
+   }
+  },
+  {
+   "id": "flow.cylinder.re100-strouhal",
+   "domain": "flow",
+   "title": "Cylinder, Re 100: Strouhal number",
+   "quantity": "frequency of the lift over U / D",
+   "unit": "1",
+   "formula": "Williamson (1988): St = -3.3265 / Re + 0.1816 + 1.6e-4 Re",
+   "reference": 0.164335,
+   "measured": 0.170578255,
+   "error": 0.00624325468,
+   "relativeError": 0.0379910225,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.08
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the circular cylinder: drag and recirculation at Re 20 and 40, drag and Strouhal number at Re 100 and 200",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.164335",
+    "measured": "0.1705783",
+    "error": "+3.8%",
+    "tolerance": "±8%"
+   }
+  },
+  {
+   "id": "flow.cylinder.re200-strouhal",
+   "domain": "flow",
+   "title": "Cylinder, Re 200: Strouhal number",
+   "quantity": "frequency of the lift over U / D, two-dimensional",
+   "unit": "1",
+   "formula": "two-dimensional computations: 0.196 (Ding et al.), 0.195 (Wu & Shu); experiments are three-dimensional above Re 180",
+   "reference": 0.196,
+   "measured": 0.199244705,
+   "error": 0.00324470547,
+   "relativeError": 0.0165546197,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.08
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the circular cylinder: drag and recirculation at Re 20 and 40, drag and Strouhal number at Re 100 and 200",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.196",
+    "measured": "0.1992447",
+    "error": "+1.66%",
+    "tolerance": "±8%"
+   }
+  },
+  {
+   "id": "flow.sphere.re100",
+   "domain": "flow",
+   "title": "Sphere, Re 100: drag coefficient",
+   "quantity": "mean Cd of a sphere 8 cells across in a tunnel 5 D square (blockage 3.1%), laminar",
+   "unit": "1",
+   "formula": "Schiller-Naumann: 24 / Re (1 + 0.15 Re^0.687)",
+   "reference": 1.09173109,
+   "measured": 1.26473249,
+   "error": 0.173001396,
+   "relativeError": 0.158465209,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.2
+   },
+   "pass": true,
+   "note": "Eight cells across a sphere are few; the drag is high.",
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "bluff bodies: a sphere at Re 100, a cube and a square plate at Re 1e5",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1.091731",
+    "measured": "1.264732",
+    "error": "+15.8%",
+    "tolerance": "±20%"
+   }
+  },
+  {
+   "id": "flow.cube.re1e5",
+   "domain": "flow",
+   "title": "Cube face-on, Re 1e5: drag coefficient",
+   "quantity": "mean Cd of a cube 8 cells across in a tunnel 5 D square (blockage 4%), sub-grid model and wall function",
+   "unit": "1",
+   "formula": "Hoerner (Fluid-Dynamic Drag), from memory: 1.05",
+   "reference": 1.05,
+   "measured": 0.913968845,
+   "error": -0.136031155,
+   "relativeError": -0.129553481,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.15
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "bluff bodies: a sphere at Re 100, a cube and a square plate at Re 1e5",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1.05",
+    "measured": "0.9139688",
+    "error": "-13%",
+    "tolerance": "±15%"
+   }
+  },
+  {
+   "id": "flow.plate.re1e5",
+   "domain": "flow",
+   "title": "Square plate normal to the stream, Re 1e5: drag coefficient",
+   "quantity": "mean Cd of a square plate D x D, 0.05 D thick (grown to 1.44 cells), 8 cells across",
+   "unit": "1",
+   "formula": "Hoerner, from memory: 1.17",
+   "reference": 1.17,
+   "measured": 1.03851128,
+   "error": -0.131488724,
+   "relativeError": -0.112383524,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.15
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "bluff bodies: a sphere at Re 100, a cube and a square plate at Re 1e5",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1.17",
+    "measured": "1.038511",
+    "error": "-11.2%",
+    "tolerance": "±15%"
+   }
+  },
+  {
+   "id": "flow.building.drag",
+   "domain": "flow",
+   "title": "Building on fixed ground: drag coefficient",
+   "quantity": "Cd of a block 12 x 30 x 20 m (30 m high) in a 20 m/s wind normal to its 20 m face, study runner with its default margins, about 8 cells across",
+   "unit": "1",
+   "formula": "the band of the apex building studies: 1.0 to 1.7 (sharp-edged rectangular buildings)",
+   "reference": 1.35,
+   "measured": 1.0409824,
+   "error": -0.309017602,
+   "relativeError": -0.228901928,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.35
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a rectangular building on fixed ground through the study runner: drag coefficient and the largest surface pressure coefficient",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1.35",
+    "measured": "1.040982",
+    "error": "-0.309",
+    "tolerance": "±0.35"
+   }
+  },
+  {
+   "id": "flow.building.cp-max",
+   "domain": "flow",
+   "title": "Building on fixed ground: largest surface Cp",
+   "quantity": "largest pressure coefficient over the surface, pressure gauge to the free stream (the mean on the inlet)",
+   "unit": "1",
+   "formula": "stagnation: Cp = 1",
+   "reference": 1,
+   "measured": 1.16070085,
+   "error": 0.160700852,
+   "relativeError": 0.160700852,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.2
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a rectangular building on fixed ground through the study runner: drag coefficient and the largest surface pressure coefficient",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.160701",
+    "error": "+0.161",
+    "tolerance": "±0.2"
+   }
+  },
+  {
+   "id": "flow.building.cp-max-resolved",
+   "domain": "flow",
+   "title": "Building on fixed ground: largest resolved surface Cp",
+   "quantity": "largest pressure coefficient over the surface samples not flagged as on a sharp edge or in a gap under three cells",
+   "unit": "1",
+   "formula": "stagnation: Cp = 1",
+   "reference": 1,
+   "measured": 1.16070085,
+   "error": 0.160700852,
+   "relativeError": 0.160700852,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.2
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "a rectangular building on fixed ground through the study runner: drag coefficient and the largest surface pressure coefficient",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.160701",
+    "error": "+0.161",
+    "tolerance": "±0.2"
+   }
+  },
+  {
+   "id": "flow.stagnation.cube",
+   "domain": "flow",
+   "title": "Cube in a free stream: stagnation Cp",
+   "quantity": "largest resolved surface pressure coefficient of a cube face-on, Re 1e4, about 6.7 cells across, study runner (free-stream inlet, reference the mean inlet pressure)",
+   "unit": "1",
+   "formula": "incompressible stagnation point: Cp = 1",
+   "reference": 1,
+   "measured": 1.04040203,
+   "error": 0.0404020309,
+   "relativeError": 0.0404020309,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.1
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the stagnation pressure coefficient of a cube and a sphere in a free stream through the study runner is 1 within 0.1",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.040402",
+    "error": "+0.0404",
+    "tolerance": "±0.1"
+   }
+  },
+  {
+   "id": "flow.stagnation.sphere",
+   "domain": "flow",
+   "title": "Sphere in a free stream: stagnation Cp",
+   "quantity": "largest resolved surface pressure coefficient of a sphere, Re 1e4, about 6.7 cells across, study runner",
+   "unit": "1",
+   "formula": "incompressible stagnation point: Cp = 1",
+   "reference": 1,
+   "measured": 0.956754684,
+   "error": -0.0432453156,
+   "relativeError": -0.0432453156,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.1
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the stagnation pressure coefficient of a cube and a sphere in a free stream through the study runner is 1 within 0.1",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.9567547",
+    "error": "-0.0432",
+    "tolerance": "±0.1"
+   }
+  },
+  {
+   "id": "flow.step.reattachment",
+   "domain": "flow",
+   "title": "Backward-facing step, Re 100: reattachment",
+   "quantity": "reattachment length over the step height S, expansion ratio 1.94, Re = U_mean 2 h / nu, 16 cells over the inlet channel",
+   "unit": "1",
+   "formula": "Armaly et al. (1983): about 3.0, from memory (two-dimensional computations agree with the experiment to Re 400)",
+   "reference": 3,
+   "measured": 2.75762871,
+   "error": -0.242371293,
+   "relativeError": -0.080790431,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.12
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "the backward-facing step at Re 100: reattachment length against Armaly et al. (1983)",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "3",
+    "measured": "2.757629",
+    "error": "-8.08%",
+    "tolerance": "±12%"
+   }
+  },
+  {
+   "id": "flow.expansion.pressure-rise",
+   "domain": "flow",
+   "title": "Sudden expansion D2 = 2 D1, Re 5e4: pressure rise",
+   "quantity": "rise of the mean pressure from 0.5 D1 before the step to 8 D2 after it, about 7.6 cells across D1, sub-grid model",
+   "unit": "Pa",
+   "formula": "Borda-Carnot: rho U1^2 s (1 - s), s = A1 / A2",
+   "reference": 0.1875,
+   "measured": 0.200640754,
+   "error": 0.0131407544,
+   "relativeError": 0.0700840237,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.15
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "internal flows through the study runner: the sudden expansion against Borda-Carnot, a symmetric tee, a tank with three inlets",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.1875 Pa",
+    "measured": "0.2006408",
+    "error": "+7.01%",
+    "tolerance": "±15%"
+   }
+  },
+  {
+   "id": "flow.tee.split",
+   "domain": "flow",
+   "title": "Symmetric tee: flow split",
+   "quantity": "fraction of the outflow through one arm of a tee whose arms are equal and open at the same pressure",
+   "unit": "1",
+   "formula": "symmetry: 1/2",
+   "reference": 0.5,
+   "measured": 0.481918733,
+   "error": -0.0180812674,
+   "relativeError": -0.0361625349,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.03
+   },
+   "pass": true,
+   "note": "The flow in the tee is unsteady (sub-grid model on); the split is a mean over one window.",
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "internal flows through the study runner: the sudden expansion against Borda-Carnot, a symmetric tee, a tank with three inlets",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.5",
+    "measured": "0.4819187",
+    "error": "-0.0181",
+    "tolerance": "±0.03"
+   }
+  },
+  {
+   "id": "flow.tee.mass",
+   "domain": "flow",
+   "title": "Symmetric tee: mass balance",
+   "quantity": "(inflow - outflow) / inflow",
+   "unit": "1",
+   "formula": "conservation of mass",
+   "reference": 0,
+   "measured": 0.000089714444,
+   "error": 0.000089714444,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "internal flows through the study runner: the sudden expansion against Borda-Carnot, a symmetric tee, a tank with three inlets",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "8.971444e-5",
+    "error": "+8.97e-5",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "flow.tank.mass",
+   "domain": "flow",
+   "title": "Tank with three inlets: mass balance",
+   "quantity": "(inflow - outflow) / inflow, three inlets by flow rate, one outlet by pressure",
+   "unit": "1",
+   "formula": "conservation of mass",
+   "reference": 0,
+   "measured": -0.000336776909,
+   "error": -0.000336776909,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "internal flows through the study runner: the sudden expansion against Borda-Carnot, a symmetric tee, a tank with three inlets",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "-0.0003367769",
+    "error": "-0.000337",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "flow.tank.inlets",
+   "domain": "flow",
+   "title": "Tank with three inlets: flow at the inlets",
+   "quantity": "largest relative difference between the flow through an inlet and the flow rate given",
+   "unit": "1",
+   "formula": "the flow rate given",
+   "reference": 0,
+   "measured": 0.000109700531,
+   "error": 0.000109700531,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "internal flows through the study runner: the sudden expansion against Borda-Carnot, a symmetric tee, a tank with three inlets",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.0001097005",
+    "error": "+0.00011",
+    "tolerance": "at most 0.001 above the reference"
+   }
+  },
+  {
+   "id": "flow.stokes.drag",
+   "domain": "flow",
+   "title": "Stokes drag on a sphere, 2.4 cells per radius",
+   "quantity": "drag of a sphere of radius 0.15 L in a periodic cube of 16^3 cells, Re about 0.1",
+   "unit": "N",
+   "formula": "Hasimoto (1959): F = 6 pi mu a U / (1 - 1.7601 c^(1/3) + c - 1.5593 c^2) (as given by Ladd 1994)",
+   "reference": 0.010602937,
+   "measured": 0.00986327917,
+   "error": -0.000739657789,
+   "relativeError": -0.0697597082,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.1
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "Stokes drag on a sphere in a periodic cube against Hasimoto (1959), and the force on the sphere against the body force on the fluid",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0.01060294 N",
+    "measured": "0.009863279",
+    "error": "-6.98%",
+    "tolerance": "±10%"
+   }
+  },
+  {
+   "id": "flow.stokes.force-balance",
+   "domain": "flow",
+   "title": "Stokes drag: force on the body against the body force",
+   "quantity": "drag over the body force on the fluid, minus one, at the steady state",
+   "unit": "1",
+   "formula": "momentum balance of the periodic box (a control volume)",
+   "reference": 0,
+   "measured": -2.10431239e-7,
+   "error": -2.10431239e-7,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.000001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "Stokes drag on a sphere in a periodic cube against Hasimoto (1959), and the force on the sphere against the body force on the fluid",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "-2.104312e-7",
+    "error": "-2.1e-7",
+    "tolerance": "±1e-6"
+   }
+  },
+  {
+   "id": "flow.mass.openings",
+   "domain": "flow",
+   "title": "Mass through openings and walls",
+   "quantity": "change of the mass in a tunnel with two bodies over 200 steps, minus what entered through the openings and the walls, over the throughput",
+   "unit": "1",
+   "formula": "conservation of mass on the lattice",
+   "reference": 0,
+   "measured": -2.97664021e-15,
+   "error": -2.97664021e-15,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-12
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "conservation: mass through openings and walls, a closed box",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "-2.97664e-15",
+    "error": "-2.98e-15",
+    "tolerance": "±1e-12"
+   }
+  },
+  {
+   "id": "flow.mass.closed",
+   "domain": "flow",
+   "title": "Mass in a closed periodic box",
+   "quantity": "change of the mass over 300 steps per fluid cell, body force and a sphere",
+   "unit": "1",
+   "formula": "conservation of mass",
+   "reference": 0,
+   "measured": 3.74892394e-18,
+   "error": 3.74892394e-18,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-12
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "conservation: mass through openings and walls, a closed box",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "3.748924e-18",
+    "error": "+3.75e-18",
+    "tolerance": "±1e-12"
+   }
+  },
+  {
+   "id": "flow.determinism.repeat",
+   "domain": "flow",
+   "title": "Repeatability",
+   "quantity": "runs whose populations differ from the first in any bit, of two runs of a turbulent tunnel",
+   "unit": "runs",
+   "formula": "bit-identical state",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "determinism: repeat runs are bit-identical, and a run resumed from a checkpoint continues with the same bits",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 runs",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "flow.determinism.resume",
+   "domain": "flow",
+   "title": "Resume from a checkpoint",
+   "quantity": "runs resumed from saveState / restoreState whose state, sums or time differ from the uninterrupted run",
+   "unit": "runs",
+   "formula": "bit-identical continuation",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "determinism: repeat runs are bit-identical, and a run resumed from a checkpoint continues with the same bits",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 runs",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "flow.geometry.mesh-sphere",
+   "domain": "flow",
+   "title": "Mesh against primitive: sphere",
+   "quantity": "cells whose solid / fluid state differs between a sphere and its 96 x 48 mesh, 24^3 grid, of about 1570 solid cells",
+   "unit": "cells",
+   "formula": "the same shape",
+   "reference": 0,
+   "measured": 6,
+   "error": 6,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 12
+   },
+   "pass": true,
+   "note": "The mesh is inscribed in the sphere: cells within its sagitta (0.06 cells) of the surface may change side.",
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "geometry: meshes against primitives, imperfect meshes, thin walls that do not leak",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 cells",
+    "measured": "6",
+    "error": "+6",
+    "tolerance": "at most 12 above the reference"
+   }
+  },
+  {
+   "id": "flow.geometry.mesh-box",
+   "domain": "flow",
+   "title": "Mesh against primitive: box",
+   "quantity": "cells whose state differs between a box and its 12-triangle mesh",
+   "unit": "cells",
+   "formula": "the same shape",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "geometry: meshes against primitives, imperfect meshes, thin walls that do not leak",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 cells",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "flow.geometry.soup",
+   "domain": "flow",
+   "title": "Imperfect mesh: triangle soup with flipped triangles",
+   "quantity": "cells whose state differs from the clean sphere when no vertex is shared and every third triangle is flipped",
+   "unit": "cells",
+   "formula": "welding and parity ignore indexing and winding",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "geometry: meshes against primitives, imperfect meshes, thin walls that do not leak",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 cells",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "flow.geometry.hole",
+   "domain": "flow",
+   "title": "Imperfect mesh: a hole",
+   "quantity": "cells whose state differs from the clean sphere when three triangles are missing (a hole about a cell wide)",
+   "unit": "cells",
+   "formula": "the majority vote of three ray directions outvotes the hole",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "geometry: meshes against primitives, imperfect meshes, thin walls that do not leak",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 cells",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "flow.geometry.thin-wall",
+   "domain": "flow",
+   "title": "Thin walls do not leak",
+   "quantity": "closed boxes whose walls are 0.18 cells thick (as meshes, rotated meshes, boxes, rotated boxes, open quads): ones whose inside the lattice links reach from outside",
+   "unit": "boxes",
+   "formula": "walls grown to 1.44 cells, closed meshes sealed",
+   "reference": 0,
+   "measured": 0,
+   "error": 0,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "geometry: meshes against primitives, imperfect meshes, thin walls that do not leak",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 boxes",
+    "measured": "0",
+    "error": "0",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "flow.streamline.straight",
+   "domain": "flow",
+   "title": "Streamline in a uniform flow",
+   "quantity": "largest distance of the traced points from the straight line through the seed, in cells",
+   "unit": "cells",
+   "formula": "a straight line",
+   "reference": 0,
+   "measured": 0.00000117892171,
+   "error": 0.00000117892171,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "streamlines: straight in a uniform flow, a closed circle in a solid-body rotation",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0 cells",
+    "measured": "1.178922e-6",
+    "error": "+1.18e-6",
+    "tolerance": "at most 0.0001 above the reference"
+   }
+  },
+  {
+   "id": "flow.streamline.circle",
+   "domain": "flow",
+   "title": "Streamline in a solid-body rotation",
+   "quantity": "largest radial error over the radius, one turn of RK4 with steps of half a cell",
+   "unit": "1",
+   "formula": "a circle",
+   "reference": 0,
+   "measured": 1.22829837e-7,
+   "error": 1.22829837e-7,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0.0001
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v24-flow.test.mjs",
+    "test": "streamlines: straight in a uniform flow, a closed circle in a solid-body rotation",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v24-flow.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "1.228298e-7",
+    "error": "+1.23e-7",
+    "tolerance": "at most 0.0001 above the reference"
+   }
+  },
+  {
    "id": "shallow-water.lake.immersed",
    "domain": "shallow-water",
    "title": "Lake at rest over a bumpy bed (immersed)",
@@ -16639,9 +18093,9 @@
    "unit": "1",
    "formula": "F / (4 M_p' / V) = 1, M_p' = (2 / sqrt 3) sigma_y t^2 / 4 (plane strain)",
    "reference": 1,
-   "measured": 1.22769949,
-   "error": 0.227699489,
-   "relativeError": 0.227699489,
+   "measured": 1.22769473,
+   "error": 0.227694728,
+   "relativeError": 0.227694728,
    "tolerance": {
     "kind": "upper",
     "value": 0.35
@@ -16655,7 +18109,7 @@
    },
    "text": {
     "reference": "1",
-    "measured": "1.227699",
+    "measured": "1.227695",
     "error": "+0.228",
     "tolerance": "at most 0.35 above the reference"
    }
@@ -16667,10 +18121,10 @@
    "quantity": "bend depth recovered when the punch retracts",
    "unit": "m",
    "formula": "d = F V^3 / (48 E' I), E' = E / (1 - nu^2)",
-   "reference": 0.0000697849662,
-   "measured": 0.0000627135478,
-   "error": -0.00000707141831,
-   "relativeError": -0.101331543,
+   "reference": 0.0000697846956,
+   "measured": 0.0000627133796,
+   "error": -0.00000707131599,
+   "relativeError": -0.10133047,
    "tolerance": {
     "kind": "relative",
     "value": 0.12
@@ -16683,8 +18137,8 @@
     "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/press-brake.test.mjs"
    },
    "text": {
-    "reference": "6.978497e-5 m",
-    "measured": "6.271355e-5",
+    "reference": "6.97847e-5 m",
+    "measured": "6.271338e-5",
     "error": "-10.1%",
     "tolerance": "±12%"
    }
@@ -17411,15 +18865,15 @@
    "unit": "1",
    "formula": "G_c = f_cm w_d / 2, w_d = 0.5 mm (the law's default, after the ATENA crack band model; from memory), anchored at the band's peak",
    "reference": 1,
-   "measured": 1.00436069,
-   "error": 0.00436068597,
-   "relativeError": 0.00436068597,
+   "measured": 1.01114308,
+   "error": 0.0111430778,
+   "relativeError": 0.0111430778,
    "tolerance": {
     "kind": "relative",
     "value": 0.05
    },
    "pass": true,
-   "note": "One band of elements crushes. Against 0.9 G_c A (the zone's strength factor) the ratio is 0.96 to 1.06: the zone's pre-peak dilatancy draws confinement from the stronger ends, by an amount that depends on the mesh, and the softening starts from that peak.",
+   "note": "One band of elements crushes. Against 0.9 G_c A (the zone's strength factor) the ratio is 1.08 to 1.11 on these meshes: the zone's pre-peak dilatancy draws confinement from the stronger ends (peaks 35.9 to 37.6 MPa against 34.2 MPa), by an amount that depends on the mesh, and the softening starts from that peak.",
    "source": {
     "file": "tests/engine/solid-concrete.test.mjs",
     "test": "crack band per element: bars of 10, 20 and 40 cells and a 3-D mesh crush in one band of elements that dissipates G_c per unit area, scaled by the peak stress of the band",
@@ -17427,8 +18881,8 @@
    },
    "text": {
     "reference": "1",
-    "measured": "1.004361",
-    "error": "+0.436%",
+    "measured": "1.011143",
+    "error": "+1.11%",
     "tolerance": "±5%"
    }
   },
@@ -17440,15 +18894,15 @@
    "unit": "1",
    "formula": "G_c = f_cm w_d / 2, w_d = 0.5 mm (the law's default, after the ATENA crack band model; from memory), anchored at the band's peak",
    "reference": 1,
-   "measured": 0.997619904,
-   "error": -0.00238009622,
-   "relativeError": -0.00238009622,
+   "measured": 1.02486649,
+   "error": 0.0248664937,
+   "relativeError": 0.0248664937,
    "tolerance": {
     "kind": "relative",
     "value": 0.05
    },
    "pass": true,
-   "note": "One band of elements crushes. Against 0.9 G_c A (the zone's strength factor) the ratio is 0.96 to 1.06: the zone's pre-peak dilatancy draws confinement from the stronger ends, by an amount that depends on the mesh, and the softening starts from that peak.",
+   "note": "One band of elements crushes. Against 0.9 G_c A (the zone's strength factor) the ratio is 1.08 to 1.11 on these meshes: the zone's pre-peak dilatancy draws confinement from the stronger ends (peaks 35.9 to 37.6 MPa against 34.2 MPa), by an amount that depends on the mesh, and the softening starts from that peak.",
    "source": {
     "file": "tests/engine/solid-concrete.test.mjs",
     "test": "crack band per element: bars of 10, 20 and 40 cells and a 3-D mesh crush in one band of elements that dissipates G_c per unit area, scaled by the peak stress of the band",
@@ -17456,8 +18910,8 @@
    },
    "text": {
     "reference": "1",
-    "measured": "0.9976199",
-    "error": "-0.238%",
+    "measured": "1.024866",
+    "error": "+2.49%",
     "tolerance": "±5%"
    }
   },
@@ -17469,15 +18923,15 @@
    "unit": "1",
    "formula": "G_c = f_cm w_d / 2, w_d = 0.5 mm (the law's default, after the ATENA crack band model; from memory), anchored at the band's peak",
    "reference": 1,
-   "measured": 0.993996206,
-   "error": -0.0060037939,
-   "relativeError": -0.0060037939,
+   "measured": 1.04536184,
+   "error": 0.0453618367,
+   "relativeError": 0.0453618367,
    "tolerance": {
     "kind": "relative",
     "value": 0.05
    },
    "pass": true,
-   "note": "One band of elements crushes. Against 0.9 G_c A (the zone's strength factor) the ratio is 0.96 to 1.06: the zone's pre-peak dilatancy draws confinement from the stronger ends, by an amount that depends on the mesh, and the softening starts from that peak.",
+   "note": "One band of elements crushes. Against 0.9 G_c A (the zone's strength factor) the ratio is 1.08 to 1.11 on these meshes: the zone's pre-peak dilatancy draws confinement from the stronger ends (peaks 35.9 to 37.6 MPa against 34.2 MPa), by an amount that depends on the mesh, and the softening starts from that peak.",
    "source": {
     "file": "tests/engine/solid-concrete.test.mjs",
     "test": "crack band per element: bars of 10, 20 and 40 cells and a 3-D mesh crush in one band of elements that dissipates G_c per unit area, scaled by the peak stress of the band",
@@ -17485,8 +18939,8 @@
    },
    "text": {
     "reference": "1",
-    "measured": "0.9939962",
-    "error": "-0.6%",
+    "measured": "1.045362",
+    "error": "+4.54%",
     "tolerance": "±5%"
    }
   },
@@ -17498,15 +18952,15 @@
    "unit": "1",
    "formula": "G_c = f_cm w_d / 2, w_d = 0.5 mm (the law's default, after the ATENA crack band model; from memory), anchored at the band's peak",
    "reference": 1,
-   "measured": 0.983926259,
-   "error": -0.0160737408,
-   "relativeError": -0.0160737408,
+   "measured": 1.00861688,
+   "error": 0.00861688037,
+   "relativeError": 0.00861688037,
    "tolerance": {
     "kind": "relative",
     "value": 0.05
    },
    "pass": true,
-   "note": "One band of elements crushes. Against 0.9 G_c A (the zone's strength factor) the ratio is 0.96 to 1.06: the zone's pre-peak dilatancy draws confinement from the stronger ends, by an amount that depends on the mesh, and the softening starts from that peak.",
+   "note": "One band of elements crushes. Against 0.9 G_c A (the zone's strength factor) the ratio is 1.08 to 1.11 on these meshes: the zone's pre-peak dilatancy draws confinement from the stronger ends (peaks 35.9 to 37.6 MPa against 34.2 MPa), by an amount that depends on the mesh, and the softening starts from that peak.",
    "source": {
     "file": "tests/engine/solid-concrete.test.mjs",
     "test": "crack band per element: bars of 10, 20 and 40 cells and a 3-D mesh crush in one band of elements that dissipates G_c per unit area, scaled by the peak stress of the band",
@@ -17514,8 +18968,8 @@
    },
    "text": {
     "reference": "1",
-    "measured": "0.9839263",
-    "error": "-1.61%",
+    "measured": "1.008617",
+    "error": "+0.862%",
     "tolerance": "±5%"
    }
   },
@@ -17635,6 +19089,150 @@
    }
   },
   {
+   "id": "solid.concrete.strength-factor-80",
+   "domain": "solid",
+   "title": "Concrete law: strength factor 0.8 in uniaxial compression",
+   "quantity": "peak nominal stress of one C30/37 cell of band width L_c whose elements have the strength factor 0.8 (setStrengthFactors), over 0.8 f_cm",
+   "unit": "1",
+   "formula": "a factor f scales the surface in stress space: q r(theta) = f k Psi(xi / (f f_cm)), so the uniaxial strength is f f_cm",
+   "reference": 1,
+   "measured": 0.998115895,
+   "error": -0.00188410455,
+   "relativeError": -0.00188410455,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.005
+   },
+   "pass": true,
+   "note": "Before 2026-11-18 the meridian was read at xi / f_cm, not xi / (f f_cm): the factor 0.8 gave 0.788 of f f_cm. The factor 1 row (solid.concrete.peak) is 0.2 % low in the same way (nominal stress, Green-Lagrange kinematics).",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "strength factors scale the whole surface: a factor f gives f f_cm in uniaxial compression, f f_ctm in tension and 1.16 f f_cm in equal-biaxial compression",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.9981159",
+    "error": "-0.188%",
+    "tolerance": "±0.5%"
+   }
+  },
+  {
+   "id": "solid.concrete.strength-factor-90",
+   "domain": "solid",
+   "title": "Concrete law: strength factor 0.9 in uniaxial compression",
+   "quantity": "peak nominal stress of one C30/37 cell of band width L_c whose elements have the strength factor 0.9 (setStrengthFactors), over 0.9 f_cm",
+   "unit": "1",
+   "formula": "a factor f scales the surface in stress space: q r(theta) = f k Psi(xi / (f f_cm)), so the uniaxial strength is f f_cm",
+   "reference": 1,
+   "measured": 0.99802648,
+   "error": -0.0019735204,
+   "relativeError": -0.0019735204,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.005
+   },
+   "pass": true,
+   "note": "Before 2026-11-18 the meridian was read at xi / f_cm, not xi / (f f_cm): the factor 0.9 gave 0.881 of f f_cm. The factor 1 row (solid.concrete.peak) is 0.2 % low in the same way (nominal stress, Green-Lagrange kinematics).",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "strength factors scale the whole surface: a factor f gives f f_cm in uniaxial compression, f f_ctm in tension and 1.16 f f_cm in equal-biaxial compression",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.9980265",
+    "error": "-0.197%",
+    "tolerance": "±0.5%"
+   }
+  },
+  {
+   "id": "solid.concrete.strength-factor-110",
+   "domain": "solid",
+   "title": "Concrete law: strength factor 1.1 in uniaxial compression",
+   "quantity": "peak nominal stress of one C30/37 cell of band width L_c whose elements have the strength factor 1.1 (setStrengthFactors), over 1.1 f_cm",
+   "unit": "1",
+   "formula": "a factor f scales the surface in stress space: q r(theta) = f k Psi(xi / (f f_cm)), so the uniaxial strength is f f_cm",
+   "reference": 1,
+   "measured": 0.99778189,
+   "error": -0.00221810991,
+   "relativeError": -0.00221810991,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.005
+   },
+   "pass": true,
+   "note": "Before 2026-11-18 the meridian was read at xi / f_cm, not xi / (f f_cm): the factor 1.1 gave 1.151 of f f_cm. The factor 1 row (solid.concrete.peak) is 0.2 % low in the same way (nominal stress, Green-Lagrange kinematics).",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "strength factors scale the whole surface: a factor f gives f f_cm in uniaxial compression, f f_ctm in tension and 1.16 f f_cm in equal-biaxial compression",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "0.9977819",
+    "error": "-0.222%",
+    "tolerance": "±0.5%"
+   }
+  },
+  {
+   "id": "solid.concrete.strength-factor-tension-90",
+   "domain": "solid",
+   "title": "Concrete law: strength factor 0.9 in uniaxial tension",
+   "quantity": "peak stress of the same cell in uniaxial tension, over 0.9 f_ctm",
+   "unit": "1",
+   "formula": "Rankine: sigma_1 <= f f_t",
+   "reference": 1,
+   "measured": 1.00007523,
+   "error": 0.0000752347495,
+   "relativeError": 0.0000752347495,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.005
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "strength factors scale the whole surface: a factor f gives f f_cm in uniaxial compression, f f_ctm in tension and 1.16 f f_cm in equal-biaxial compression",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1.000075",
+    "error": "+7.52e-5 rel.",
+    "tolerance": "±0.5%"
+   }
+  },
+  {
+   "id": "solid.concrete.strength-factor-biaxial-90",
+   "domain": "solid",
+   "title": "Concrete law: strength factor 0.9 in equal-biaxial compression",
+   "quantity": "peak stress of one cell of strength factor 0.9 compressed equally along two axes, over 0.9 f_cm",
+   "unit": "1",
+   "formula": "1.16 (Kupfer, Hilsdorf and Rusch 1969, the fitted equal-biaxial point), scaled by the factor",
+   "reference": 1.16,
+   "measured": 1.15853478,
+   "error": -0.00146521906,
+   "relativeError": -0.00126311988,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "note": "Before 2026-11-18: 1.050 (the meridian read at xi / f_cm).",
+   "source": {
+    "file": "tests/engine/solid-concrete.test.mjs",
+    "test": "strength factors scale the whole surface: a factor f gives f f_cm in uniaxial compression, f f_ctm in tension and 1.16 f f_cm in equal-biaxial compression",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/solid-concrete.test.mjs"
+   },
+   "text": {
+    "reference": "1.16",
+    "measured": "1.158535",
+    "error": "-0.126%",
+    "tolerance": "±1%"
+   }
+  },
+  {
    "id": "solid.concrete.cube-cylinder",
    "domain": "solid",
    "title": "Concrete: cube strength over cylinder strength between steel platens",
@@ -17642,9 +19240,9 @@
    "unit": "1",
    "formula": "f_ck,cube / f_ck = 37 / 30 (EN 1992-1-1 Table 3.1, C30/37)",
    "reference": 1.23333333,
-   "measured": 1.20355318,
-   "error": -0.0297801553,
-   "relativeError": -0.0241460719,
+   "measured": 1.20450762,
+   "error": -0.028825713,
+   "relativeError": -0.0233721998,
    "tolerance": {
     "kind": "relative",
     "value": 0.05
@@ -17658,8 +19256,8 @@
    },
    "text": {
     "reference": "1.233333",
-    "measured": "1.203553",
-    "error": "-2.41%",
+    "measured": "1.204508",
+    "error": "-2.34%",
     "tolerance": "±5%"
    }
   },
@@ -17671,9 +19269,9 @@
    "unit": "1",
    "formula": "1.17: the correction of CSN EN 12390-3/Z1 for slenderness 1, as quoted by Stredulova and Elias (2023)",
    "reference": 1.17,
-   "measured": 1.16396558,
-   "error": -0.00603441515,
-   "relativeError": -0.00515761978,
+   "measured": 1.1630356,
+   "error": -0.00696440291,
+   "relativeError": -0.00595248112,
    "tolerance": {
     "kind": "relative",
     "value": 0.03
@@ -17687,8 +19285,8 @@
    },
    "text": {
     "reference": "1.17",
-    "measured": "1.163966",
-    "error": "-0.516%",
+    "measured": "1.163036",
+    "error": "-0.595%",
     "tolerance": "±3%"
    }
   },
@@ -17788,8 +19386,8 @@
    "formula": "uniaxial stress: d = m g L / (E A)",
    "reference": 0.000122625,
    "measured": 0.000122625,
-   "error": 1.38127357e-16,
-   "relativeError": 1.12642085e-12,
+   "error": 1.38723668e-16,
+   "relativeError": 1.13128373e-12,
    "tolerance": {
     "kind": "relative",
     "value": 1e-8
@@ -17817,8 +19415,8 @@
    "formula": "uniaxial strain: d = m g L / ((lambda + 2 mu) A)",
    "reference": 0.0000910928571,
    "measured": 0.0000910928571,
-   "error": -9.16462544e-16,
-   "relativeError": -1.00607509e-11,
+   "error": -9.16435439e-16,
+   "relativeError": -1.00604533e-11,
    "tolerance": {
     "kind": "relative",
     "value": 1e-8
@@ -17846,8 +19444,8 @@
    "formula": "p l / (stiffnessScale (lambda + 2 mu)), l the mean element size",
    "reference": 7.68306913e-7,
    "measured": 7.67177596e-7,
-   "error": -1.12931708e-9,
-   "relativeError": -0.00146987755,
+   "error": -1.12931709e-9,
+   "relativeError": -0.00146987756,
    "tolerance": {
     "kind": "relative",
     "value": 0.005
@@ -17875,8 +19473,8 @@
    "formula": "d = m g L / (E A), m the mass the world reports",
    "reference": 0.0000882900035,
    "measured": 0.0000882900098,
-   "error": 6.31428036e-12,
-   "relativeError": 7.15175003e-8,
+   "error": 6.31382586e-12,
+   "relativeError": 7.15123526e-8,
    "tolerance": {
     "kind": "relative",
     "value": 0.000001
@@ -17904,8 +19502,8 @@
    "formula": "F = m g",
    "reference": 70.6320028,
    "measured": 70.6320079,
-   "error": 0.00000508379266,
-   "relativeError": 7.19757681e-8,
+   "error": 0.00000508342897,
+   "relativeError": 7.19706191e-8,
    "tolerance": {
     "kind": "relative",
     "value": 0.000001
@@ -17931,8 +19529,8 @@
    "unit": "1",
    "formula": "backward Euler and damping only remove energy",
    "reference": 0,
-   "measured": 5.56291217e-13,
-   "error": 5.56291217e-13,
+   "measured": 5.49792313e-13,
+   "error": 5.49792313e-13,
    "relativeError": null,
    "tolerance": {
     "kind": "upper",
@@ -17946,8 +19544,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "5.562912e-13",
-    "error": "+5.56e-13",
+    "measured": "5.497923e-13",
+    "error": "+5.5e-13",
     "tolerance": "at most 1e-9 above the reference"
    }
   },
@@ -17988,8 +19586,8 @@
    "unit": "1",
    "formula": "as above",
    "reference": 0,
-   "measured": 0.0941306515,
-   "error": 0.0941306515,
+   "measured": 0.0941306514,
+   "error": 0.0941306514,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
@@ -18047,8 +19645,8 @@
    "formula": "F ~ d^1.5",
    "reference": 1.5,
    "measured": 1.55876201,
-   "error": 0.05876201,
-   "relativeError": 0.0391746733,
+   "error": 0.0587620101,
+   "relativeError": 0.0391746734,
    "tolerance": {
     "kind": "absolute",
     "value": 0.08
@@ -18105,8 +19703,8 @@
    "formula": "F_t / N = tan(theta)",
    "reference": 0.487732589,
    "measured": 0.487732589,
-   "error": -7.53913598e-12,
-   "relativeError": -1.54575195e-11,
+   "error": -2.81547008e-12,
+   "relativeError": -5.77256912e-12,
    "tolerance": {
     "kind": "relative",
     "value": 0.00001
@@ -18120,7 +19718,7 @@
    "text": {
     "reference": "0.4877326",
     "measured": "0.4877326",
-    "error": "-1.55e-11 rel.",
+    "error": "-5.77e-12 rel.",
     "tolerance": "±1e-5 rel."
    }
   },
@@ -18247,8 +19845,8 @@
    "unit": "1",
    "formula": "dp = 0",
    "reference": 0,
-   "measured": 7.55537361e-13,
-   "error": 7.55537361e-13,
+   "measured": 7.65920166e-13,
+   "error": 7.65920166e-13,
    "relativeError": null,
    "tolerance": {
     "kind": "upper",
@@ -18263,8 +19861,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "7.555374e-13",
-    "error": "+7.56e-13",
+    "measured": "7.659202e-13",
+    "error": "+7.66e-13",
     "tolerance": "at most 2e-11 above the reference"
    }
   },
@@ -18362,8 +19960,8 @@
    "unit": "1",
    "formula": "F = m g at rest",
    "reference": 0,
-   "measured": -2.91010828e-8,
-   "error": -2.91010828e-8,
+   "measured": -2.9092211e-8,
+   "error": -2.9092211e-8,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
@@ -18377,7 +19975,7 @@
    },
    "text": {
     "reference": "0",
-    "measured": "-2.910108e-8",
+    "measured": "-2.909221e-8",
     "error": "-2.91e-8",
     "tolerance": "±0.001"
    }
@@ -18391,8 +19989,8 @@
    "formula": "F = -m g",
    "reference": -9.81,
    "measured": -9.81,
-   "error": 1.9394264e-11,
-   "relativeError": 1.97698919e-12,
+   "error": 1.94262384e-11,
+   "relativeError": 1.98024856e-12,
    "tolerance": {
     "kind": "relative",
     "value": 1e-9
@@ -18448,8 +20046,8 @@
    "formula": "F = m g",
    "reference": 19.62,
    "measured": 19.62,
-   "error": -9.91668969e-11,
-   "relativeError": -5.05437803e-12,
+   "error": -5.06165776e-10,
+   "relativeError": -2.57984595e-11,
    "tolerance": {
     "kind": "relative",
     "value": 1e-9
@@ -18464,7 +20062,7 @@
    "text": {
     "reference": "19.62 N",
     "measured": "19.62",
-    "error": "-5.05e-12 rel.",
+    "error": "-2.58e-11 rel.",
     "tolerance": "±1e-9 rel."
    }
   },
@@ -18477,8 +20075,8 @@
    "formula": "F = -m g",
    "reference": -39.24,
    "measured": -39.2400024,
-   "error": -0.00000238114233,
-   "relativeError": -6.06815069e-8,
+   "error": -0.00000238109645,
+   "relativeError": -6.06803377e-8,
    "tolerance": {
     "kind": "relative",
     "value": 0.00001
@@ -18505,15 +20103,15 @@
    "unit": "1",
    "formula": "F = delta A / (L1 / E1 + L2 / E2 + 1 / (2 k)), k the contact stiffness per area of one search direction",
    "reference": 0,
-   "measured": 2.18395109e-8,
-   "error": 2.18395109e-8,
+   "measured": 7.29495508e-9,
+   "error": 7.29495508e-9,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
     "value": 0.000001
    },
    "pass": true,
-   "note": "The uniform state is the answer when the two surface meshes match; the springs' compliance (7.8e-4 of the total) is in the reference.",
+   "note": "The uniform state is the answer when the two surface meshes match; the springs' compliance (7.8e-4 of the total) is in the reference. Mortar (the default since v2): 7.3e-9; node to face 2.2e-8.",
    "source": {
     "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
     "test": "two elastic blocks pressed together are springs in series: delta A / (L1 / E1 + L2 / E2 + contact springs)",
@@ -18521,8 +20119,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "2.183951e-8",
-    "error": "+2.18e-8",
+    "measured": "7.294955e-9",
+    "error": "+7.29e-9",
     "tolerance": "±1e-6"
    }
   },
@@ -18534,15 +20132,15 @@
    "unit": "1",
    "formula": "as above",
    "reference": 0,
-   "measured": -0.000239515354,
-   "error": -0.000239515354,
+   "measured": 1.0111026e-8,
+   "error": 1.0111026e-8,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
     "value": 0.0005
    },
    "pass": true,
-   "note": "A node against a face does not pass the contact patch test on meshes that do not match: the interface pressure is uneven (element stress within 5.5 % of uniform), the total force is 2.4e-4 low.",
+   "note": "Mortar (the default since v2): 1.0e-8. Node to face (version 1) does not pass the contact patch test on meshes that do not match: the total force was 2.4e-4 low.",
    "source": {
     "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
     "test": "two elastic blocks pressed together are springs in series: delta A / (L1 / E1 + L2 / E2 + contact springs)",
@@ -18550,8 +20148,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "-0.0002395154",
-    "error": "-0.00024",
+    "measured": "1.011103e-8",
+    "error": "+1.01e-8",
     "tolerance": "±0.0005"
    }
   },
@@ -18563,15 +20161,15 @@
    "unit": "1",
    "formula": "as above",
    "reference": 0,
-   "measured": -0.000107731032,
-   "error": -0.000107731032,
+   "measured": 3.38277184e-10,
+   "error": 3.38277184e-10,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
     "value": 0.0005
    },
    "pass": true,
-   "note": "Element stress within 30 % of uniform at the interface.",
+   "note": "Mortar: 3.4e-10, element stress within 4e-4 of uniform; node to face -1.1e-4 with element stress within 30 % of uniform at the interface.",
    "source": {
     "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
     "test": "two elastic blocks pressed together are springs in series: delta A / (L1 / E1 + L2 / E2 + contact springs)",
@@ -18579,8 +20177,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "-0.000107731",
-    "error": "-0.000108",
+    "measured": "3.382772e-10",
+    "error": "+3.38e-10",
     "tolerance": "±0.0005"
    }
   },
@@ -18592,15 +20190,15 @@
    "unit": "1",
    "formula": "0 (a uniform pressure across the interface)",
    "reference": 0,
-   "measured": 0.0548822243,
-   "error": 0.0548822243,
+   "measured": 0.000179475583,
+   "error": 0.000179475583,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
-    "value": 0.08
+    "value": 0.001
    },
    "pass": true,
-   "note": "Not passed: 5.5 % here, 5.9 % on 5 against 7 cells (it does not fall with the mesh), 42 % for coincident nodes with crossed surface diagonals. The bound keeps the measured value from growing.",
+   "note": "Passed by the mortar (the default since v2): 1.8e-4, the rest at the rim where the blocks spread sideways by different Poisson strains. Node to face (version 1) failed it: 5.5 % here (the old bound was 0.08), 5.9 % on 5 against 7 cells, 42 % for coincident nodes with crossed surface diagonals. See the solid-contact.mortar rows.",
    "source": {
     "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
     "test": "two elastic blocks pressed together are springs in series: delta A / (L1 / E1 + L2 / E2 + contact springs)",
@@ -18608,9 +20206,9 @@
    },
    "text": {
     "reference": "0",
-    "measured": "0.05488222",
-    "error": "+0.0549",
-    "tolerance": "±0.08"
+    "measured": "0.0001794756",
+    "error": "+0.000179",
+    "tolerance": "±0.001"
    }
   },
   {
@@ -18621,15 +20219,15 @@
    "unit": "1",
    "formula": "F = (4/3) E* sqrt(R*) delta^1.5, 1 / E* = sum (1 - nu^2) / E, 1 / R* = 1 / R1 + 1 / R2, times the factor of a layer on a rigid base (Dimitriadis et al. 2002)",
    "reference": 0,
-   "measured": 0.153050289,
-   "error": 0.153050289,
+   "measured": 0.157903777,
+   "error": 0.157903777,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
     "value": 0.18
    },
    "pass": true,
-   "note": "Measured +15.3 % (+20.6 % against plain Hertz): linear tetrahedra and one spring per node are too stiff.",
+   "note": "Measured +15.8 % with the mortar (+21.1 % against plain Hertz; node to face +15.3 %): linear tetrahedra are too stiff.",
    "source": {
     "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
     "test": "Hertz: two elastic caps pressed together, with the mesh study",
@@ -18637,8 +20235,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "0.1530503",
-    "error": "+0.153",
+    "measured": "0.1579038",
+    "error": "+0.158",
     "tolerance": "±0.18"
    }
   },
@@ -18650,15 +20248,15 @@
    "unit": "1",
    "formula": "as above",
    "reference": 0,
-   "measured": 0.0848707743,
-   "error": 0.0848707743,
+   "measured": 0.0865468765,
+   "error": 0.0865468765,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
     "value": 0.11
    },
    "pass": true,
-   "note": "Measured +8.5 % (+13.5 % against plain Hertz).",
+   "note": "Measured +8.7 % with the mortar (+13.7 % against plain Hertz; node to face +8.5 %).",
    "source": {
     "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
     "test": "Hertz: two elastic caps pressed together, with the mesh study",
@@ -18666,8 +20264,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "0.08487077",
-    "error": "+0.0849",
+    "measured": "0.08654688",
+    "error": "+0.0865",
     "tolerance": "±0.11"
    }
   },
@@ -18679,15 +20277,15 @@
    "unit": "1",
    "formula": "as above",
    "reference": 0,
-   "measured": 0.0591505718,
-   "error": 0.0591505718,
+   "measured": 0.0568121397,
+   "error": 0.0568121397,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
     "value": 0.08
    },
    "pass": true,
-   "note": "Measured +5.9 % (+10.8 % against plain Hertz). The error falls with the mesh at the rate of the rigid-sphere rows above.",
+   "note": "Measured +5.7 % with the mortar (+10.5 % against plain Hertz; node to face +5.9 %). The error falls with the mesh at the rate of the rigid-sphere rows above.",
    "source": {
     "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
     "test": "Hertz: two elastic caps pressed together, with the mesh study",
@@ -18695,8 +20293,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "0.05915057",
-    "error": "+0.0592",
+    "measured": "0.05681214",
+    "error": "+0.0568",
     "tolerance": "±0.08"
    }
   },
@@ -18708,8 +20306,8 @@
    "unit": "1",
    "formula": "the same error as equal caps: the modulus ratio enters only through E*",
    "reference": 0,
-   "measured": 0.00285077973,
-   "error": 0.00285077973,
+   "measured": 0.00280071745,
+   "error": 0.00280071745,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
@@ -18723,8 +20321,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "0.00285078",
-    "error": "+0.00285",
+    "measured": "0.002800717",
+    "error": "+0.0028",
     "tolerance": "±0.01"
    }
   },
@@ -18736,8 +20334,8 @@
    "unit": "1",
    "formula": "0: the contact forces sum to zero term by term",
    "reference": 0,
-   "measured": 1.09267284e-9,
-   "error": 1.09267284e-9,
+   "measured": 2.08049195e-9,
+   "error": 2.08049195e-9,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
@@ -18752,8 +20350,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "1.092673e-9",
-    "error": "+1.09e-9",
+    "measured": "2.080492e-9",
+    "error": "+2.08e-9",
     "tolerance": "±1e-8"
    }
   },
@@ -18765,15 +20363,15 @@
    "unit": "1",
    "formula": "conserved: change 0",
    "reference": 0,
-   "measured": 0.00135555056,
-   "error": 0.00135555056,
+   "measured": 0.00137798323,
+   "error": 0.00137798323,
    "relativeError": null,
    "tolerance": {
     "kind": "absolute",
     "value": 0.003
    },
    "pass": true,
-   "note": "Measured 1.4e-3 (6.5e-4 with friction 0.3): the contact points are frozen during a step, so the pair of contact forces has a small arm.",
+   "note": "Measured 1.4e-3 (6.6e-4 with friction 0.3), node to face and mortar alike: the contact points are frozen during a step, so the pair of contact forces has a small arm.",
    "source": {
     "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
     "test": "momentum in a free impact of two solids",
@@ -18781,8 +20379,8 @@
    },
    "text": {
     "reference": "0",
-    "measured": "0.001355551",
-    "error": "+0.00136",
+    "measured": "0.001377983",
+    "error": "+0.00138",
     "tolerance": "±0.003"
    }
   },
@@ -18795,8 +20393,8 @@
    "formula": "the weight above: 2 m g",
    "reference": 19.62,
    "measured": 19.6199999,
-   "error": -6.38955662e-8,
-   "relativeError": -3.25665475e-9,
+   "error": -6.38695923e-8,
+   "relativeError": -3.2553309e-9,
    "tolerance": {
     "kind": "relative",
     "value": 0.000001
@@ -18851,8 +20449,8 @@
    "formula": "m g sin(theta); the block stays",
    "reference": 1.26950742,
    "measured": 1.26950742,
-   "error": -2.41260345e-11,
-   "relativeError": -1.90042486e-11,
+   "error": -4.8525628e-11,
+   "relativeError": -3.82239815e-11,
    "tolerance": {
     "kind": "relative",
     "value": 0.000001
@@ -18866,7 +20464,7 @@
    "text": {
     "reference": "1.269507 N",
     "measured": "1.269507",
-    "error": "-1.9e-11 rel.",
+    "error": "-3.82e-11 rel.",
     "tolerance": "±1e-6 rel."
    }
   },
@@ -18878,9 +20476,9 @@
    "unit": "m/s^2",
    "formula": "g (sin(theta) - mu cos(theta))",
    "reference": 1.47862133,
-   "measured": 1.47863255,
-   "error": 0.0000112204238,
-   "relativeError": 0.00000758843635,
+   "measured": 1.47863302,
+   "error": 0.0000116902998,
+   "relativeError": 0.00000790621615,
    "tolerance": {
     "kind": "relative",
     "value": 0.001
@@ -18894,7 +20492,7 @@
    "text": {
     "reference": "1.478621 m/s^2",
     "measured": "1.478633",
-    "error": "+7.59e-6 rel.",
+    "error": "+7.91e-6 rel.",
     "tolerance": "±0.1%"
    }
   },
@@ -18906,15 +20504,15 @@
    "unit": "m",
    "formula": "the arms rest on each other: far below the 5.2 mm by which they cross without self-contact",
    "reference": 0.00005,
-   "measured": 0.0000191212331,
-   "error": -0.0000308787669,
-   "relativeError": -0.617575338,
+   "measured": 0.000033392937,
+   "error": -0.000016607063,
+   "relativeError": -0.332141259,
    "tolerance": {
     "kind": "upper",
     "value": 0
    },
    "pass": true,
-   "note": "No closed form: a functional check.",
+   "note": "No closed form: a functional check. Mortar 33 um (node to face 19 um): a weighted gap of the mortar rows.",
    "source": {
     "file": "packages/box3d-kit/test/v22-solid-solid-contact.test.mjs",
     "test": "self-contact: the arms of a slotted block stop at each other",
@@ -18922,8 +20520,442 @@
    },
    "text": {
     "reference": "5e-5 m",
-    "measured": "1.912123e-5",
-    "error": "-3.09e-5",
+    "measured": "3.339294e-5",
+    "error": "-1.66e-5",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "solid-contact.mortar.patch",
+   "domain": "solid-contact",
+   "title": "Contact patch test, mortar: 3 on 4 cells",
+   "quantity": "the largest difference, over the interface nodes of both blocks, of the contact force over the node's share of the interface from the applied pressure, over that pressure; a 0.1 m block (E = 1 GPa, nu = 0.3, 3 x 3 x 3 cells) under a 0.08 m block (E = 3 GPa, nu = 0.2, 4 x 4 x 4 cells), p = 0.1 MPa",
+   "unit": "1",
+   "formula": "0: a uniform pressure is carried as a uniform pressure",
+   "reference": 0,
+   "measured": 0.000231294243,
+   "error": 0.000231294243,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "Measured 2.3e-4 (node to face: 8.6 %). What is left sits at the rim: the blocks spread sideways by different Poisson strains and a strip a few micrometres wide of the lower block is not covered; with nu = 0 the row below is exact.",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "contact patch test: a uniform pressure crosses an interface whose meshes do not match, as the monolithic answer",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.0002312942",
+    "error": "+0.000231",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "solid-contact.mortar.patch-5on7",
+   "domain": "solid-contact",
+   "title": "Contact patch test, mortar: 5 on 7 x 6 x 7 cells",
+   "quantity": "the same, 5 x 5 x 5 against 7 x 6 x 7 cells",
+   "unit": "1",
+   "formula": "as above",
+   "reference": 0,
+   "measured": 0.000440666139,
+   "error": 0.000440666139,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "Measured 4.4e-4 (node to face: 10.0 %).",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "contact patch test: a uniform pressure crosses an interface whose meshes do not match, as the monolithic answer",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.0004406661",
+    "error": "+0.000441",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "solid-contact.mortar.patch-crossed",
+   "domain": "solid-contact",
+   "title": "Contact patch test, mortar: coincident nodes, crossed diagonals",
+   "quantity": "the same, 3 x 3 x 3 cells on both (the surface triangles cross)",
+   "unit": "1",
+   "formula": "as above",
+   "reference": 0,
+   "measured": 0.000163222059,
+   "error": 0.000163222059,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "Measured 1.6e-4; node to face, the worst case found for it: 77 %.",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "contact patch test: a uniform pressure crosses an interface whose meshes do not match, as the monolithic answer",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.0001632221",
+    "error": "+0.000163",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "solid-contact.mortar.patch-stiff",
+   "domain": "solid-contact",
+   "title": "Contact patch test, mortar: moduli 1 : 100",
+   "quantity": "the same with E = 0.1 GPa under 10 GPa",
+   "unit": "1",
+   "formula": "as above",
+   "reference": 0,
+   "measured": 0.00426824688,
+   "error": 0.00426824688,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.01
+   },
+   "pass": true,
+   "note": "Measured 4.3e-3 (node to face: 72 %): the uncovered strip at the rim grows with the difference of the Poisson strains.",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "contact patch test: a uniform pressure crosses an interface whose meshes do not match, as the monolithic answer",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.004268247",
+    "error": "+0.00427",
+    "tolerance": "±0.01"
+   }
+  },
+  {
+   "id": "solid-contact.mortar.patch-distorted",
+   "domain": "solid-contact",
+   "title": "Contact patch test, mortar: distorted upper mesh",
+   "quantity": "the same with the upper block's nodes moved sideways by up to 4 % of its width (the interface mesh distorted too)",
+   "unit": "1",
+   "formula": "as above",
+   "reference": 0,
+   "measured": 0.000213700245,
+   "error": 0.000213700245,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.001
+   },
+   "pass": true,
+   "note": "Measured 2.1e-4 (node to face: 15.8 %).",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "contact patch test: a uniform pressure crosses an interface whose meshes do not match, as the monolithic answer",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.0002137002",
+    "error": "+0.000214",
+    "tolerance": "±0.001"
+   }
+  },
+  {
+   "id": "solid-contact.mortar.monolithic",
+   "domain": "solid-contact",
+   "title": "Contact patch test, mortar: displacements",
+   "quantity": "largest difference of a nodal displacement (3 on 4 cells) from the monolithic answer (one body of two materials, plus the springs' depth p / 2 k at the interface), over the total shortening",
+   "unit": "1",
+   "formula": "u_y = -p y / E1 in the lower block, -p L1 / E1 - p / (2 k) - p (y - L1) / E2 in the upper; u_x = nu p x / E",
+   "reference": 0,
+   "measured": 0.0000413983564,
+   "error": 0.0000413983564,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.0001
+   },
+   "pass": true,
+   "note": "Measured 4.1e-5 (node to face: 4.9e-3).",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "contact patch test: a uniform pressure crosses an interface whose meshes do not match, as the monolithic answer",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "4.139836e-5",
+    "error": "+4.14e-5",
+    "tolerance": "±0.0001"
+   }
+  },
+  {
+   "id": "solid-contact.mortar.patch-turned",
+   "domain": "solid-contact",
+   "title": "Contact patch test, mortar: the set-up turned in space",
+   "quantity": "the same pressure measure with the two blocks (3 on 4 cells, nu = 0, end faces held) turned by 0.7 rad about (1, 2, 3)",
+   "unit": "1",
+   "formula": "0: uniform stress, displacements linear along the turned axis",
+   "reference": 0,
+   "measured": 1.0126866e-10,
+   "error": 1.0126866e-10,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-8
+   },
+   "pass": true,
+   "note": "Measured 1.0e-10: with nothing spreading sideways the mortar is exact to the solve (node to face: 8.5 %).",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "contact patch test: a uniform pressure crosses an interface whose meshes do not match, as the monolithic answer",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "1.012687e-10",
+    "error": "+1.01e-10",
+    "tolerance": "±1e-8"
+   }
+  },
+  {
+   "id": "solid-contact.mortar.hertz.coarse",
+   "domain": "solid-contact",
+   "title": "Hertz, sphere on block, meshes that do not match: 2.5 and 1.9 elements per contact radius",
+   "quantity": "force between an elastic sphere (R = 1 m) and an elastic block (E = 1 MPa, nu = 0.3) pressed 0.625 mm together, over Hertz times the bonded-layer factor, minus 1",
+   "unit": "1",
+   "formula": "F = (4/3) E* sqrt(R) delta^1.5, 1 / E* = sum (1 - nu^2) / E (Wikipedia, Contact mechanics, sphere on a half-space), times the factor of a layer on a rigid base (Dimitriadis et al. 2002)",
+   "reference": 0,
+   "measured": 0.110758523,
+   "error": 0.110758523,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.14
+   },
+   "pass": true,
+   "note": "Measured +11.1 % (+16.2 % against plain Hertz; node to face +11.9 %). Linear tetrahedra are too stiff; the error falls with the mesh.",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "Hertz: an elastic sphere on an elastic block, meshes that do not match, with the mesh study",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.1107585",
+    "error": "+0.111",
+    "tolerance": "±0.14"
+   }
+  },
+  {
+   "id": "solid-contact.mortar.hertz.medium",
+   "domain": "solid-contact",
+   "title": "Hertz, sphere on block, meshes that do not match: 3.75 and 3.1 elements per contact radius",
+   "quantity": "the same",
+   "unit": "1",
+   "formula": "as above",
+   "reference": 0,
+   "measured": 0.0929527954,
+   "error": 0.0929527954,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 0.12
+   },
+   "pass": true,
+   "note": "Measured +9.3 % (+14.3 % against plain Hertz; node to face +10.7 %).",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "Hertz: an elastic sphere on an elastic block, meshes that do not match, with the mesh study",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "0.0929528",
+    "error": "+0.093",
+    "tolerance": "±0.12"
+   }
+  },
+  {
+   "id": "solid-contact.mortar.stick",
+   "domain": "solid-contact",
+   "title": "Friction threshold on a non-matching interface: sticks at 0.99 of the friction angle",
+   "quantity": "shear across the interface of a block (4 x 4 cells) on a base (9 x 3 cells), tan(theta) = 0.99 mu, mu = 0.3, after 0.5 s",
+   "unit": "N",
+   "formula": "m g sin(theta); the block stays",
+   "reference": 1.39649474,
+   "measured": 1.39649474,
+   "error": 3.26934035e-11,
+   "relativeError": 2.34110467e-11,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.000001
+   },
+   "pass": true,
+   "note": "It stays: speed 0, travel 12 um (the elastic shear of the block).",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "Coulomb friction at the threshold: a block on a non-matching base sticks at tan(theta) = 0.99 mu and slides at 1.01 mu",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "1.396495 N",
+    "measured": "1.396495",
+    "error": "+2.34e-11 rel.",
+    "tolerance": "±1e-6 rel."
+   }
+  },
+  {
+   "id": "solid-contact.mortar.slip",
+   "domain": "solid-contact",
+   "title": "Friction threshold on a non-matching interface: slides at 1.01 of the friction angle",
+   "quantity": "acceleration of the block at tan(theta) = 1.01 mu",
+   "unit": "m/s^2",
+   "formula": "g (sin(theta) - mu cos(theta)) = 0.0282 m/s^2",
+   "reference": 0.0281654651,
+   "measured": 0.0281793282,
+   "error": 0.0000138631188,
+   "relativeError": 0.000492202729,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.01
+   },
+   "pass": true,
+   "note": "Measured 5e-4 off. Together with the row above: the stick/slip threshold is within 1 % of tan(theta) = mu.",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "Coulomb friction at the threshold: a block on a non-matching base sticks at tan(theta) = 0.99 mu and slides at 1.01 mu",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0.02816547 m/s^2",
+    "measured": "0.02817933",
+    "error": "+0.0492%",
+    "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "solid-contact.edge.balance",
+   "domain": "solid-contact",
+   "title": "Edge-to-edge contact: force balance of two crossed bars",
+   "quantity": "force on the supports of the lower of two square bars on edge (20 mm, E = 10 MPa) crossed at 90 degrees, the upper pushed down 0.5 mm, over the contact force, minus 1",
+   "unit": "1",
+   "formula": "statics: the supports carry the contact force",
+   "reference": 0,
+   "measured": 5.14499554e-12,
+   "error": 5.14499554e-12,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-8
+   },
+   "pass": true,
+   "note": "One edge contact carries 1.913 N; no node of either bar meets a face of the other.",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "edge against edge: two square bars on edge, crossed, pressed together",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "5.144996e-12",
+    "error": "+5.14e-12",
+    "tolerance": "±1e-8"
+   }
+  },
+  {
+   "id": "solid-contact.edge.depth",
+   "domain": "solid-contact",
+   "title": "Edge-to-edge contact: depth of the crossed bars",
+   "quantity": "how far the deformed edges have gone through each other, over the push",
+   "unit": "1",
+   "formula": "the depth of the edge spring, force / k: 2.0e-4 of the push",
+   "reference": 0.001,
+   "measured": 0.000204918961,
+   "error": -0.000795081039,
+   "relativeError": -0.795081039,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "note": "Without edge contact the bars pass through by the whole push (-1).",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "edge against edge: two square bars on edge, crossed, pressed together",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0.001",
+    "measured": "0.000204919",
+    "error": "-0.000795",
+    "tolerance": "not above the reference"
+   }
+  },
+  {
+   "id": "solid-contact.edge.momentum",
+   "domain": "solid-contact",
+   "title": "Edge-to-edge contact in motion: momentum",
+   "quantity": "largest change of the total linear momentum while two crossed bars meet edge first and part (300 steps, friction 0.3), over the momentum",
+   "unit": "1",
+   "formula": "0: the forces of a contact sum to zero",
+   "reference": 0,
+   "measured": 2.27129756e-10,
+   "error": 2.27129756e-10,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-8
+   },
+   "pass": true,
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "edge against edge in motion: crossed bars fly at each other edge first and part",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "2.271298e-10",
+    "error": "+2.27e-10",
+    "tolerance": "±1e-8"
+   }
+  },
+  {
+   "id": "solid-contact.edge.impact-depth",
+   "domain": "solid-contact",
+   "title": "Edge-to-edge contact in motion: depth",
+   "quantity": "deepest the edges go through each other in that impact",
+   "unit": "m",
+   "formula": "the spring's depth, far below the 8.5 mm by which they cross without edge contact",
+   "reference": 0.000002,
+   "measured": 0.00000106423252,
+   "error": -9.35767476e-7,
+   "relativeError": -0.467883738,
+   "tolerance": {
+    "kind": "upper",
+    "value": 0
+   },
+   "pass": true,
+   "note": "Measured 1.06 um.",
+   "source": {
+    "file": "packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs",
+    "test": "edge against edge in motion: crossed bars fly at each other edge first and part",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/packages/box3d-kit/test/v23-solid-solid-mortar.test.mjs"
+   },
+   "text": {
+    "reference": "2e-6 m",
+    "measured": "1.064233e-6",
+    "error": "-9.36e-7",
     "tolerance": "not above the reference"
    }
   },
@@ -20381,6 +22413,120 @@
     "measured": "1.838512",
     "error": "-0.406%",
     "tolerance": "±1%"
+   }
+  },
+  {
+   "id": "plate.implicit.step",
+   "domain": "plate",
+   "title": "Implicit fine cells: the time step of the graded pane",
+   "quantity": "stable step of the graded pane (0.05 m cells within 0.3 m of the centre) with their bending terms implicit, over that of the 0.1 m grid",
+   "unit": "1",
+   "formula": "the explicit terms are those of 0.1 m cells: their limit, 2 / sqrt(max row / m)",
+   "reference": 1,
+   "measured": 1,
+   "error": -1.66533454e-15,
+   "relativeError": -1.66533454e-15,
+   "tolerance": {
+    "kind": "relative",
+    "value": 1e-9
+   },
+   "pass": true,
+   "note": "With every term explicit the graded pane takes a quarter of this step (49.08 against 196.31 us).",
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "implicit fine cells: the 0.05 m cells no longer set the step; the step keeps its own energy and the momentum; the first mode and statics are unchanged",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "1",
+    "measured": "1",
+    "error": "-1.67e-15 rel.",
+    "tolerance": "±1e-9 rel."
+   }
+  },
+  {
+   "id": "plate.implicit.energy",
+   "domain": "plate",
+   "title": "Implicit fine cells: energy of the step without damping",
+   "quantity": "largest relative change over 1 s (5,660 steps at 0.9 of the limit) from random deflections and velocities of the step's own energy 1/2 v (M - h^2/4 K_e + (h0^2 - h^2)/4 K_f) v + 1/2 wm K wm",
+   "unit": "1",
+   "formula": "conserved exactly by central differences with the mass M + h0^2/4 K_f (rounding only)",
+   "reference": 0,
+   "measured": 7.32747196e-15,
+   "error": 7.32747196e-15,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-12
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "implicit fine cells: the 0.05 m cells no longer set the step; the step keeps its own energy and the momentum; the first mode and statics are unchanged",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "7.327472e-15",
+    "error": "+7.33e-15",
+    "tolerance": "±1e-12"
+   }
+  },
+  {
+   "id": "plate.implicit.momentum",
+   "domain": "plate",
+   "title": "Implicit fine cells: momentum of a free plate",
+   "quantity": "change of sum m v over 2000 steps from random velocities, over sum m |v|",
+   "unit": "1",
+   "formula": "K_f 1 = 0: the implicit term adds no net force",
+   "reference": 0,
+   "measured": 1.60135839e-12,
+   "error": 1.60135839e-12,
+   "relativeError": null,
+   "tolerance": {
+    "kind": "absolute",
+    "value": 1e-10
+   },
+   "pass": true,
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "implicit fine cells: the 0.05 m cells no longer set the step; the step keeps its own energy and the momentum; the first mode and statics are unchanged",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "0",
+    "measured": "1.601358e-12",
+    "error": "+1.6e-12",
+    "tolerance": "±1e-10"
+   }
+  },
+  {
+   "id": "plate.implicit.frequency",
+   "domain": "plate",
+   "title": "Implicit fine cells: first mode of the graded pane against Kirchhoff theory",
+   "quantity": "frequency of the (1,1) mode released from its shape, steps at 0.9 of the limit",
+   "unit": "Hz",
+   "formula": "f = (pi / 2) ((1 / a)^2 + (1 / b)^2) sqrt(D / (rho t))",
+   "reference": 7.96018481,
+   "measured": 7.94158621,
+   "error": -0.0185985995,
+   "relativeError": -0.00233645322,
+   "tolerance": {
+    "kind": "relative",
+    "value": 0.0025
+   },
+   "pass": true,
+   "note": "The graded pane with every term explicit: -0.23 %.",
+   "source": {
+    "file": "tests/engine/plate.test.mjs",
+    "test": "implicit fine cells: the 0.05 m cells no longer set the step; the step keeps its own energy and the momentum; the first mode and statics are unchanged",
+    "url": "https://github.com/nathansenn/box3d-WEBGPU/blob/main/tests/engine/plate.test.mjs"
+   },
+   "text": {
+    "reference": "7.960185 Hz",
+    "measured": "7.941586",
+    "error": "-0.234%",
+    "tolerance": "±0.25%"
    }
   },
   {

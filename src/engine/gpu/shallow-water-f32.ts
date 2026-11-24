@@ -93,6 +93,7 @@ export function readShallowWaterCheckpoint(nx:number,nz:number,bytes:Uint8Array)
   return {state:t.state,aux:t.aux,time:t.time as number,steps:t.steps as number,lastSub:t.lastSub as number,rainVolume:t.rainVolume as number,stats:{...(t.stats as unknown as ShallowWaterF32Stats)},
     initialVolume:t.initialVolume as number,infiltratedAtStart:t.infiltratedAtStart as number,maxCourant:t.maxCourant as number,courantExceeded:t.courantExceeded as number};
 }
+/** The shallow-water program run on the CPU in float32, pass by pass: the GPU's bits where the two agree. */
 export class ShallowWaterF32 {
   readonly solver='shallow-water-hr-muscl-hll-f32-reference-v1';
   readonly setup:ShallowWaterSetup;readonly water:ShallowWater;

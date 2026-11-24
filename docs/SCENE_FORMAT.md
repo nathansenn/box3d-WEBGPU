@@ -400,7 +400,7 @@ One tetrahedral solid per entry ([`SOLID_MECHANICS.md`](SOLID_MECHANICS.md)). Wi
 | `tolerance`, `maxNewtonIterations` | number | no | the solver's | |
 | `gravity` | boolean | no | true | False: the world's gravity does not act on the solid. |
 | `supports` | array | no | `[]` | `{min, max, axes?}`: nodes whose reference position is inside the box (bounds widened by 10⁻⁹ of the coordinate) are held where they are, in the components `axes` marks (default all three). |
-| `contact` | object | no | none | `{bodies?, planes?, solids?, self?, friction?, stiffnessScale?, skin?, frictionPasses?, frictionTolerance?}`. `bodies`: `{body, friction?, collide?, twoWay?, inertia?}` for a box, sphere or capsule body; `planes`: `{normal, point?, friction?}`, fixed half spaces. Not with `fracture`. | `solids`: ids of other solids this one collides with (node against face, both ways; naming one side is enough), `self`: true for self-contact, `friction`: the Coulomb coefficient against solids (two solids that both give one use the smaller). Solids joined by `solids` or `self` form a group advanced by one `SolidSolidContact` ([`SOLID_CONTACT.md`](SOLID_CONTACT.md#deformable-against-deformable-solidsolidcontact)), registered under its first solid's id in the post stage; a planes entry of any member acts on all of them, the four solver options come from the first member with a contact section; such a solid has no `bodies`, `welds`, `loads` or `fracture` and uses backward Euler with one step per world step (refused with a message otherwise). Example: `lab.html?example=soft-blocks`.
+| `contact` | object | no | none | `{bodies?, planes?, solids?, self?, friction?, stiffnessScale?, skin?, frictionPasses?, frictionTolerance?}`. `bodies`: `{body, friction?, collide?, twoWay?, inertia?}` for a box, sphere or capsule body; `planes`: `{normal, point?, friction?}`, fixed half spaces. Not with `fracture`. | `solids`: ids of other solids this one collides with (mortar segment to segment both ways, with edge-to-edge contact; naming one side is enough), `self`: true for self-contact, `friction`: the Coulomb coefficient against solids (two solids that both give one use the smaller). Solids joined by `solids` or `self` form a group advanced by one `SolidSolidContact` ([`SOLID_CONTACT.md`](SOLID_CONTACT.md#deformable-against-deformable-solidsolidcontact)), registered under its first solid's id in the post stage; a planes entry of any member acts on all of them, the four solver options come from the first member with a contact section; such a solid has no `bodies`, `welds`, `loads` or `fracture` and uses backward Euler with one step per world step (refused with a message otherwise). Example: `lab.html?example=soft-blocks`.
 | `welds` | array | no | `[]` | `{body, min, max}`: nodes in the box are welded to the body where they are when the scene is built. The body must be in `contact.bodies` (with `collide: false` when it should only carry the weld). |
 | `loads` | array | no | `[]` | `{body, min, max}`: the force that holds `body` up, measured from its motion in each rigid step (`m (Δv / Δt − g)`), is put, reversed, on the solid's boundary faces whose centroid is in the box, as a uniform traction (`reactionLoadLink`, one-way). For a body that rests on a fixed carrier over the solid and touches nothing else: every force the world puts on the body is counted. |
 | `fracture` | object | no | none | `{strength, toughness, shearWeight?, initialOpeningRatio?, insertion?, insertionThreshold?, tipInsertionThreshold?, notches?, interfaces?}`: cohesive fracture, `strength` σ_c in Pa and `toughness` G_c in J/m². `notches`: boxes; interior faces whose centroid is in one are cut before the first step (`precrack`). `interfaces`: boxes; interior faces there get an undamaged interface before the first step (`insertCohesive`); with `insertion: "manual"` no other face can crack. The crack-band model is not available in scenes. |
@@ -453,6 +453,7 @@ Each entry is a box of `cells` cubic cells of edge `spacing` from `origin`, and 
 | `diffusion` | `"explicit"`, `"crank-nicolson"` or `"backward-euler"` | no | `"explicit"` | Flow only. |
 | `velocity` | vec3 | no | `[0, 0, 0]` | Flow only. A uniform starting velocity, made divergence-free. |
 | `bodies` | array | no | `[]` | Flow only. `{body, twoWay?}`: a box, sphere or capsule body whose position is its centre of mass, at most once per flow; `twoWay: false` makes the flow feel the body without pushing it. |
+| `backend` | `"cpu"` or `"gpu"` | no | `"cpu"` | Flow only. `"gpu"`: the flow steps on the GPU in float32; the bodies' geometry and their coupling stay on the CPU in float64 (at most 1024 obstacles); see [Sections on the GPU](#sections-on-the-gpu). A free-surface tank with `"gpu"` is refused. |
 | `u`, `v`, `w`, `pressure` | number arrays | no | | Flow only, saved state: the face velocities ((nx + 1) ny nz, nx (ny + 1) nz and nx ny (nz + 1) values, index `i + Nx (j + Ny k)` with that component's counts), m/s, and the cell pressures (nx ny nz), Pa. `u`, `v` and `w` go together; `pressure` needs them. |
 | `particlesPerAxis` | integer 1..4 | no | 2 | Tank only. Particles per cell along each axis when the liquid is seeded. |
 | `liquid` | array of `{min, max, velocity?}` | tank: yes | | 1 to 16 boxes of liquid, m; a cell's seeding points inside a box get a particle. |
@@ -466,11 +467,11 @@ A save writes a flow's face velocities and pressures and a tank's particles (pos
 
 ### Sections on the GPU
 
-Added on 2026-11-17. A `grains` or `shallowWater` entry may say `"backend": "gpu"`. `"cpu"` is the default and is left
+Added on 2026-11-17 for `grains` and `shallowWater`, on 2026-11-18 for flows (`fluids` of kind `"flow"`). Such an entry may say `"backend": "gpu"`. `"cpu"` is the default and is left
 out of the normal form, so every scene written before has the canonical text and hash it had; a scene that uses
 `"gpu"` has its own hash. The loaders build such a section only when given the GPU backends:
 `loadSimulationScene(world, scene, {gpu: gpuSceneBackends(compute)})` (likewise `buildSceneSimulation` and
-`resumeSimulationScene`; `gpuSceneBackends` is in `src/engine/gpu/scene-backends.ts`, which is not in the kit yet).
+`resumeSimulationScene`; `gpuSceneBackends` is in `src/engine/gpu/scene-backends.ts`, published as `box3d-webgpu-kit/gpu`).
 Without them the load is refused with `GPU_UNAVAILABLE`. `gpuSceneBackends('reference')` runs the same float32 program on
 the CPU.
 
@@ -478,7 +479,9 @@ The simulation then steps with `await simulation.stepAsync()` and checkpoints wi
 `step()` and `checkpoint()` refuse it. The section's numbers are float32 and its results are not the float64 solver's
 bits; a run repeats bit for bit on the same device, and a checkpoint resumes bit-exactly ([`GPU_COMPUTE.md`](GPU_COMPUTE.md#scene-sections-on-the-gpu)).
 The state lives on the GPU: `await simulation.pullAsync()` writes it into the float64 objects the loader made (the
-`grains` and `shallowWater` maps), and a save of the scene is refused until it has been pulled since the last step.
+`grains`, `shallowWater` and `fluids` maps), and a save of the scene is refused until it has been pulled since the last
+step. A flow on the GPU keeps its bodies on the CPU: before each fluid step the faces near each body are worked out in
+float64 and uploaded, and the forces come back before the rigid step (couple stage, order 180, as on the CPU).
 
 ### Coupled section: shallow water
 

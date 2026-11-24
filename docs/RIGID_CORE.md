@@ -615,6 +615,30 @@ The fuzzers (`tests/fuzz`, docs/ROBUSTNESS.md) found defects in the native side.
   (past a sphere or a mesh, or past the pointer of a hull, height field or compound). A world without a reused shape
   slot writes the same bytes as before.
 
+- **ND-7, steps that slow down on subnormal numbers (open, in Box3D).** Found by a benchmark, not by the fuzzers: a
+  crane of five bodies that moves in one plane (two hinges, two prismatic joints) stepped two to three times more
+  slowly when its sheave block was a compound with a capsule child along z than with a sphere, and the same crane with
+  a box slowed from 20 to 300 microseconds per step after about 9,000 steps. The time is in the joint solver
+  (`b3SolveJoint`: 37 of 55 microseconds per step for the capsule, 6 of 19 for the sphere, profiled on a build with
+  function names). Nothing is computed differently; the numbers are slow. Out of the plane everything should be zero.
+  With a capsule that is not along y, Box3D's capsule inertia (`b3ComputeCapsuleMass` rotates the tensor by a
+  quaternion-built matrix) has an off-diagonal term of 1e-7 of the diagonal, so out-of-plane velocities and rotations
+  are rounding noise of 1e-15 to 1e-18, and their products fall below 1.2e-38, the smallest normal float32. With the
+  box the out-of-plane state is exactly zero until a joint limit is reached and then decays through 1e-25 to 1e-39
+  and stays there. Arithmetic on such subnormal numbers is much slower on x86 processors (here the joint solve takes 6 times as
+  long), WebAssembly has no flush-to-zero mode, and Box3D does not clamp small values. Evidence that this is the cause: with gravity tilted
+  by 0.1 % out of the plane, which makes those quantities ordinary numbers, the capsule crane steps in 17
+  microseconds like the sphere crane, and the box crane stays at 20 to 27
+  (`node packages/box3d-kit/scripts/bench-subnormal.mjs`; measured 2026-11-23). The same crane on a thinner bridge
+  build of the same Box3D commit, which creates its joints from world-space anchors and so leaves out-of-plane noise
+  of 1e-11, did not slow down (22 to 26 microseconds per step for the capsule): the more exactly a mechanism is planar,
+  the more exposed it is. The bridge and the kit build the capsule as a native Box3D capsule (not a hull), with the
+  same contact pair and bounding box as the box and sphere variants, and zeroing small body velocities after each step
+  from outside did not help, because the solver's own state and the products inside a step are what is subnormal. A
+  fix belongs in the solver (treating magnitudes below a threshold as zero); it would change results in the last bits
+  and is not attempted here. Until then: a mechanism that is exactly planar or exactly symmetric can step several
+  times more slowly than the same mechanism slightly off, on x86.
+
 ## Custom filter and pre-solve callbacks: not exposed
 
 Box3D can call the application for every candidate pair (`b3World_SetCustomFilterCallback`) and for every touching

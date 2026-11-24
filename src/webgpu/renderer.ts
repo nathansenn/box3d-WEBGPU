@@ -8,6 +8,7 @@ import { fillLineVertexData } from '../webgl/lab-streams.ts';
 import { InstancePartition, partitionVertexBindings, partitionVertexEntry } from './instance-partition.js';
 import { ResidentWaterSurface, type ResidentWaterOptions } from './resident-water-surface.js';
 import { GpuStartupBudget, type GpuStartupOptions } from './startup-budget.js';
+import { SOFTWARE_FLOOR, isSoftwareAdapter } from '../perf/dynamic-resolution.ts';
 import type { GpuLinearWater } from './linear-water.ts';
 import {
   capsulesBelow, cylinderVertexCount, cylinderVertexData, forEachBoxRun, forEachRun, geometryRowsBelow, hemisphereVertexCount,
@@ -1981,6 +1982,8 @@ export class WebGPURenderer {
   private lastResizeDpr = 0;
   private height = 0;
   private resolutionScale = 1;
+  /** A CPU rasteriser (SwiftShader, a fallback adapter): dynamic resolution starts lower (src/perf/dynamic-resolution.ts). */
+  softwareAdapter = false;
   private sampleCount: 1 | 4 = DEFAULT_SAMPLE_COUNT;
   private shadowMapSize: 1024 | 2048 = DEFAULT_SHADOW_MAP_SIZE;
   private lastUploadedBytes = 0;
@@ -2821,6 +2824,8 @@ export class WebGPURenderer {
       prepareVisibility,
       createDirectSolidPipelines,
     });
+    const adapterInfo = (adapter as GPUAdapter & { info?: { vendor?: string; architecture?: string; device?: string; description?: string; isFallbackAdapter?: boolean }; isFallbackAdapter?: boolean });
+    renderer.softwareAdapter = isSoftwareAdapter({ ...adapterInfo.info, isFallbackAdapter: adapterInfo.isFallbackAdapter === true || adapterInfo.info?.isFallbackAdapter === true });
     renderer.resize();
     await renderer.setRenderingOptimizations(options.optimizations ?? {});
     options.onStartupProgress?.('Graphics ready');
@@ -3138,7 +3143,7 @@ export class WebGPURenderer {
   writeSceneUniforms(state: SceneUniformState): void {
     this.assertActive();
     this.configureQuality(state.quality);
-    this.resolutionScale = Math.max(0.5, Math.min(1.35, state.quality.resolutionScale));
+    this.resolutionScale = Math.max(SOFTWARE_FLOOR, Math.min(1.35, state.quality.resolutionScale));
     this.resize();
     const data = this.uniformScratch;
     data.set(state.viewProjection, 0);

@@ -85,10 +85,28 @@ export const CORE = [
   // Contact between deformable solids and self-contact, part of ./solid-contact. Imports contracts.ts, checkpoint.ts, solid.ts and
   // the Subsystem type from simulation.ts.
   {from: 'src/engine/solid-solid-contact.ts', rewrites: []},
+  // ./flow: flow around and through geometry (lattice-Boltzmann). flow-lattice.ts is the kernel; flow-geometry.ts turns
+  // primitives and meshes into a signed distance; flow.ts is the SI solver; flow-post.ts streamlines, slices and sections;
+  // flow-study.ts the JSON study and result. They import contracts.ts and checkpoint.ts only.
+  {from: 'src/engine/flow-lattice.ts', rewrites: []},
+  {from: 'src/engine/flow-geometry.ts', rewrites: []},
+  {from: 'src/engine/flow.ts', rewrites: []},
+  {from: 'src/engine/flow-post.ts', rewrites: []},
+  {from: 'src/engine/flow-study.ts', rewrites: []},
   // ./materials: the sourced material library and the helpers that build solver inputs from it. Imports contracts.ts
   // and only types from solid.ts, solid-fracture.ts, heat.ts and granular.ts.
   {from: 'src/engine/materials.ts', rewrites: []},
+  // ./gpu: the WebGPU compute backends of the grains, the shallow water and the flow, their float32 CPU references, and
+  // the subsystems of scene sections with backend 'gpu' (scene-backends.ts). Kept in core/gpu/ so their '../' imports of
+  // the solvers above resolve. They need the WebGPU types (GPUDevice, ...) at compile time: webgpu-minimal.d.ts below,
+  // which is not emitted; a TypeScript consumer of ./gpu adds @webgpu/types.
+  ...['compute', 'layout', 'wgsl', 'shallow-water-wgsl', 'shallow-water-f32', 'shallow-water-gpu', 'granular-wgsl', 'granular-f32', 'granular-gpu',
+    'fluid-kernels', 'fluid-program', 'fluid-f32', 'fluid-gpu', 'flow-gpu', 'scene-backends'].map(name => ({from: `src/engine/gpu/${name}.ts`, to: `gpu/${name}.ts`, rewrites: []})),
+  // The WebGPU declarations the app compiles with; ambient, compile-time only (a .d.ts in src is not copied to dist).
+  {from: 'src/webgpu-minimal.d.ts', rewrites: []},
 ];
+/** Where an entry of CORE lands under src/core: its `to`, or its file name. */
+export const coreTarget = entry => entry.to ?? entry.from.split('/').pop();
 // box3d-mt.{js,wasm} is the pthread artifact: loaded only by loadBox3D({threads: 2 or more}).
 export const WASM_FILES = ['box3d.js', 'box3d.wasm', 'box3d-mt.js', 'box3d-mt.wasm', 'BUILD_PROVENANCE.json', 'BOX3D_LICENSE.txt'];
 
@@ -108,7 +126,9 @@ export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 function main() {
   mkdirSync(resolve(pkg, 'src/core'), {recursive: true});
   for (const entry of CORE) {
-    writeFileSync(resolve(pkg, 'src/core', entry.from.split('/').pop()), transformCore(entry, readFileSync(resolve(repo, entry.from), 'utf8')));
+    const target = resolve(pkg, 'src/core', coreTarget(entry));
+    mkdirSync(dirname(target), {recursive: true});
+    writeFileSync(target, transformCore(entry, readFileSync(resolve(repo, entry.from), 'utf8')));
   }
   mkdirSync(resolve(pkg, 'wasm'), {recursive: true});
   for (const name of WASM_FILES) copyFileSync(resolve(repo, 'public/box3d', name), resolve(pkg, 'wasm', name));

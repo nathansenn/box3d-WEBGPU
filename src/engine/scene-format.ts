@@ -771,6 +771,12 @@ export interface SceneFluid {
   /** A uniform velocity the flow starts with (made divergence-free), m/s. Default zero. */
   readonly velocity?: SceneVec3;
   readonly bodies?: readonly SceneFluidBody[];
+  /**
+   * 'gpu': the flow steps on the GPU in float32 (docs/GPU_COMPUTE.md); the bodies' geometry and their coupling stay on
+   * the CPU in float64; the simulation then advances with `await stepAsync()`. Default 'cpu' (the float64 solver). Not
+   * for a free-surface tank.
+   */
+  readonly backend?: 'cpu' | 'gpu';
   /** Saved state: face velocities, m/s ((nx + 1) ny nz for u, nx (ny + 1) nz for v, nx ny (nz + 1) for w, index i + Nx (j + Ny k)), and cell pressures, Pa. */
   readonly u?: readonly number[];
   readonly v?: readonly number[];
@@ -2085,7 +2091,7 @@ function checkHeat(c: Checker, heat: unknown, path: string, solids: Map<string, 
 }
 
 const FLUID_KEYS = ['id', 'kind', 'cells', 'spacing', 'origin', 'density', 'substeps', 'viscosity', 'gravity', 'boundaries', 'advection', 'diffusion', 'velocity', 'bodies', 'u', 'v', 'w', 'pressure',
-  'particlesPerAxis', 'liquid', 'positions', 'velocities', 'affine'];
+  'particlesPerAxis', 'liquid', 'positions', 'velocities', 'affine', 'backend'];
 const FLOW_ONLY = ['viscosity', 'gravity', 'boundaries', 'advection', 'diffusion', 'velocity', 'bodies', 'u', 'v', 'w', 'pressure'];
 const SURFACE_ONLY = ['particlesPerAxis', 'liquid', 'positions', 'velocities', 'affine'];
 const FLUID_SIDES = ['xMin', 'xMax', 'yMin', 'yMax', 'zMin', 'zMax'] as const;
@@ -2118,6 +2124,8 @@ function checkFluid(c: Checker, fluid: unknown, path: string, ctx: CoupledContex
   if (fluid.density !== undefined) c.positive(fluid.density, `${path}/density`, 1e5);
   const substeps = fluid.substeps === undefined ? 1 : c.real(fluid.substeps, `${path}/substeps`, 1, SCENE_LIMITS.fluidSubsteps, true) ? fluid.substeps : 0;
   const dt = substeps > 0 ? ctx.step / substeps : 0;
+  if (fluid.backend !== undefined && fluid.backend !== 'cpu' && fluid.backend !== 'gpu') c.add(`${path}/backend`, `must be 'cpu' or 'gpu', got ${show(fluid.backend)}`);
+  if (surface && fluid.backend === 'gpu') c.add(`${path}/backend`, 'the free-surface tank has no GPU backend: use a flow, or backend \'cpu\'');
   if (surface) {
     if (fluid.particlesPerAxis !== undefined) c.real(fluid.particlesPerAxis, `${path}/particlesPerAxis`, 1, 4, true);
     if (fluid.liquid === undefined) c.add(`${path}/liquid`, 'is required: a free-surface tank starts from boxes of liquid');
@@ -2754,6 +2762,8 @@ function normalFluid(fluid: SceneFluid): SceneFluid {
   if (fluid.diffusion !== undefined && fluid.diffusion !== 'explicit') out.diffusion = fluid.diffusion;
   if (fluid.velocity && !isZero(fluid.velocity)) out.velocity = vec(fluid.velocity);
   if (fluid.bodies && fluid.bodies.length > 0) out.bodies = fluid.bodies.map(entry => ({body: entry.body, ...(entry.twoWay === false ? {twoWay: false} : {})}));
+  // 'cpu' is the default and is left out, so a scene without the field keeps its hash.
+  if (fluid.backend === 'gpu') out.backend = 'gpu';
   // A saved field of zeros on a flow that starts at rest is the flow at rest: left out, like other defaults.
   if (fluid.u && !(out.velocity === undefined && allZero(fluid.u) && allZero(fluid.v) && allZero(fluid.w) && allZero(fluid.pressure))) {
     out.u = vec(fluid.u); out.v = vec(fluid.v!); out.w = vec(fluid.w!);

@@ -1023,13 +1023,15 @@ function shapeInertia(body:SceneBody,explicit:SceneInertia|undefined):StructureI
 }
 
 /**
- * The subsystems of the scene sections that say `backend: 'gpu'` (shallow water, grains). The GPU backends live in
+ * The subsystems of the scene sections that say `backend: 'gpu'` (shallow water, grains, flows). The GPU backends live in
  * src/engine/gpu (scene-backends.ts `gpuSceneBackends(compute)`); this module only calls them, so it does not depend on
  * WebGPU. A scene with such a section loaded without them is refused.
  */
 export interface SceneGpuBackends<W=any,B=any> {
   shallowWater(water:ShallowWater,info:{readonly id:string}):Subsystem<W,B>&{stale():boolean};
   grains(coupling:GranularCoupling<B>,info:{readonly id:string}):Subsystem<W,B>&{stale():boolean};
+  /** A flow (kind 'flow'), with its coupling to the bodies when it has any. Optional: a scene with a GPU flow is refused without it. */
+  fluid?(target:Fluid|FluidCoupling<B>,info:{readonly id:string}):Subsystem<W,B>&{stale():boolean};
 }
 /** Options of the scene loaders (buildSceneSimulation, loadSimulationScene, resumeSimulationScene). */
 export interface SceneSimulationOptions {
@@ -1253,7 +1255,11 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
           for(const entry of desc.bodies)coupling.addBody(bodies.get(entry.body)!,{shape:descriptions.get(entry.body)!.shape as FluidShape,...(entry.twoWay!==undefined?{twoWay:entry.twoWay}:{})});
         }
         fluids.set(desc.id,{kind:'flow',flow,coupling});
-        simulation.add(fluidSubsystem<W,Body>(coupling??flow,{id:desc.id}));
+        if(desc.backend==='gpu'){
+          const make=gpuBackends().fluid;
+          if(!make)throw new EngineError('GPU_UNAVAILABLE',"These GPU backends do not build flows: use gpuSceneBackends of src/engine/gpu/scene-backends.ts.");
+          const sub=make(coupling??flow,{id:desc.id});onGpu.set(`fluid/${desc.id}`,sub);simulation.add(sub as Subsystem<W,Body>);
+        }else simulation.add(fluidSubsystem<W,Body>(coupling??flow,{id:desc.id}));
         for(const entry of desc.bodies??[])if(entry.twoWay!==false)track(entry.body);
       }catch(error){throw named('fluid',desc.id,error);}
     }
@@ -1327,6 +1333,7 @@ export function buildSceneSimulation<W extends SimulationSceneWorld>(world:W,bui
     fluids:scene.fluids?.map((desc:SceneFluid)=>{
       const runtime=fluids.get(desc.id)!;
       if(runtime.kind==='free-surface'){const t=runtime.surface;return {...desc,positions:Array.from(t.positions.subarray(0,3*t.count)),velocities:Array.from(t.velocities.subarray(0,3*t.count)),affine:Array.from(t.affine.subarray(0,9*t.count))};}
+      pulled('fluid',desc.id);
       const state=runtime.flow.getState();
       return {...desc,u:Array.from(state.u),v:Array.from(state.v),w:Array.from(state.w),pressure:Array.from(state.pressure)};
     }),

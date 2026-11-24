@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>BOX3D · Flow studies</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#1c2530;background:#f3f5f7}*{box-sizing:border-box}body{margin:0;display:grid;grid-template-columns:minmax(0,1fr) 340px;height:100vh}
+#stage{position:relative;min-width:0}#view{width:100%;height:100%;display:block}#legend{position:absolute;left:12px;top:12px;background:rgba(255,255,255,.85);border-radius:6px}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}.label{position:absolute;transform:translate(-50%,-140%);padding:3px 7px;border-radius:4px;font-size:12px;font-weight:600;white-space:nowrap;background:#fff;border:1px solid #9aa4ad}.label.inlet{color:#0b5fa8;border-color:#0b5fa8}.label.outlet{color:#b3261e;border-color:#b3261e}
+aside{padding:18px;border-left:1px solid #d3d9df;overflow:auto;background:#fff}h1{font-size:19px;margin:4px 0 8px}p{font-size:13px;line-height:1.45;color:#46525e}select{font:inherit;width:100%;padding:7px;margin:6px 0}progress{width:100%}
+dl{display:grid;grid-template-columns:auto 1fr;gap:5px 10px;font-size:12px}dt{color:#5b6773}dd{margin:0;font-family:ui-monospace,monospace;text-align:right}#warnings{white-space:pre-wrap;font-size:11px;color:#8a4b08}small{color:#5b6773}
+@media(max-width:800px){body{grid-template-columns:1fr;grid-template-rows:60vh auto;height:auto}aside{border-left:0;border-top:1px solid #d3d9df}}
+</style></head><body>
+<div id="stage"><canvas id="view" aria-label="Flow result"></canvas><canvas id="legend" width="190" height="236"></canvas><div id="labels"></div></div>
+<aside><small>BOX3D · FLOW AROUND AND THROUGH GEOMETRY</small><h1 id="title">Flow studies</h1>
+<label>Study <select id="study"></select></label>
+<p id="caption"></p><progress id="bar" max="1" value="0"></progress><p id="status">Starting…</p>
+<dl id="metrics"></dl><p id="warnings"></p>
+<p><small>Lattice-Boltzmann (D3Q19, regularised, Smagorinsky with a wall function), run in this page. An engineering estimate, not certified CFD: see docs/FLOW.md for what is validated and the limits. Drag to orbit, scroll to zoom.</small></p></aside>
+<script type="module" src="/src/flow-demo/main.ts"></script></body></html>

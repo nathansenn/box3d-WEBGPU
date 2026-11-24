@@ -17,6 +17,7 @@ export const CT = {
   confinement: 'confinement: under lateral pressure the peak follows EN 1992-1-1 3.1.9, (3.24) and (3.25)',
   biaxial: 'biaxial compression: the equal-biaxial strength is 1.16 f_cm (Kupfer, Hilsdorf and Rusch 1969)',
   flow: 'non-associated flow: the plastic volume change per unit kappa_c is the dilatancy psi of the potential, below the meridian slope',
+  factor: 'strength factors scale the whole surface: a factor f gives f f_cm in uniaxial compression, f f_ctm in tension and 1.16 f f_cm in equal-biaxial compression',
   tie: 'reinforced tie: embedded bars with perfect bond follow the one-dimensional series model through cracking to yield',
   beam: 'reinforced beam in four-point bending: cracking and yield moments against the transformed and cracked sections',
   cube: 'the 150 mm cube between steel platens (friction 0.2) against the 150 x 300 mm cylinder (EN 1992-1-1 Table 3.1: 37 / 30) and a cylinder of slenderness 1',
@@ -137,10 +138,26 @@ export const confined = ratio => memo(`concrete/confined/${ratio}`, async () => 
   return {peak, closed: fcm * en1992Confined(ratio), fcm};
 });
 
-/** One cell compressed equally along y and z by displacement (x free): the peak stress over f_cm. */
-export const biaxial = () => memo('concrete/biaxial', async () => {
+/** Strength factors (`setStrengthFactors`): one cell of band width L_c whose elements all have the factor f, in uniaxial
+ * compression to 1.6 eps_c1 (the peak, over f f_cm) and in uniaxial tension (the peak, over f f_ctm). A factor scales the
+ * whole surface in stress space, so both are 1. */
+export const strengthFactor = f => memo(`concrete/strength-factor/${f}`, async () => {
+  const {buildConcreteLaw} = await solid(), material = await c30(), c = material.concrete;
+  const L = buildConcreteLaw(c, material.youngModulus, material.poissonRatio, 1e-6).referenceLength, cell = {...material, concrete: {...c, bandWidth: L}};
+  const comp = await prism({material: cell, Lx: L, weak: f, steps: 160, end: -1.6 * c.peakStrain * L});
+  const tens = await prism({material: cell, Lx: L, weak: f, steps: 100, end: 2 * f * c.tensileStrength / material.youngModulus * L});
+  let peak = 0, at = 0, tension = 0;
+  for (const r of comp.rows) if (-r.stress > peak) { peak = -r.stress; at = -r.strain; }
+  for (const r of tens.rows) tension = Math.max(tension, r.stress);
+  return {f, peak, at, compression: peak / (f * c.compressiveStrength), tension: tension / (f * c.tensileStrength), converged: [...comp.rows, ...tens.rows].every(r => r.converged)};
+});
+
+/** One cell compressed equally along y and z by displacement (x free): the peak stress over f_cm (over f f_cm for a cell of
+ * strength factor f). */
+export const biaxial = (factor = 1) => memo(`concrete/biaxial/${factor}`, async () => {
   const {SolidBody, boxMesh} = await solid(), m = await c30(), L = 0.05;
   const b = new SolidBody({mesh: boxMesh({size: [L, L, L], cells: [1, 1, 1]}), material: {...m, concrete: {...m.concrete, bandWidth: L}}, config: {model: 'green-lagrange', tolerance: 1e-9, forceTolerance: 1e-6, maxNewtonIterations: 300}});
+  if (factor !== 1) b.setStrengthFactors(new Float64Array(b.tetCount).fill(factor));
   const x0 = b.selectNodes(x => near(x, 0)), y0 = b.selectNodes((x, y) => near(y, 0)), z0 = b.selectNodes((x, y, z) => near(z, 0)), yL = b.selectNodes((x, y) => near(y, L)), zL = b.selectNodes((x, y, z) => near(z, L));
   b.constrain(x0, [0, null, null]); b.constrain(y0, [null, 0, null]); b.constrain(z0, [null, null, 0]);
   let peak = 0, converged = true, previous = b.displacements.slice(), before = previous.slice();
@@ -153,7 +170,7 @@ export const biaxial = () => memo('concrete/biaxial', async () => {
     let F = 0; for (const k of yL) F += r.reactions[3 * k + 1];
     if (-F / (L * L) >= peak) { peak = -F / (L * L); converged &&= r.converged; } before = previous; previous = b.displacements.slice();
   }
-  return {ratio: peak / m.concrete.compressiveStrength, converged};
+  return {ratio: peak / (factor * m.concrete.compressiveStrength), converged};
 });
 
 /** The peak surface of the law under plane stress (0, -a s, -s): s / f_cm for a stress ratio a (Kupfer's biaxial tests). */
@@ -295,7 +312,7 @@ export const concrete = defineCases('solid', FILE, [
     measure: async () => { const r = await tensionBand(n, m); return r.work / (0.98 * r.Gf * r.A); }})),
   ...[[10, 1], [20, 1], [40, 1], [20, 2]].map(([n, m]) => ({id: `solid.concrete.band-compression-${n}x${m}x${m}`, title: `Concrete law: crack band per element in compression, ${n} x ${m} x ${m} cells`, quantity: `plastic work after the peak of a 0.2 m prism of ${n} x ${m} x ${m} cells (40 mm zone 10 % weaker, no bandWidth given), over G_c A sigma_peak / f_cm`, unit: '1', test: CT.bandCompression,
     reference: {formula: 'G_c = f_cm w_d / 2, w_d = 0.5 mm (the law\'s default, after the ATENA crack band model; from memory), anchored at the band\'s peak', value: 1}, tolerance: relative(0.05),
-    note: 'One band of elements crushes. Against 0.9 G_c A (the zone\'s strength factor) the ratio is 0.96 to 1.06: the zone\'s pre-peak dilatancy draws confinement from the stronger ends, by an amount that depends on the mesh, and the softening starts from that peak.',
+    note: 'One band of elements crushes. Against 0.9 G_c A (the zone\'s strength factor) the ratio is 1.08 to 1.11 on these meshes: the zone\'s pre-peak dilatancy draws confinement from the stronger ends (peaks 35.9 to 37.6 MPa against 34.2 MPa), by an amount that depends on the mesh, and the softening starts from that peak.',
     measure: async () => (await crushBand(n, m)).ratio})),
   ...[0.05, 0.2].map(r => ({id: `solid.concrete.confined-${Math.round(r * 100)}`, title: `Concrete law: strength under a lateral pressure of ${r} f_cm`, quantity: 'peak axial stress of one cell under constant lateral pressure', unit: 'Pa', test: CT.confinement,
     reference: {formula: r <= 0.05 ? 'f_cm (1 + 5 sigma_2 / f_cm), EN 1992-1-1 (3.24)' : 'f_cm (1.125 + 2.5 sigma_2 / f_cm), EN 1992-1-1 (3.25)', value: null}, tolerance: relative(0.01),
@@ -307,6 +324,15 @@ export const concrete = defineCases('solid', FILE, [
   {id: 'solid.concrete.dilatancy', title: 'Concrete law: non-associated plastic volume change', quantity: 'volumetric plastic strain per unit kappa_c of a return past the elastic limit, over psi', unit: '1', test: CT.flow,
     reference: {formula: 'tr(d eps_p) = psi d kappa_c, psi = tan 30 degrees (potential q r(theta) + psi p)', value: 1}, tolerance: absolute(1e-9),
     measure: async () => { const f = await flow(); return f.volumetric / f.psi; }},
+  ...[0.8, 0.9, 1.1].map(f => ({id: `solid.concrete.strength-factor-${Math.round(f * 100)}`, title: `Concrete law: strength factor ${f} in uniaxial compression`, quantity: `peak nominal stress of one C30/37 cell of band width L_c whose elements have the strength factor ${f} (setStrengthFactors), over ${f} f_cm`, unit: '1', test: CT.factor,
+    reference: {formula: 'a factor f scales the surface in stress space: q r(theta) = f k Psi(xi / (f f_cm)), so the uniaxial strength is f f_cm', value: 1}, tolerance: relative(0.005),
+    note: `Before 2026-11-18 the meridian was read at xi / f_cm, not xi / (f f_cm): the factor ${f} gave ${({0.8: 0.788, 0.9: 0.881, 1.1: 1.151})[f]} of f f_cm. The factor 1 row (solid.concrete.peak) is 0.2 % low in the same way (nominal stress, Green-Lagrange kinematics).`,
+    measure: async () => (await strengthFactor(f)).compression})),
+  {id: 'solid.concrete.strength-factor-tension-90', title: 'Concrete law: strength factor 0.9 in uniaxial tension', quantity: 'peak stress of the same cell in uniaxial tension, over 0.9 f_ctm', unit: '1', test: CT.factor,
+    reference: {formula: 'Rankine: sigma_1 <= f f_t', value: 1}, tolerance: relative(0.005), measure: async () => (await strengthFactor(0.9)).tension},
+  {id: 'solid.concrete.strength-factor-biaxial-90', title: 'Concrete law: strength factor 0.9 in equal-biaxial compression', quantity: 'peak stress of one cell of strength factor 0.9 compressed equally along two axes, over 0.9 f_cm', unit: '1', test: CT.factor,
+    reference: {formula: '1.16 (Kupfer, Hilsdorf and Rusch 1969, the fitted equal-biaxial point), scaled by the factor', value: 1.16}, tolerance: relative(0.01),
+    note: 'Before 2026-11-18: 1.050 (the meridian read at xi / f_cm).', measure: async () => (await biaxial(0.9)).ratio},
   {id: 'solid.concrete.cube-cylinder', file: STUDIO_FILE, title: 'Concrete: cube strength over cylinder strength between steel platens', quantity: 'peak stress of the 150 mm cube over that of the 150 x 300 mm cylinder (C30/37, the Studio lab\'s models, platen friction 0.2)', unit: '1', test: CT.cube,
     reference: {formula: 'f_ck,cube / f_ck = 37 / 30 (EN 1992-1-1 Table 3.1, C30/37)', value: 37 / 30}, tolerance: relative(0.05),
     note: 'The friction 0.2 is the value Stredulova and Elias (Engineering Mechanics 2023, p. 239) use between steel platens and concrete in their model of the compression test, a calibrated input, not a measurement. Measured coefficients of steel plate on concrete or grout are 0.43 to 0.70 (Gomez, Kanvinde and Deierlein, AISC Eng. J. 2011); with 0.57 the ratio is 1.43, a miss. Read this row as: the friction another compression-test model needs is also the one that gives this law the code\'s ratio.',

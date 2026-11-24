@@ -23,10 +23,12 @@ import {GpuCompute,GpuProgram,type GpuDispatch} from './compute.ts';
 import {planShallowWaterSubsteps,readShallowWaterCheckpoint,shallowWaterSetup,writeShallowWaterCheckpoint,type ShallowWaterF32Stats,type ShallowWaterSetup} from './shallow-water-f32.ts';
 import {SHALLOW_WATER_WGSL,SW_COUNT_WET,SW_MANNING,SW_METER_FLAGS,SW_METER_MEASURE_X,SW_METER_MEASURE_Z,SW_METER_RATE_X,SW_METER_RATE_Z,SW_METER_SLOTS,SW_METER_WET,SW_PARAMS,SW_RAIN,SW_SKIP_Z,SW_SOIL,SW_SOLID} from './shallow-water-wgsl.ts';
 
+/** The solver id of the shallow water on WebGPU compute (float32). */
 export const SHALLOW_WATER_GPU_SOLVER_ID='shallow-water-hr-muscl-hll-webgpu-f32-v1';
 /** Bytes between two parameter blocks (the smallest uniform offset alignment WebGPU guarantees). */
 const BLOCK=256,MAX_BLOCKS=128;
 
+/** Options of GpuShallowWater: how old the face speeds that set the substeps may be (rateLatency), the margin, and whether to wait for them. */
 export interface GpuShallowWaterOptions {
   /** 0 (default): measure the face speeds before every step and wait for them. L >= 1: use the speeds of the step L before. */
   readonly rateLatency?:number;
@@ -46,6 +48,7 @@ export interface GpuShallowWaterSnapshot {
 }
 interface Meter {rateX:number;rateZ:number;wet:number;flags:number;measureX:number;measureZ:number}
 
+/** Shallow water on terrain on WebGPU compute, in float32: the float64 solver's scheme with its sides, rain, soil and friction. */
 export class GpuShallowWater {
   readonly solver=SHALLOW_WATER_GPU_SOLVER_ID;
   readonly nx:number;readonly nz:number;readonly dx:number;readonly dz:number;
@@ -276,6 +279,7 @@ export class GpuShallowWater {
   }
 }
 
+/** Options of ShallowWaterRunner: those of GpuShallowWater and how often a snapshot is kept in the float64 solver for a fall back. */
 export interface ShallowWaterRunnerOptions extends GpuShallowWaterOptions {
   /** Steps between the readbacks kept for a fall back to the CPU. Default 30; 0: none (a device loss then restarts from the start state). */
   readonly snapshotEvery?:number;

@@ -35,7 +35,8 @@ const manifest = JSON.parse(readFileSync(join(pkg, 'package.json'), 'utf8'));
 const entries = Object.entries(manifest.exports).filter(([name, target]) => typeof target === 'object' && name !== './single').map(([name, target]) => ({name, file: target.default.replace('./dist/', '')}));
 // The solver modules. `import {PhysicsWorld} from 'box3d-webgpu-kit'` must reach none of them.
 const SOLVERS = ['compliant-cable', 'linear-water', 'closed-water', 'water-coupling', 'frame-element', 'frame-runtime', 'envelope-matrix', 'heat', 'solid', 'solid-mesh', 'concrete-law', 'sparse-ldl', 'structure-coupling',
-  'scene-format', 'scene-examples', 'geometry', 'simulation', 'robot-import', 'solid-fracture', 'cloth', 'granular', 'granular-kernels', 'fluid', 'fluid-multigrid', 'shallow-water', 'solid-contact', 'materials'].map(name => `core/${name}.js`);
+  'scene-format', 'scene-examples', 'geometry', 'simulation', 'robot-import', 'solid-fracture', 'cloth', 'granular', 'granular-kernels', 'fluid', 'fluid-multigrid', 'shallow-water', 'solid-contact', 'materials',
+  'flow-lattice', 'flow-geometry', 'flow', 'flow-post', 'flow-study'].map(name => `core/${name}.js`);
 // Budgets in bytes of gzip (level 9), set from the measured sizes of 1.0.0-rc.1 with about 15 % of headroom, rounded up to
 // a kibibyte. Raise one deliberately, in review, with the measurement in the commit message; never silently.
 // Raised with the rigid-core merge (measured then, KiB): box3d.wasm 704.2 raw (was under 700), main entry 75.3 (58.8: the
@@ -45,13 +46,22 @@ const SOLVERS = ['compliant-cable', 'linear-water', 'closed-water', 'water-coupl
 // von Karman plate of bf0b767). The pthread artifact is new and has budgets of its own (mt*).
 const KiB = 1024;
 // The tarball: both WebAssembly builds and everything else. Measured 1,434 KiB at rc.1 and 1,915.7 KiB after the
-// rigid-core merge, of which the pthread artifact is about 290 KiB compressed.
+// rigid-core merge, of which the pthread artifact is about 290 KiB compressed. Measured 2026-11-24 with the flow solver
+// (./flow, the single-module ./flow-bundle, ./flow-three, the GPU step, the two JSON Schemas) on the smaller WebAssembly:
+// 2,155 KiB packed, inside the budget below without raising it.
 const PACKED_BUDGET = 2194 * KiB;
+// Lowered 2026-11-23 with the size work on the WebAssembly build (docs/WASM_SIZE.md: recording hooks compiled out, cold
+// functions and the bridge compiled for size, Closure for the glue). Measured then, bytes: box3d.wasm 587,365 raw (it was
+// 725,529), 252,347 gzip -9 (280,964), 198,040 brotli (214,360); box3d.js 8,898 (24,045); box3d-mt.wasm 598,316 raw
+// (733,336), 258,475 gzip (288,050), 203,387 brotli (219,972); box3d-mt.js 15,541 (39,333); dist/single.js 372.4 KiB gzip (412.3).
+// The raw and gzip budgets of box3d.wasm and the glue budget are those of an application that ships these files (650 KiB,
+// 256 KiB, 20 KiB): 10.7 % and 3.9 % above the measurement for the wasm. The gzip budget is the tight one. When it is
+// reached, look for what grew before raising it: the numbers above are the reference.
 const BUDGET = {
-  wasm: 810 * KiB, wasmGzip: 275 * KiB, wasmBrotli: 210 * KiB, glue: 26 * KiB, singleGzip: 475 * KiB, packed: PACKED_BUDGET,
+  wasm: 650 * KiB, wasmGzip: 256 * KiB, wasmBrotli: 205 * KiB, glue: 12 * KiB, singleGzip: 430 * KiB, packed: PACKED_BUDGET,
   // box3d-mt.{js,wasm}: loaded only by loadBox3D({threads: 2 or more}), never by an import, so in no entry's closure.
-  // Measured 711.8 KiB raw, 279.5 gzip, 213.1 brotli, glue 38.2.
-  mtWasm: 819 * KiB, mtWasmGzip: 322 * KiB, mtWasmBrotli: 246 * KiB, mtGlue: 44 * KiB,
+  // Measured 584.3 KiB raw, 252.4 gzip, 198.6 brotli, glue 15.2 (before the size work: 716.1, 281.3, 214.8, 38.4).
+  mtWasm: 660 * KiB, mtWasmGzip: 262 * KiB, mtWasmBrotli: 211 * KiB, mtGlue: 19 * KiB,
   /** A Vite bundle of a program that uses only createWorld, createBody and step. Measured 27.9 KiB, 37.6 after the rigid-core merge. */
   rigidBundle: 43 * KiB,
   // Measured after the rigid-core merge (KiB): main 75.3, three 2.0, babylon 0.9, worker 81.4, gameplay 83.7, cable 24.7, water 2.7,
@@ -63,11 +73,32 @@ const BUDGET = {
   // simulation 436.2.
   // Raised 2026-11-17: solid 75 -> 80 KiB when the crack band and the press solver's orphaned-pivot and tangent changes
   // met (measured 75.9 KiB = 77,718 bytes; each alone stayed under 75).
+  // Raised 2026-11-18: scene 447 -> 454 and simulation 446 -> 453 KiB for the mortar and edge-to-edge contact of
+  // SolidSolidContact (measured 448.7 and 447.3 KiB, from 441.8 and 440.5 at 5f0454d: solid-solid-contact.js grew from
+  // 15,827 to 22,857 bytes of gzip). solid-contact itself stays within 135 KiB: measured 134.7 (127.8 at 5f0454d).
+  // Raised 2026-11-22: solid-contact 135 -> 142 KiB when the mortar contact (134.7 KiB alone), the concrete strength
+  // factors and the node-blocked LDLT kernels met (measured 136.4 KiB = 139,638 bytes).
+  // Raised 2026-11-22: fracture 138 -> 144 KiB when the plane-section LDLT kernels and the reuse of friction-pass
+  // evaluations joined the concrete and contact changes (measured 138.5 KiB = 141,874 bytes).
+  // Raised 2026-11-22: scene 454 -> 460 and simulation 453 -> 459 KiB when the contact line search and the strip
+  // ordering joined the mortar contact and the GPU scene sections (scene measured 454.05 KiB = 464,948 bytes).
+  // Lowered 2026-11-23: main 85 -> 65, worker 92 -> 72 and gameplay 95 -> 87 KiB when the modules of the main entry became
+  // one file without comments (scripts/bundle-rigid.mjs; measured 56.3, 62.8 and 75.2 KiB, from 76.7, 82.8 and 85.2).
+  // Lowered 2026-11-24: main 65 -> 55, worker 72 -> 62 and gameplay 87 -> 76 KiB when the shared modules joined one chunk
+  // and the locals got short names (measured 47.4, 54.2 and 66.3 KiB).
   entry: {
-    '.': 85 * KiB, './three': 3 * KiB, './babylon': 2 * KiB, './worker': 92 * KiB, './gameplay': 95 * KiB,
+    '.': 55 * KiB, './three': 3 * KiB, './babylon': 2 * KiB, './worker': 62 * KiB, './gameplay': 76 * KiB,
     './cable': 28 * KiB, './water': 4 * KiB, './coupling': 29 * KiB, './frame': 27 * KiB, './structure': 32 * KiB, './heat': 28 * KiB,
-    './solid': 80 * KiB, './fracture': 138 * KiB, './solid-contact': 135 * KiB, './cloth': 72 * KiB, './granular': 65 * KiB, './fluid': 57 * KiB, './shallow-water': 38 * KiB,
-    './materials': 40 * KiB, './geometry': 33 * KiB, './scene-format': 92 * KiB, './robot': 74 * KiB, './scene': 447 * KiB, './simulation': 446 * KiB,
+    './solid': 80 * KiB, './fracture': 144 * KiB, './solid-contact': 142 * KiB, './cloth': 72 * KiB, './granular': 65 * KiB, './fluid': 57 * KiB, './shallow-water': 38 * KiB,
+    './materials': 40 * KiB, './geometry': 33 * KiB, './scene-format': 92 * KiB, './robot': 74 * KiB, './scene': 460 * KiB, './simulation': 459 * KiB,
+    // Added 2026-11-18: the GPU backends with their float32 references and the scene sections on the GPU. It loads the
+    // grain and shallow-water solvers they are built from (the flow solver only by type: a page that runs no flow does not load it; the scene loader is in ./simulation). Measured 150.8 KiB, 152.3 KiB with the flow sections (151.1 before them).
+    // Raised 2026-11-24 with the flow solver's GPU step (flow-gpu.ts): measured 173.3 KiB (it was 174 with 152.3 measured).
+    './gpu': 200 * KiB,
+    // Added 2026-11-23, measured 2026-11-24: flow around and through geometry (the lattice-Boltzmann kernel, the voxeliser,
+    // the study runner and the post-processing) 78.2 KiB, the same as one module (./flow-bundle, not minified) 66.7 KiB,
+    // and its three.js view 3.8 KiB. Budgets are the measured sizes plus about 15%.
+    './flow': 90 * KiB, './flow-bundle': 77 * KiB, './flow-three': 5 * KiB,
   },
 };
 const size = {
@@ -106,7 +137,7 @@ try {
   if (measureOnly) console.log(`${'packed'.padEnd(26)} ${(packed.size / KiB).toFixed(1).padStart(8)} KiB`);
   const over = [...Object.entries(size).filter(([k, v]) => v > BUDGET[k]).map(([k, v]) => `${k} ${v} > ${BUDGET[k]}`), ...Object.entries(entrySize).filter(([k, v]) => v > BUDGET.entry[k]).map(([k, v]) => `import '${k}' ${v} > ${BUDGET.entry[k]}`)];
   if (over.length && !measureOnly) throw new Error(`size budget exceeded (bytes): ${over.join(', ')}`);
-  for (const required of ['dist/index.js', 'dist/index.d.ts', 'dist/three.js', 'dist/worker.js', 'dist/worker.d.ts', 'dist/babylon.js', 'dist/core/build-info.js', 'dist/shared-frames.js', 'dist/session.js', 'dist/inspector.js', 'api/API.md', 'CHANGELOG.md', 'dist/single.js', 'dist/cable.js', 'dist/water.js', 'dist/coupling.js', 'dist/frame.js', 'dist/heat.js', 'dist/gameplay.js', 'bin/box3d-kit.mjs', 'templates/three/main.js', 'wasm/box3d.js', 'wasm/box3d.wasm', 'LICENSE', 'wasm/BOX3D_LICENSE.txt', 'THIRD_PARTY_NOTICES.md', 'dist/geometry.js', 'dist/solid.js', 'dist/scene.js', 'dist/robot.js', 'dist/robot.d.ts', 'dist/core/robot-import.js', 'dist/fracture.js', 'dist/fracture.d.ts', 'dist/core/solid-fracture.js', 'dist/cloth.js', 'dist/solid-contact.js', 'dist/cloth.d.ts', 'dist/core/cloth.js']) {
+  for (const required of ['dist/index.js', 'dist/rigid.js', 'dist/shared.js', 'dist/index.d.ts', 'dist/three.js', 'dist/worker.js', 'dist/worker.d.ts', 'dist/babylon.js', 'dist/core/build-info.js', 'dist/shared-frames.js', 'dist/session.js', 'dist/inspector.js', 'api/API.md', 'CHANGELOG.md', 'dist/single.js', 'dist/cable.js', 'dist/water.js', 'dist/coupling.js', 'dist/frame.js', 'dist/heat.js', 'dist/gameplay.js', 'bin/box3d-kit.mjs', 'templates/three/main.js', 'wasm/box3d.js', 'wasm/box3d.wasm', 'LICENSE', 'wasm/BOX3D_LICENSE.txt', 'THIRD_PARTY_NOTICES.md', 'dist/geometry.js', 'dist/solid.js', 'dist/scene.js', 'dist/robot.js', 'dist/robot.d.ts', 'dist/core/robot-import.js', 'dist/fracture.js', 'dist/fracture.d.ts', 'dist/core/solid-fracture.js', 'dist/cloth.js', 'dist/solid-contact.js', 'dist/cloth.d.ts', 'dist/core/cloth.js', 'dist/gpu-compute.js', 'dist/gpu-compute.d.ts', 'dist/core/gpu/scene-backends.js', 'dist/core/gpu/fluid-gpu.js', 'dist/flow.js', 'dist/flow-bundle.js', 'dist/flow-three.js', 'dist/core/gpu/flow-gpu.js', 'schemas/flow-study.schema.json', 'schemas/flow-result.schema.json', 'bin/flow-cli.mjs']) {
     if (!files.includes(required)) throw new Error(`tarball is missing ${required}`);
   }
   const leaked = files.filter(f => f.startsWith('src/') || f.startsWith('test/') || f.endsWith('.tgz') || f.endsWith('.map')); // maps would point at src/, which is not shipped
@@ -187,6 +218,35 @@ void [events, moved, g, unsubscribe];
 `);
   const tsc = resolve(pkg, '../../node_modules/typescript/bin/tsc');
   sh('node', [tsc, '--noEmit', '--strict', '--target', 'es2022', '--module', 'nodenext', '--moduleResolution', 'nodenext', '--lib', 'es2022,dom', 'types.ts'], app);
+  // box3d-webgpu-kit/gpu: a scene section with backend 'gpu' loads from the tarball and steps on the float32 reference
+  // (no device in Node); its declarations resolve for a strict consumer that has the WebGPU types.
+  writeFileSync(join(app, 'gpu.mjs'), `
+import {createWorld} from 'box3d-webgpu-kit';
+import {loadSimulationScene} from 'box3d-webgpu-kit/simulation';
+import {gpuSceneBackends, GpuCompute} from 'box3d-webgpu-kit/gpu';
+import {hopperSeesawScene, sceneWorldOptions} from 'box3d-webgpu-kit/scene-format';
+const hopper = hopperSeesawScene({count: 12});
+const scene = {...hopper, grains: hopper.grains.map(g => ({...g, backend: 'gpu'}))};
+const world = await createWorld(sceneWorldOptions(scene));
+const loaded = loadSimulationScene(world, scene, {gpu: gpuSceneBackends('reference')});
+for (let i = 0; i < 12; i++) await loaded.simulation.stepAsync();
+await loaded.simulation.pullAsync();
+const id = scene.grains[0].id, d = loaded.simulation.diagnostics().subsystems[id], dem = loaded.grains.get(id).granular;
+const moved = dem.velocities.some(v => v !== 0);
+loaded.simulation.dispose(); world.dispose();
+if (d.backend !== 'gpu-reference' || d.steps <= 0 || !moved || typeof GpuCompute !== 'function') { console.error(JSON.stringify({d, moved})); process.exit(1); }
+console.log(JSON.stringify({gpu: 'ok', steps: d.steps}));
+`);
+  writeFileSync(join(app, 'gpu-types.ts'), `/// <reference path="${resolve(pkg, '../../node_modules/@webgpu/types/dist/index.d.ts').replace(/\\/g, '/')}" />
+import {acquireGpuCompute, gpuSceneBackends, GpuFluid, FluidF32, type GpuSceneSubsystem} from 'box3d-webgpu-kit/gpu';
+import type {SceneGpuBackends} from 'box3d-webgpu-kit/simulation';
+const backends: SceneGpuBackends = gpuSceneBackends('reference');
+const later: Promise<unknown> = acquireGpuCompute().then(compute => gpuSceneBackends(compute));
+void [backends, later, GpuFluid, FluidF32, null as unknown as GpuSceneSubsystem<unknown, unknown>];
+`);
+  sh('node', [tsc, '--noEmit', '--strict', '--target', 'es2022', '--module', 'nodenext', '--moduleResolution', 'nodenext', '--lib', 'es2022,dom', 'gpu-types.ts'], app);
+  const gpuOut = sh('node', ['gpu.mjs'], app).trim();
+  if (!gpuOut.includes('"gpu":"ok"')) throw new Error(`the ./gpu consumer failed: ${gpuOut}`);
   const out = sh('node', ['game.mjs'], app).trim();
 
   // Tree shaking: a bundle of a program that uses only the rigid world holds no solver code. Vite (Rolldown) builds it

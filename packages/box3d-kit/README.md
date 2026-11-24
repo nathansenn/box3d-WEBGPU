@@ -2,7 +2,7 @@
 
 Rigid-body physics for games and interactive apps, built on [Box3D](https://github.com/erincatto/box3d) (Erin Catto) compiled to WebAssembly. One install gives you:
 
-- the prebuilt 450 KB WASM module (190 KB gzipped), with no build toolchain needed;
+- the prebuilt 574 KiB WASM module (246 KiB gzipped), with no build toolchain needed;
 - up to 16 isolated worlds per module;
 - a fixed-timestep game loop with render interpolation;
 - generation-checked body handles, plus user data to map them to your entities;
@@ -477,9 +477,11 @@ camera.follow(hero.state.position);
 | `box3d-webgpu-kit/cloth` | Calibrated cloth: a membrane and plate with real material parameters, implicit integration, contact and friction against rigid bodies, self-collision, and two-way coupling to the rigid world (see below). |
 | `box3d-webgpu-kit/granular` | Granular media by the discrete element method: spherical grains with Hertz or linear contact, friction, rolling resistance, silo and hopper walls, and two-way coupling to the rigid world (see below). |
 | `box3d-webgpu-kit/fluid` | Volumetric incompressible flow: the Navier–Stokes equations on a staggered grid with walls, inflows, outflows and periodic sides, fixed and moving obstacles, two-way coupling to the rigid world, and a free-surface tank of liquid particles (see below). |
+| `box3d-webgpu-kit/flow` | Flow around and through geometry from primitives and triangle meshes: a virtual wind or water tunnel, or pipes, manifolds and tanks with named inlets and outlets; forces per part, drag and lift, surface pressure, flow rates, pressure drops, streamlines and slices, by a lattice-Boltzmann large-eddy simulation; JSON study and result documents and the `box3d-flow` command (see below). `./flow-bundle` is the same in one ES module; `./flow-three` draws a result with three.js. |
 | `box3d-webgpu-kit/shallow-water` | Depth-averaged water on terrain: dam breaks, rivers and floods with Manning friction, rain and Green-Ampt infiltration, inflow, outflow and stage sides, and floating rigid bodies (see below). |
 | `box3d-webgpu-kit/materials` | A material library with sources: steels, aluminium, copper, cast iron, glass, concrete, granite, wood, polymers, rubber, ice, water, air, glass beads and sand, each value with its conditions and citation, and helpers that build the inputs of the solvers above (see below). |
 | `box3d-webgpu-kit/simulation` | One stepping loop: a `Simulation` that steps the world, the water and structure couplings, heat and solids in a fixed order, with one clock, energy ledger and event stream (see below). |
+| `box3d-webgpu-kit/gpu` | WebGPU compute backends (float32) of the grains, the shallow water and the flow, each with a float32 CPU reference that runs the same program, and the scene sections that say `"backend": "gpu"` (see [Scene sections on the GPU](#scene-sections-on-the-gpu)). |
 
 Cable, water, frame and solid are the same model code the Box3D WebGPU app runs; the build copies it from the app. The app's own test suites (68 tests: 11 cable, 11 proximal cable, 2 linear water, 6 closed water, 16 frame, 22 solid) run against the packaged copies in `npm test`. Heat and solid are independent of the rigid-body world. Water is coupled to it by `box3d-webgpu-kit/coupling`, and cables and frames by `box3d-webgpu-kit/structure`. The WebGPU water solver is not packaged yet.
 
@@ -792,6 +794,38 @@ Sides are `'no-slip'` (a wall, moving along itself if you give it a velocity), `
 - **Accuracy:** `test/v18-fluid.test.mjs` checks it against closed forms and published data; the repository's `docs/FLUID.md` has the table. The lid-driven cavity within 0.8% (Re 100) and 1.5% (Re 400) of Ghia et al. on the centre lines, Taylor–Green decay at second order, water at rest to round-off, a sphere's drag 7.5% low at 2.4 cells per radius and 3.3% at 3.6, a dam break within 7.4% of Martin & Moyce, sloshing frequency within 0.5%.
 - **Limits, measured:** about 0.3 to 0.9 million cell-steps per second on one thread (a 16³ grid in 5 ms, 32³ in 53 ms), so about 10,000 cells per 60 Hz frame. No turbulence model. The free surface has no viscosity, surface tension or bodies.
 
+### Flow around and through geometry: tunnels, pipes, tanks
+
+`runFlowStudy` takes a study document (`box3d-flow-study/1`) and returns a result document (`box3d-flow-result/1`):
+
+```ts
+import {runFlowStudy} from 'box3d-webgpu-kit/flow';
+
+const result = runFlowStudy({
+  format: 'box3d-flow-study/1', fluid: 'air', mode: 'external',
+  geometry: [{kind: 'box', center: [0, 15, 0], size: [12, 30, 20], part: 'building'}],
+  external: {speed: 20, direction: [1, 0, 0], ground: {height: 0, type: 'fixed'}},
+  resolution: {cells: 400000},
+  outputs: {surface: true, streamlines: true, slices: [{axis: 'z', position: 0}]},
+});
+console.log(result.forces.coefficients.cd, result.forces.parts, result.warnings);
+```
+
+- **Geometry:** boxes (full `size` or `halfExtents`), spheres, cylinders, capsules, cones, tubes, beams and triangle
+  meshes (closed solids, or open surfaces with a thickness), in SI metres, quaternions `[x, y, z, w]`; an
+  `apex-flow-geometry/1` document as it is. Thin walls are grown so that they do not leak, and the result says by how much.
+- **External** studies are a tunnel round the geometry (inflow in any direction, a fixed, moving or slip ground, margins);
+  **internal** studies are the fluid inside cavities (pipes drawn by their bore, tanks) between named openings: inlets by
+  flow rate or speed (uniform or developed), outlets by pressure or flow rate.
+- **Results:** forces and moments per part, Cd, Cl, Cs, surface pressure and Cp per part, flow rate and mean pressure
+  per opening, pressure drops, flow splits, sections (with the peak speed), mass balance, streamlines with speed and
+  pressure per point, slices, the convergence history, the solver id, version and provenance.
+- **Method:** D3Q19 lattice-Boltzmann, regularised collision, Smagorinsky sub-grid model with a wall function, walls
+  placed by interpolated bounce-back from a signed distance; float64, deterministic. Above a cell Reynolds number of about
+  10 it is an under-resolved large-eddy simulation: an engineering estimate, **not certified CFD**.
+- **Accuracy and limits:** `test/v24-flow.test.mjs` and the repository's `docs/FLOW.md` (the validation table, what is
+  not validated, the cost). The command line: `npx box3d-flow study.json --out result.json`.
+
 ### Shallow water on terrain: floods, rivers, rain
 
 `ShallowWater` solves the depth-averaged Saint-Venant equations over a bed of any shape, wet or dry. This releases a reservoir down a sloping valley with grass on it, lets it rain on a loam soil and floats a crate:
@@ -876,9 +910,31 @@ attachments.get('mooring:0').force;                    // the cable's pull on th
 - **Exact checkpoints.** `simulation.checkpoint()` / `restore(bytes)` and `resumeSimulation(world, bytes)` ([Exact checkpoints](#exact-checkpoints)).
 - **Coupled across modules:** a rigid body collides with a deformable solid through `box3d-webgpu-kit/solid-contact` (node against body; two solids do not collide). A floating body on a cable is solved with the water's force in the cable's interface solve (`linkWaterToStructure(water, structure)`, which `loadScene` calls): on the moored buoy the tension is right to 0.001 N of 1338 N and the draught to 0.5 µm, where they were 0.73 N and 0.4 mm off; the hydrostatic stiffness is not in that solve, and a floating body on a frame is unchecked. **Not in the loop:** rope contact, granular media, GPU water and the app's own cloth. See the repository's `docs/SIMULATION.md` for the contract, the measured numbers and the limits.
 
+### Scene sections on the GPU
+
+A `grains`, `shallowWater` or flow `fluids` section of a scene may say `"backend": "gpu"`. `box3d-webgpu-kit/gpu` builds those sections as WebGPU compute backends; the simulation then steps with `await stepAsync()`:
+
+```ts
+import {loadSimulationScene} from 'box3d-webgpu-kit/simulation';
+import {acquireGpuCompute, gpuSceneBackends} from 'box3d-webgpu-kit/gpu';
+
+let backends;
+try { backends = gpuSceneBackends(await acquireGpuCompute()); }   // GPU_UNAVAILABLE without WebGPU compute
+catch { backends = gpuSceneBackends('reference'); }               // the same float32 program on the CPU
+const loaded = loadSimulationScene(world, scene, {gpu: backends});
+await loaded.simulation.stepAsync();                              // step() and checkpoint() are refused
+const saved = await loaded.simulation.checkpointAsync();          // restores on the GPU or on the reference
+await loaded.simulation.pullAsync();                              // the GPU state into loaded.grains, .shallowWater and .fluids
+```
+
+- **What runs where.** The grains' and the flow's couplings to rigid bodies run on the CPU around the GPU's steps (the walls' sums and the obstacles' forces are read back before the rigid step); a flow's obstacle geometry stays on the CPU in float64 and the faces near each obstacle are uploaded every step. Shallow water on the GPU has no bodies; a free-surface tank has no GPU backend.
+- **Numbers.** float32: the results are the float32 reference's bits where the repository's `docs/GPU_COMPUTE.md` says "identical", not the float64 solvers'. A run repeats bit for bit on the same device; a checkpoint resumes bit-exactly and restores on either the GPU or the reference. `test/v23-gpu-scene.test.mjs` runs the sections on the reference and encodes them on Dawn's null device.
+- **Device loss.** `new GpuSceneRunner(loaded.simulation)` and `await runner.step()` instead of `stepAsync()`: a checkpoint every 30 steps, and when the device is lost the sections carry on on the float32 reference from the last checkpoint (`runner.fallback` says when and from where).
+- **TypeScript.** The declarations of this entry name the WebGPU types: add `@webgpu/types` to your project when you import it. It loads the grain and shallow-water solvers, and the flow solver only by type (about 152 KiB of gzip).
+
 ### No build step
 
-`box3d-webgpu-kit/single` (`dist/single.js`) is the whole core plus the WASM in one ES module, 652 KiB raw or 265 KiB gzipped. Put it on any static host or CDN and `import {createWorld} from './single.js'`; there are no other files to resolve. It produces bit-identical results to the regular build. Prefer the regular entry when you have a bundler: it is smaller and the WASM is fetched and compiled in parallel.
+`box3d-webgpu-kit/single` (`dist/single.js`) is the whole core plus the WASM in one ES module, 917 KiB raw or 372 KiB gzipped. Put it on any static host or CDN and `import {createWorld} from './single.js'`; there are no other files to resolve. It produces bit-identical results to the regular build. Prefer the regular entry when you have a bundler: it is smaller and the WASM is fetched and compiled in parallel.
 
 ### Pose arrays for ECS engines
 
@@ -918,6 +974,16 @@ await createWorld({wasmBinary: await (await fetch(url)).arrayBuffer()});
 
 In the Vite dev server (not yet tested), add `optimizeDeps: {exclude: ['box3d-webgpu-kit']}` so pre-bundling does not move the module away from its `wasm/` folder.
 
+### Start-up time
+
+`import 'box3d-webgpu-kit'` loads three files: `dist/index.js`, `dist/rigid.js` (the loader, `PhysicsWorld`, the native bridge and the helpers in one module) and `dist/shared.js` (the error table, the checkpoint codec and the shared frames, which the solver entries load too). Both are without comments, one statement per line, with short names for parameters and local variables; function, class and method names, and so stack traces, are kept. In a fresh Node 22 process on a 4-vCPU container, importing takes about 7.5 to 8 ms, instantiating the WASM about 6 to 7 ms, building a small jointed assembly about 9 ms and the first step about 6.5 ms: 30 ms to the first step (median of 25 processes; the repository's `docs/WASM_SIZE.md` has the table and what each part is). Most of the import is V8 parsing the JavaScript. A Node application that starts often can keep the compiled code between processes, which brings the import to about 4 ms:
+
+```js
+import module from 'node:module';
+module.enableCompileCache();              // Node 22.1 or later; or set NODE_COMPILE_CACHE=<dir>. Before the kit is imported.
+const {createWorld} = await import('box3d-webgpu-kit');
+```
+
 ## Errors and unstable set-ups
 
 Everything the kit refuses, it refuses with an `EngineError`: a `code` from `ENGINE_ERRORS`, a message that names the field, the value it got and the values it takes, and the world left exactly as it was.
@@ -953,6 +1019,7 @@ RIGID_LIMITS.extent;     // 100000: positions stay within 100 km of the origin
 - **Network snapshots carry transforms only**, as before; they do not describe shapes or joints.
 - **No contact-end for destroyed bodies.** Box3D reports no `contact-end` for what a destroyed body was touching; treat `destroyBody()` as the signal.
 - **Saves.** `world.checkpoint()` and `simulation.checkpoint()` save the complete solver state and resume bit for bit, on the same WASM build only. `saveSession` stores a replay log and `loadSession` replays it. `saveScene` (`box3d-webgpu-kit/scene`) stores how to build the scene plus each body's pose and velocity; it resumes from that state but not bit for bit.
+- **Exactly planar or symmetric mechanisms can step slowly on x86.** Quantities that should be zero but are rounding noise can become subnormal floats, on which x86 processors are much slower; WebAssembly has no flush-to-zero mode and Box3D does not clamp them. A jointed crane that moves in one plane stepped in 45 to 300 microseconds instead of 17 (`scripts/bench-subnormal.mjs`; ND-7 in the repository's `docs/RIGID_CORE.md`). The results are correct; only the step time is affected.
 - **Single-threaded.** Each world steps synchronously on its thread. Use `box3d-webgpu-kit/worker` to move that thread off the renderer.
 - **Interpolation pauses for one step after a destroy, a reset or `setTransform`**, because rows move or jump. New bodies interpolate normally.
 - Default capacity is 4,096 bodies per world; `createWorld({capacity})` raises it up to 65,536. The bridge buffers take 136 bytes per body slot.
@@ -997,7 +1064,8 @@ The package source of truth stays in the app. `npm run build` does the following
 - copies `src/engine/native-world.ts` and `contracts.ts` into `src/core/` (generated, git-ignored) and rewires two app-only type imports;
 - copies `public/box3d/*` into `wasm/`;
 - refuses to continue if the WASM or glue bytes differ from `BUILD_PROVENANCE.json`;
-- generates `BUILD_INFO`, then compiles.
+- generates `BUILD_INFO`, then compiles;
+- packs the modules that the main entry loads into `dist/rigid.js` (`scripts/bundle-rigid.mjs`); each of them keeps its file as a list of re-exports, so every entry point shares one module state.
 
 `src/backend-types.ts` is a hand-kept mirror of the app's `PhysicsBackend` type and is not covered by the drift test.
 

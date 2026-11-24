@@ -24,6 +24,7 @@ import {GpuCompute,GpuProgram} from './compute.ts';
 import {demParams,demSetup,packDemGrains,packDemWalls,readDemWall,readGranularCheckpoint,writeGranularCheckpoint,type DemOptions,type DemSetup,type DemStats} from './granular-f32.ts';
 import {DEM_BLOCK,DEM_EMPTY,DEM_METER_BUCKET_OVERFLOW,DEM_METER_CONTACTS,DEM_METER_FLAGS,DEM_METER_HISTORY_OVERFLOW,DEM_METER_OVERLAP,DEM_METER_REMOVED,DEM_METER_SLOTS,DEM_PARAMS,DEM_WALL,demShaders} from './granular-wgsl.ts';
 
+/** The solver id of the grains on WebGPU compute (float32). */
 export const GRANULAR_GPU_SOLVER_ID='granular-dem-hash-grid-webgpu-f32-v1';
 const BLOCK=256;
 
@@ -38,6 +39,7 @@ export interface GpuGranularSnapshot {readonly time:number;readonly steps:number
   /** (x, y, z, radius or -radius when removed), (v, mass), (omega, 1 / I) per grain; the walls (DEM_WALL elements). */
   readonly pos:Float32Array;readonly vel:Float32Array;readonly spin:Float32Array;readonly walls:Float32Array;readonly meter:Uint32Array}
 
+/** Discrete-element grains on WebGPU compute, in float32: hash-grid neighbours, contact histories, walls of every shape. */
 export class GpuGranular {
   readonly solver=GRANULAR_GPU_SOLVER_ID;
   readonly compute:GpuCompute;readonly setup:DemSetup;
@@ -225,6 +227,7 @@ export function applyDemSnapshot(target:Granular,snap:{readonly count:number;rea
   target.time=snap.time;target.touch();
 }
 
+/** Options of GranularRunner: the backend's capacities and how often a snapshot is kept in the float64 solver for a fall back. */
 export interface GranularRunnerOptions extends DemOptions {
   /** Steps between the readbacks kept for a fall back to the CPU. Default 240; 0: none. */
   readonly snapshotEvery?:number;

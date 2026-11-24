@@ -17,6 +17,7 @@
  */
 import {EngineError} from '../contracts.ts';
 
+/** Limits a backend needs of a device: storage buffers per stage, the largest storage binding, workgroups per dimension, invocations per workgroup. */
 export interface GpuComputeNeeds {
   /** Storage buffers bound in one compute stage. WebGPU guarantees 8. */
   readonly storageBuffers?:number;
@@ -27,10 +28,12 @@ export interface GpuComputeNeeds {
   /** Invocations in one workgroup. WebGPU guarantees 256. */
   readonly invocations?:number;
 }
+/** The adapter a GpuCompute runs on (vendor, architecture, device, whether it is a software adapter) and its limits. */
 export interface GpuComputeInfo {readonly vendor:string;readonly architecture:string;readonly device:string;readonly description:string;
   /** True for a software adapter (SwiftShader, llvmpipe, WARP): results are valid, timings say nothing about a GPU. */
   readonly software:boolean;
   readonly limits:{readonly storageBuffers:number;readonly storageBytes:number;readonly bufferBytes:number;readonly workgroups:number;readonly invocations:number}}
+/** What `acquireGpuCompute` needs: the limits to check, and the GPU object to ask (default navigator.gpu). */
 export interface GpuAcquireOptions extends GpuComputeNeeds {
   /** The WebGPU entry point. Default `navigator.gpu`. */
   readonly gpu?:GPU;
@@ -105,6 +108,7 @@ export class PingPong {
 }
 
 type TypedArray=Float32Array|Uint32Array|Int32Array|Uint8Array;
+/** A WebGPU device for compute: buffers, shader modules and pipelines inside error scopes, readback, and device loss as GPU_DEVICE_LOST. */
 export class GpuCompute {
   readonly info:GpuComputeInfo;
   private lostMessage:string|null=null;
