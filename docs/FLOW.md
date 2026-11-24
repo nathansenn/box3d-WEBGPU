@@ -433,7 +433,7 @@ on a 4-core machine shared with two other jobs (load 8 to 11); an idle machine w
 | Square duct (mesh) | series solution | 0.8366 m³/s | -4.78% | ±5% | 8 cells across | 3 s |
 | Round pipe, cylinder | `pi R⁴ G / (8 mu)` | 0.3588 m³/s | -2.54% | ±3% | 12 cells across | 2 s |
 | Round pipe, swept mesh (48 sides) | same | 0.3574 m³/s | -2.93% | ±3% | 12 cells across | 3 s |
-| Round pipe, convergence order | 2 | 2.09 | +0.09 | ±0.6 | 8 and 16 cells | 6 s |
+| Round pipe at 24 cells, relaxation time held at 0.6 | same | 0.3646 m³/s | -0.97% | ±2% | 24 cells across (12 and 16 cells: -2.2% at this relaxation time) | 5 s |
 | Round pipe, wall force / body force - 1 | 0 | -9.7e-10 | | ±1e-6 | 12 cells | |
 | Pipe through openings, Re 100: pressure drop over 2 D | `128 mu L Q / (pi D⁴)` = 0.64 Pa | 0.6709 Pa | +4.82% | ±5% | 12.6 cells across | 17 s |
 | Pipe through openings, Re 100: peak / mean speed | 2 | 2.0126 | +0.63% | ±3% | same | |

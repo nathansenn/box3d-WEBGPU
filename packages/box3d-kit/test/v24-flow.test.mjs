@@ -20,7 +20,6 @@ import {checkSchema} from './flow-schema-check.mjs';
 
 const near = (actual, expected, tolerance, label) => assert.ok(Math.abs(actual - expected) <= tolerance, `${label}: got ${actual}, expected ${expected} ± ${tolerance}`);
 const within = (actual, expected, fraction, label) => near(actual, expected, Math.abs(expected) * fraction, label);
-const order = (coarse, fine) => Math.log2(Math.abs(coarse) / Math.abs(fine));
 const schema = name => JSON.parse(readFileSync(new URL(`../schemas/${name}.schema.json`, import.meta.url), 'utf8'));
 
 test('the flow module names its solver and formats, and refuses bad studies with a message', () => {
@@ -48,17 +47,17 @@ test('the flow module names its solver and formats, and refuses bad studies with
   near(cylinder.max[2], 3.5, 1e-9, 'its radius 0.5 across');
 });
 
-test('ducts and pipes driven by a pressure gradient: plane Poiseuille, a square duct and a round pipe drawn as meshes and primitives, convergence, the force on the walls', () => {
+test('ducts and pipes driven by a pressure gradient: plane Poiseuille, a square duct and a round pipe drawn as meshes and primitives, a finer pipe, the force on the walls', () => {
   const plane = S.poiseuillePlane(K);
   within(plane.flowRate, plane.exact, 0.05, 'plane Poiseuille between mesh walls off the grid lines');
   const duct = S.squareDuct(K);
   within(duct.flowRate, duct.exact, 0.05, 'square duct as a mesh');
-  const p8 = S.pipe(K, {n: 8}), p12 = S.pipe(K, {n: 12}), p16 = S.pipe(K, {n: 16}), mesh = S.pipe(K, {n: 12, source: 'mesh'});
+  const p12 = S.pipe(K, {n: 12}), fine = S.pipe(K, {n: 24, tau: 0.6}), mesh = S.pipe(K, {n: 12, source: 'mesh'});
   within(p12.flowRate, p12.exact, 0.03, 'pipe drawn as a cylinder');
   within(mesh.flowRate, mesh.exact, 0.03, 'pipe drawn as a swept mesh');
-  near(order(p8.error, p16.error), 2, 0.6, 'convergence of the flow rate');
+  within(fine.flowRate, fine.exact, 0.02, 'pipe at 24 cells across, relaxation time 0.6');
   near(p12.forceBalance, 0, 1e-6, 'the wall takes the driving force');
-  console.log(`  ducts: plane ${plane.error.toFixed(4)}, square ${duct.error.toFixed(4)}, pipe ${p8.error.toFixed(4)} / ${p12.error.toFixed(4)} / ${p16.error.toFixed(4)}, mesh pipe ${mesh.error.toFixed(4)}`);
+  console.log(`  ducts: plane ${plane.error.toFixed(4)}, square ${duct.error.toFixed(4)}, pipe ${p12.error.toFixed(4)}, at 24 cells ${fine.error.toFixed(4)}, mesh pipe ${mesh.error.toFixed(4)}`);
 });
 
 test('a pipe drawn as a fluid cylinder, through its openings: Hagen-Poiseuille pressure drop, the developed profile, the mass balance', () => {

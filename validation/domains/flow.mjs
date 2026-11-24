@@ -5,11 +5,11 @@
 // asserts on: packages/box3d-kit/test/flow-scenarios.mjs, run here through the built kit. SI units.
 import {pathToFileURL} from 'node:url';
 import path from 'node:path';
-import {kit, memo, defineCases, relative, absolute, upper, order, ROOT} from '../lib.mjs';
+import {kit, memo, defineCases, relative, absolute, upper, ROOT} from '../lib.mjs';
 
 const FILE = 'packages/box3d-kit/test/v24-flow.test.mjs';
 const T = {
-  ducts: 'ducts and pipes driven by a pressure gradient: plane Poiseuille, a square duct and a round pipe drawn as meshes and primitives, convergence, the force on the walls',
+  ducts: 'ducts and pipes driven by a pressure gradient: plane Poiseuille, a square duct and a round pipe drawn as meshes and primitives, a finer pipe, the force on the walls',
   pipe: 'a pipe drawn as a fluid cylinder, through its openings: Hagen-Poiseuille pressure drop, the developed profile, the mass balance',
   cylinder: 'the circular cylinder: drag and recirculation at Re 20 and 40, drag and Strouhal number at Re 100 and 200',
   bodies: 'bluff bodies: a sphere at Re 100, a cube and a square plate at Re 1e5',
@@ -60,9 +60,10 @@ export default defineCases('flow', FILE, [
     reference: {formula: 'Q = pi R^4 G / (8 mu) (Hagen-Poiseuille)', value: null}, tolerance: relative(0.03), measure: async () => { const r = await pipe(12); return {value: r.flowRate, reference: r.exact}; }},
   {id: 'flow.pipe.mesh-flow-rate', title: 'Round pipe drawn as a mesh', quantity: 'the same pipe as a swept tube of 48 sides, a closed mesh', unit: 'm^3/s', test: T.ducts,
     reference: {formula: 'Q = pi R^4 G / (8 mu)', value: null}, tolerance: relative(0.03), measure: async () => { const r = await pipe(12, 'mesh'); return {value: r.flowRate, reference: r.exact}; }},
-  {id: 'flow.pipe.order', title: 'Round pipe: convergence', quantity: 'order of the flow-rate error between 8 and 16 cells across', unit: '1', test: T.ducts,
-    reference: {formula: 'second order', value: 2}, tolerance: absolute(0.6), note: 'Interpolated bounce-back is second order on a smooth wall; on a circle the error does not fall evenly with the cell size, as the cells cut the wall differently at each resolution.',
-    measure: async () => order((await pipe(8)).error, (await pipe(16)).error)},
+  {id: 'flow.pipe.fine', title: 'Round pipe at 24 cells across', quantity: 'flow rate through the pipe drawn as a cylinder, 24 cells across, the relaxation time held at 0.6', unit: 'm^3/s', test: T.ducts,
+    reference: {formula: 'Q = pi R^4 G / (8 mu)', value: null}, tolerance: relative(0.02),
+    note: 'At the relaxation time 0.6 the error is 2.2% at 12 and at 16 cells and 1.0% at 24: the staircase of a circle does not converge evenly. With the lattice speed fixed instead, the relaxation time falls with the cell size and the wall of bounce-back moves with it: 12% low at 8 cells (relaxation time 0.53).',
+    measure: async () => { const r = await run('pipe/24/fine', (S, K) => S.pipe(K, {n: 24, tau: 0.6})); return {value: r.flowRate, reference: r.exact}; }},
   {id: 'flow.pipe.force-balance', title: 'Round pipe: force on the wall', quantity: 'force the wall takes, over the body force on the fluid, minus one', unit: '1', test: T.ducts,
     reference: {formula: 'a steady duct: the wall takes all the driving force', value: 0}, tolerance: absolute(1e-6), measure: async () => (await pipe(12)).forceBalance},
   {id: 'flow.pipe-study.pressure-drop', title: 'Pipe through its openings, Re 100: pressure drop', quantity: 'pressure drop between sections 2 D and 4 D from the inlet of a pipe 6 D long drawn as a fluid cylinder, inlet by flow rate with the developed profile, outlet by pressure, about 12.6 cells across', unit: 'Pa', test: T.pipe,

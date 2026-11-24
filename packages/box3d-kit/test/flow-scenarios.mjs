@@ -74,15 +74,17 @@ export function squareDuct(K, {n = 8} = {}) {
   return {n, steps, flowRate: flowRateX(flow), exact, error: flowRateX(flow) / exact - 1};
 }
 /** A circular pipe of diameter 1 m: a cylinder cavity, or a swept-tube mesh (48 sides). Q = pi R^4 G / (8 mu). */
-export function pipe(K, {n = 12, source = 'cylinder'} = {}) {
+export function pipe(K, {n = 12, source = 'cylinder', tau} = {}) {
   const R = 0.5, h = 2 * R / n, nu = 0.02, a = 0.3, c = R + 0.5 * h; // the axis sits on a cell centre plus nothing special
   const item = source === 'mesh' ? {kind: 'mesh', ...K.flowTubeMesh([[-5, c, c], [5, c, c]], R, 48), role: 'cavity', part: 'pipe'} : {kind: 'cylinder', from: [-5, c, c], to: [5, c, c], radius: R, role: 'cavity', part: 'pipe'};
   const flow = new K.Flow({grid: {origin: [0, 0, 0], cell: h, nx: 2, ny: n + 1, nz: n + 1}, geometry: [item], fluid: {density: 1, viscosity: nu},
-    sides: {xMin: 'periodic', xMax: 'periodic'}, referenceSpeed: 1, acceleration: [a, 0, 0]});
+    // with `tau` the relaxation time is held at that value whatever n (the lattice speed falls with h): the error then
+    // measures the cells, not the relaxation time, on which the wall position of bounce-back depends
+    sides: {xMin: 'periodic', xMax: 'periodic'}, referenceSpeed: 1, acceleration: [a, 0, 0], ...(tau ? {latticeSpeed: (tau - 0.5) / 3 * h / nu} : {})});
   const steps = settle(flow), exact = Math.PI * R ** 4 * a / (8 * nu);
   // the wall takes what the body force gives the fluid: force on the wall over the force on the fluid
   const wall = flow.forces()[0].force[0], fluid = a * flow.fluidCells * h ** 3;
-  return {n, source, steps, flowRate: flowRateX(flow), exact, error: flowRateX(flow) / exact - 1, forceBalance: wall / fluid - 1, fluidCells: flow.fluidCells};
+  return {n, source, steps, flowRate: flowRateX(flow), exact, error: flowRateX(flow) / exact - 1, forceBalance: wall / fluid - 1, fluidCells: flow.fluidCells, relaxationTime: flow.relaxationTime};
 }
 
 /** A sphere in a periodic cube, the fluid pushed past it by a body force: Stokes drag against Hasimoto (1959),
