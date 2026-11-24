@@ -76,10 +76,11 @@ const defaultWasmUrl = () => new URL('../wasm/box3d.wasm', import.meta.url);
 const defaultThreadedModuleUrl = () => new URL('../wasm/box3d-mt.js', import.meta.url);
 const defaultThreadedWasmUrl = () => new URL('../wasm/box3d-mt.wasm', import.meta.url);
 
+// Indirect specifier keeps browser bundlers from trying to resolve node:fs. It is a module-level binding so that the
+// kit's own bundle step (scripts/bundle-rigid.mjs) does not fold it back into the import; that script checks it.
+const NODE_FS = 'node:fs/promises';
 async function readNodeFile(url: URL): Promise<Uint8Array> {
-  // Indirect specifier keeps browser bundlers from trying to resolve node:fs.
-  const fsName = 'node:fs/promises';
-  const fs = await import(/* @vite-ignore */ fsName) as {readFile(path: URL): Promise<Uint8Array>};
+  const fs = await import(/* @vite-ignore */ NODE_FS) as {readFile(path: URL): Promise<Uint8Array>};
   return fs.readFile(url);
 }
 

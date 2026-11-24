@@ -575,7 +575,7 @@ npm run build:wasm
 npm run test:native-wasm
 ```
 
-The generated artifacts are written to `public/box3d/`. Build provenance is recorded in [`public/box3d/BUILD_PROVENANCE.json`](public/box3d/BUILD_PROVENANCE.json).
+The generated artifacts are written to `public/box3d/`. Build provenance is recorded in [`public/box3d/BUILD_PROVENANCE.json`](public/box3d/BUILD_PROVENANCE.json). The link step runs the Closure Compiler that comes with the Emscripten SDK (its native binary, or Java). What the build does for size, and how to check that a rebuilt artifact computes the same and steps as fast (`node scripts/wasm-artifact-compare.mjs <old dir> public/box3d`), is in [docs/WASM_SIZE.md](docs/WASM_SIZE.md).
 
 With a Clang toolchain that includes WebAssembly and LLD support, the standalone soft kernels can also be rebuilt and checked byte-for-byte:
 

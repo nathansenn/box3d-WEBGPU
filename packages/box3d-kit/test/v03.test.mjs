@@ -220,7 +220,8 @@ test('importing every entry point is SSR-safe: no window/document access at impo
   const dist = fileURLToPath(new URL('../dist/', import.meta.url));
   // Only these read browser globals, and only inside functions the caller invokes.
   // single.js embeds the Emscripten glue, which reads `window` only inside its module factory.
-  const callTimeOnly = new Set(['loop.js', 'helpers.js', 'inspector.js', 'single.js']);
+  // rigid.js is the bundle of the main entry's modules (scripts/bundle-rigid.mjs): it holds the code of those three.
+  const callTimeOnly = new Set(['loop.js', 'helpers.js', 'inspector.js', 'single.js', 'rigid.js']);
   for (const file of readdirSync(dist).filter(f => f.endsWith('.js') && !callTimeOnly.has(f))) {
     const text = readFileSync(dist + file, 'utf8');
     assert.ok(!/\bwindow\b/.test(text), `${file} references window`);

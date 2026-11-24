@@ -47,11 +47,18 @@ const KiB = 1024;
 // The tarball: both WebAssembly builds and everything else. Measured 1,434 KiB at rc.1 and 1,915.7 KiB after the
 // rigid-core merge, of which the pthread artifact is about 290 KiB compressed.
 const PACKED_BUDGET = 2194 * KiB;
+// Lowered 2026-11-23 with the size work on the WebAssembly build (docs/WASM_SIZE.md: recording hooks compiled out, cold
+// functions and the bridge compiled for size, Closure for the glue). Measured then, bytes: box3d.wasm 587,365 raw (it was
+// 725,529), 252,347 gzip -9 (280,964), 198,040 brotli (214,360); box3d.js 8,898 (24,045); box3d-mt.wasm 598,316 raw
+// (733,336), 258,475 gzip (288,050), 203,387 brotli (219,972); box3d-mt.js 15,541 (39,333); dist/single.js 372.4 KiB gzip (412.3).
+// The raw and gzip budgets of box3d.wasm and the glue budget are those of an application that ships these files (650 KiB,
+// 256 KiB, 20 KiB): 10.7 % and 3.9 % above the measurement for the wasm. The gzip budget is the tight one. When it is
+// reached, look for what grew before raising it: the numbers above are the reference.
 const BUDGET = {
-  wasm: 810 * KiB, wasmGzip: 275 * KiB, wasmBrotli: 210 * KiB, glue: 26 * KiB, singleGzip: 475 * KiB, packed: PACKED_BUDGET,
+  wasm: 650 * KiB, wasmGzip: 256 * KiB, wasmBrotli: 205 * KiB, glue: 12 * KiB, singleGzip: 430 * KiB, packed: PACKED_BUDGET,
   // box3d-mt.{js,wasm}: loaded only by loadBox3D({threads: 2 or more}), never by an import, so in no entry's closure.
-  // Measured 711.8 KiB raw, 279.5 gzip, 213.1 brotli, glue 38.2.
-  mtWasm: 819 * KiB, mtWasmGzip: 322 * KiB, mtWasmBrotli: 246 * KiB, mtGlue: 44 * KiB,
+  // Measured 584.3 KiB raw, 252.4 gzip, 198.6 brotli, glue 15.2 (before the size work: 716.1, 281.3, 214.8, 38.4).
+  mtWasm: 660 * KiB, mtWasmGzip: 262 * KiB, mtWasmBrotli: 211 * KiB, mtGlue: 19 * KiB,
   /** A Vite bundle of a program that uses only createWorld, createBody and step. Measured 27.9 KiB, 37.6 after the rigid-core merge. */
   rigidBundle: 43 * KiB,
   // Measured after the rigid-core merge (KiB): main 75.3, three 2.0, babylon 0.9, worker 81.4, gameplay 83.7, cable 24.7, water 2.7,
@@ -72,8 +79,12 @@ const BUDGET = {
   // evaluations joined the concrete and contact changes (measured 138.5 KiB = 141,874 bytes).
   // Raised 2026-11-22: scene 454 -> 460 and simulation 453 -> 459 KiB when the contact line search and the strip
   // ordering joined the mortar contact and the GPU scene sections (scene measured 454.05 KiB = 464,948 bytes).
+  // Lowered 2026-11-23: main 85 -> 65, worker 92 -> 72 and gameplay 95 -> 87 KiB when the modules of the main entry became
+  // one file without comments (scripts/bundle-rigid.mjs; measured 56.3, 62.8 and 75.2 KiB, from 76.7, 82.8 and 85.2).
+  // Lowered 2026-11-24: main 65 -> 55, worker 72 -> 62 and gameplay 87 -> 76 KiB when the shared modules joined one chunk
+  // and the locals got short names (measured 47.4, 54.2 and 66.3 KiB).
   entry: {
-    '.': 85 * KiB, './three': 3 * KiB, './babylon': 2 * KiB, './worker': 92 * KiB, './gameplay': 95 * KiB,
+    '.': 55 * KiB, './three': 3 * KiB, './babylon': 2 * KiB, './worker': 62 * KiB, './gameplay': 76 * KiB,
     './cable': 28 * KiB, './water': 4 * KiB, './coupling': 29 * KiB, './frame': 27 * KiB, './structure': 32 * KiB, './heat': 28 * KiB,
     './solid': 80 * KiB, './fracture': 144 * KiB, './solid-contact': 142 * KiB, './cloth': 72 * KiB, './granular': 65 * KiB, './fluid': 57 * KiB, './shallow-water': 38 * KiB,
     './materials': 40 * KiB, './geometry': 33 * KiB, './scene-format': 92 * KiB, './robot': 74 * KiB, './scene': 460 * KiB, './simulation': 459 * KiB,
@@ -118,7 +129,7 @@ try {
   if (measureOnly) console.log(`${'packed'.padEnd(26)} ${(packed.size / KiB).toFixed(1).padStart(8)} KiB`);
   const over = [...Object.entries(size).filter(([k, v]) => v > BUDGET[k]).map(([k, v]) => `${k} ${v} > ${BUDGET[k]}`), ...Object.entries(entrySize).filter(([k, v]) => v > BUDGET.entry[k]).map(([k, v]) => `import '${k}' ${v} > ${BUDGET.entry[k]}`)];
   if (over.length && !measureOnly) throw new Error(`size budget exceeded (bytes): ${over.join(', ')}`);
-  for (const required of ['dist/index.js', 'dist/index.d.ts', 'dist/three.js', 'dist/worker.js', 'dist/worker.d.ts', 'dist/babylon.js', 'dist/core/build-info.js', 'dist/shared-frames.js', 'dist/session.js', 'dist/inspector.js', 'api/API.md', 'CHANGELOG.md', 'dist/single.js', 'dist/cable.js', 'dist/water.js', 'dist/coupling.js', 'dist/frame.js', 'dist/heat.js', 'dist/gameplay.js', 'bin/box3d-kit.mjs', 'templates/three/main.js', 'wasm/box3d.js', 'wasm/box3d.wasm', 'LICENSE', 'wasm/BOX3D_LICENSE.txt', 'THIRD_PARTY_NOTICES.md', 'dist/geometry.js', 'dist/solid.js', 'dist/scene.js', 'dist/robot.js', 'dist/robot.d.ts', 'dist/core/robot-import.js', 'dist/fracture.js', 'dist/fracture.d.ts', 'dist/core/solid-fracture.js', 'dist/cloth.js', 'dist/solid-contact.js', 'dist/cloth.d.ts', 'dist/core/cloth.js', 'dist/gpu-compute.js', 'dist/gpu-compute.d.ts', 'dist/core/gpu/scene-backends.js', 'dist/core/gpu/fluid-gpu.js']) {
+  for (const required of ['dist/index.js', 'dist/rigid.js', 'dist/shared.js', 'dist/index.d.ts', 'dist/three.js', 'dist/worker.js', 'dist/worker.d.ts', 'dist/babylon.js', 'dist/core/build-info.js', 'dist/shared-frames.js', 'dist/session.js', 'dist/inspector.js', 'api/API.md', 'CHANGELOG.md', 'dist/single.js', 'dist/cable.js', 'dist/water.js', 'dist/coupling.js', 'dist/frame.js', 'dist/heat.js', 'dist/gameplay.js', 'bin/box3d-kit.mjs', 'templates/three/main.js', 'wasm/box3d.js', 'wasm/box3d.wasm', 'LICENSE', 'wasm/BOX3D_LICENSE.txt', 'THIRD_PARTY_NOTICES.md', 'dist/geometry.js', 'dist/solid.js', 'dist/scene.js', 'dist/robot.js', 'dist/robot.d.ts', 'dist/core/robot-import.js', 'dist/fracture.js', 'dist/fracture.d.ts', 'dist/core/solid-fracture.js', 'dist/cloth.js', 'dist/solid-contact.js', 'dist/cloth.d.ts', 'dist/core/cloth.js', 'dist/gpu-compute.js', 'dist/gpu-compute.d.ts', 'dist/core/gpu/scene-backends.js', 'dist/core/gpu/fluid-gpu.js']) {
     if (!files.includes(required)) throw new Error(`tarball is missing ${required}`);
   }
   const leaked = files.filter(f => f.startsWith('src/') || f.startsWith('test/') || f.endsWith('.tgz') || f.endsWith('.map')); // maps would point at src/, which is not shipped
